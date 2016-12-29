@@ -10,9 +10,7 @@ There will be two approaches for the **Spark-to-DocumentDB** connector:
 ## pyDocumentDB
 The current [`pyDocumentDB SDK`](https://github.com/Azure/azure-documentdb-python) allows us to connect `Spark` to `DocumentDB` via the following diagram flow.
 
-<img src="https://github.com/Azure/azure-documentdb-spark/blob/master/documentation/images/Spark-DocumentDB_pyDocumentDB.png">
-
-[![Spark to DocumentDB Data Flow via pyDocumentDB](documentation/images/Spark-DocumentDB_pyDocumentDB.png)]
+![Spark to DocumentDB Data Flow via pyDocumentDB](documentation/images/Spark-DocumentDB_pyDocumentDB.png)
 
 The data flow is as follows:
 
@@ -103,5 +101,45 @@ Connecting Spark to DocumentDB using `pyDocumentDB` are typically for scenarios 
 
 * You want to use `python`
 * You are returning a relatively small resultset from DocumentDB to Spark.  Note, the underlying dataset within DocumentDB can be quite large.  It is more that you are applying filters - i.e. running predicate filters - against your DocumentDB source.  
+
+
+## Spark to DocumentDB Connector
+**IMPORTANT: Design Stage**
+
+The Spark to DocumentDB connector that will utilize the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java) will utilize the following flow:
+
+![Spark to DocumentDB via Azure DocumentDB Java SDK](documentation/images/Spark-DocumentDB_JavaFiloDB.png)
+
+The data flow is as follows:
+
+1. Connection is made from Spark master node to DocumentDB gateway node to obtain the partition map.  Note, user only specifies Spark and DocumentDB connections, the fact that it connects to the respective master and gateway nodes is transparent to the user.
+2. This information is provided back to the Spark master node.  At this point, we should be able to parse the query to determine which partitions (and their locations) within DocumentDB we need to access.
+3. This information is transmitted to the Spark worker nodes ...
+4. Thus allowing the Spark worker nodes to connect directly to the DocumentDB partitions directly to extract the data that is needed and bring the data back to the Spark partitions within the Spark worker nodes.
+
+
+To perform this flow, we will need to develop the following:
+
+1. Ensure the DocumentDB Java SDK can parse the SQL queries and pass the partition map information *in Linux*.
+2. Utilize Evan Chan's [`FiloDB project`](https://github.com/filodb/FiloDB).  This project utilizes Spark DataFrames, Cassandra, and Parquet to provide updateable, columnar query performance that is distributed and versioned.  
+
+The key component of the `FiloDB` project for partitioning and data locality (to perform steps 3 and 4 above) is within `FiloRelation.scala`.  Specficially,
+
+```
+FiloRelation.scala:
+    val splitsWithLocations = splits.map { s => (s, s.hostnames.toSeq) }
+    // NOTE: It's critical that the closure inside mapPartitions only references
+    // vars from buildScan() method, and not the FiloRelation class.  Otherwise
+    // the entire FiloRelation class would get serialized.
+    // Also, each partition should only need one param.
+    sqlContext.sparkContext.makeRDD(splitsWithLocations)
+      .mapPartitions { splitIter =>
+        perPartitionRowScanner(config, readOnlyProjStr, version, f(splitIter.next))
+      }
+```
+
+This `splitsWithLocations` basically create an RDD with list of hostnames attached to each item which is a “split” in Cassandra of a token range or series of token ranges.  Therefore your reads will be local on each partition.
+
+
 
 
