@@ -89,8 +89,7 @@ print endtime - starttime
 
 ##
 ## Airport Codes
-##	0:00:00.008176
-##
+##	0:00:00.225645, 0:00:00.006784
 
 # Configure Database and Collections
 databaseId = 'airports'
@@ -119,9 +118,9 @@ print endtime - starttime
 #
 # Convert to DataFrame
 #	https://spark.apache.org/docs/2.0.2/api/python/pyspark.sql.html
-#
+# 0:00:00.025026
 starttime = datetime.datetime.now()
-df = spark.createDataFrame(list)
+df = spark.createDataFrame(elements)
 endtime = datetime.datetime.now()
 print endtime - starttime
 
@@ -169,7 +168,7 @@ print endtime - starttime
 
 ##
 ## Flight Data (Top 100)
-##	0:00:00.010310
+##	0:00:00.214985, 0:00:00.009669
 
 # Configure Database and Collections
 databaseId = 'DepartureDelays'
@@ -196,7 +195,7 @@ print endtime - starttime
 #
 # Convert to DataFrame
 #	https://spark.apache.org/docs/2.0.2/api/python/pyspark.sql.html
-#
+# 0:00:00.045732,  0:00:00.045043
 starttime = datetime.datetime.now()
 df = spark.createDataFrame(elements)
 endtime = datetime.datetime.now()
@@ -283,7 +282,7 @@ print endtime - starttime
 
 #
 ## Flight Data (origin == SEA, 14808 rows)
-##	0:00:01.389337
+##	0:00:01.498699, 0:00:01.323917
 #
 
 # Configure Database and Collections
@@ -306,9 +305,22 @@ starttime = datetime.datetime.now()
 
 # create elements list
 elements = list(query)
-
 endtime = datetime.datetime.now()
 print endtime - starttime
+
+
+#
+# Convert to DataFrame
+#	https://spark.apache.org/docs/2.0.2/api/python/pyspark.sql.html
+# 0:00:00.740898, 0:00:00.772207
+starttime = datetime.datetime.now()
+df = spark.createDataFrame(elements)
+endtime = datetime.datetime.now()
+print endtime - starttime
+
+# Show data
+df.show()
+
 
 
 
