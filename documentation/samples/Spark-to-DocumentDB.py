@@ -169,10 +169,13 @@ print endtime - starttime
 ##
 ## Flight Data (Top 100)
 ##	0:00:00.214985, 0:00:00.009669
+## 0:00:00.774820, 0:00:00.508290
 
 # Configure Database and Collections
 databaseId = 'DepartureDelays'
-collectionId = 'flights'
+#collectionId = 'flights'
+collectionId = 'flights_pcoll'
+
 
 # Configurations the DocumentDB client will use to connect to the database and collection
 dbLink = 'dbs/' + databaseId
@@ -184,7 +187,10 @@ query = "SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FRO
 
 
 # Query documents
-query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
+#query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
+# Query documents
+query = client.QueryDocuments(collLink, query, options= { 'enableCrossPartitionQuery': True }, partition_key=None)
+
 
 # create elements list
 starttime = datetime.datetime.now()
@@ -282,12 +288,14 @@ print endtime - starttime
 
 #
 ## Flight Data (origin == SEA, 14808 rows)
-##	0:00:01.498699, 0:00:01.323917
+##	0:00:01.498699, 0:00:01.323917 (14,808 of 1.05M)
+##  0:00:05.146107, 0:00:03.234670 (23,078 of 1.39M)
 #
 
 # Configure Database and Collections
 databaseId = 'DepartureDelays'
-collectionId = 'flights'
+#collectionId = 'flights'
+collectionId = 'flights_pcoll'
 
 # Configurations the DocumentDB client will use to connect to the database and collection
 dbLink = 'dbs/' + databaseId
@@ -299,11 +307,13 @@ query = "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHER
 #query = "SELECT c.date FROM c WHERE c.origin = 'SEA'"
 
 # Query documents
-query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
+#query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
 
-starttime = datetime.datetime.now()
+# Query documents
+query = client.QueryDocuments(collLink, query, options= { 'enableCrossPartitionQuery': True }, partition_key=None)
 
 # create elements list
+starttime = datetime.datetime.now()
 elements = list(query)
 endtime = datetime.datetime.now()
 print endtime - starttime

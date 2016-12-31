@@ -64,11 +64,15 @@ collectionId = 'codes'
 dbLink = 'dbs/' + databaseId
 collLink = dbLink + '/colls/' + collectionId
 
+
 # Set query parameter
 query = "SELECT c.City FROM c WHERE c.State='WA'"
 
 # Query documents
 query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
+
+# Query for partitioned collections
+# query = client.QueryDocuments(collLink, query, options= { 'enableCrossPartitionQuery': True }, partition_key=None)
 
 # Push into list `elements`
 elements = list(query)
@@ -86,13 +90,20 @@ Below are the results of connecting Spark to DocumentDB via `pyDocumentDB` with 
 
 * Single VM Spark cluster (one master, one worker) on Azure DS11 v2 VM (14GB RAM, 2 cores) running Ubuntu 16.04 LTS using Spark 2.1.
 * DocumentDB single partition collection configured to 10,000 RUs
-* `airport.codes` has 512 documents while `DepartureDelays.flights` has 1.05M documents 
+* `airport.codes` has 512 documents 
+* `DepartureDelays.flights` has 1.05M documents (single collection)
+* `DepartureDelays.flights (pColl)` has 1.39M documents (partitioned collection)
 
-| Query | Collection | Response Time (First) | Response Time (Second)| to DataFrame | 
-| ----- | ---------- | --------------------- | --------------------- | ------------ |
-| SELECT c.City FROM c WHERE c.State='WA' (7 rows) | airport.codes | 0:00:00.225645 | 0:00:00.006784 | 0:00:00.025026 |
-| SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FROM c (100 rows)| DepartureDelays.flights | 0:00:00.214985 | 0:00:00.009669 | 0:00:00.045043 |
-| SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA' (14,808 rows) | DepartureDelays.flights | 0:00:01.498699 | 0:00:01.323917 | 0:00:00.740898 |
+| Query | # of rows | Collection | Response Time (First) | Response Time (Second)| to DataFrame | 
+| ----- | --------: | ---------- | --------------------- | --------------------- | ------------ |
+| SELECT c.City FROM c WHERE c.State='WA' | 7 | airport.codes | 0:00:00.225645 | 0:00:00.006784 | 0:00:00.025026 |
+| SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FROM c | 100 | DepartureDelays.flights | 0:00:00.214985 | 0:00:00.009669 | 0:00:00.045043 |
+| SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA' | 14,808 | DepartureDelays.flights | 0:00:01.498699 | 0:00:01.323917 | 0:00:00.740898 |
+| SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FROM c | 100 | DepartureDelays.flights (pColl) | 0:00:00.774820 | 0:00:00.508290 |  |
+| SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA' | 23,078 | DepartureDelays.flights (pColl) | 0:00:05.146107 | 0:00:03.234670 |  |
+| SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c | 1,048,575 | DepartureDelays.flights | 0:01:37.518344 | | | 
+| SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c | 1,391,578 | DepartureDelays.flights (pColl) | 0:02:36.335267 | | | 
+
 
 
 
