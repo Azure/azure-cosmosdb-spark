@@ -36,6 +36,7 @@ cd $SPARK_HOME
 ./bin/pyspark --master spark://vivace.f1xwivc2xm4uporkjsjoixul2c.dx.internal.cloudapp.net:7077 --packages graphframes:graphframes:0.3.0-spark2.0-s_2.11 
 ./bin/pyspark --master spark://vivace.f1xwivc2xm4uporkjsjoixul2c.dx.internal.cloudapp.net:7077 --packages graphframes:graphframes:0.3.0-spark2.0-s_2.11 --executor-memory 4G --total-executor-cores 4
 ./bin/pyspark --master spark://kintaro.f1xwivc2xm4uporkjsjoixul2c.dx.internal.cloudapp.net:7077 --packages graphframes:graphframes:0.3.0-spark2.0-s_2.11 --executor-memory 8G
+./bin/pyspark --master spark://kintaro.f1xwivc2xm4uporkjsjoixul2c.dx.internal.cloudapp.net:7077 --packages graphframes:graphframes:0.3.0-spark2.0-s_2.11 --executor-memory 8G --total-executor-cores 8
 
 
 
