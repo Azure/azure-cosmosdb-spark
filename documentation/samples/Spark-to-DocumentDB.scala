@@ -74,7 +74,10 @@ var query = "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c 
 // Enable Cross Partition Queries
 var feedOptions = new FeedOptions()
 feedOptions.setEnableCrossPartitionQuery(true)
- 
+feedOptions.setMaxDegreeOfParallelsim(Integer.MAX_VALUE)
+//feedOptions.setMaxDegreeOfParallelsim(-1)
+
+
 // Java / Scala Iterator
 import java.util.{Iterator => JIterator}
 def scalaIterator[T](it: JIterator[T]) = new Iterator[T] {  override def hasNext = it.hasNext 
@@ -123,9 +126,13 @@ PeriodFormat.getDefault().print(duration.toPeriod())
 //
 //
 // Queries
-//	Q1: 100 rows		SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'
-//	Q2: 14808 rows		SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'
-// 	Q3: 1,fdf,dfd rows	SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c 
+//	Q1:  100 rows		SELECT TOP 100 c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'
+//	Q2:  14808 rows		SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'
+// 	Q3:  1391578 rows	SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c 
+//
+//	Q#a: Q3 with feedOptions.setMaxDegreeOfParallelsim(Integer.MAX_VALUE)
+//	Q#b: Q3 with feedOptions.setMaxDegreeOfParallelsim(-1)
+//
 //
 // ** Single Collection **
 //		RDD (1st, 2nd)					DF (1st, 2nd)
@@ -139,7 +146,10 @@ PeriodFormat.getDefault().print(duration.toPeriod())
 //	Q2	00:00:06.708	00:00:05.008	00:00:05.981	00:00:00.481
 //	Q3	00:02:26.632	00:02:52.487	00:00:18.996	00:00:04.788
 //		00:00:06		00:00:18		00:00:05		00:00:03
-
+//  Q3a 00:02:23.478 	00:03:08.981
+//		00:00:06		00:00:30
+//  Q3b 00:02:22.717	
+//
 // Query tests flow B
 //	1. Connect to Spark
 //	2. Run RDD query - 1st time
