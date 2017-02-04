@@ -33,7 +33,7 @@
 ssh -C2qTnNf -D 9876 dennylee@13.88.14.230
 
 // Kintaro
-ssh -C2qTnNf -D 9876 dennylee@13.93.202.26 
+ssh -C2qTnNf -D 9876 dennylee@13.64.77.252 
 
 
 
