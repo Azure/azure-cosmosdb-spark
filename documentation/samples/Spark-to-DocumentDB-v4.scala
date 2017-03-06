@@ -17,8 +17,9 @@ ssh -C2qTnNf -D 9876 dennylee@13.88.14.230
 ssh -C2qTnNf -D 9876 dennylee@13.64.77.252 
 
 // sparkitup
-ssh -C2qTnNf -D 9876 sshuser@sparkitup-ssh.azurehdinsight.net
-
+ssh -i ~/.ssh/id_rsa_azure2 -C2qTnNf -D 9876 sshuser@sparkitup-ssh.azurehdinsight.net
+// http://10.0.0.17:4040
+// http://10.0.0.17:8050
 
 
 
