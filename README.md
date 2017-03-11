@@ -28,9 +28,9 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
 For those using HDInsight, this has been tested on HDI 3.5
 
 
-## How to connect Spark to DocumentDB using pyDocumentDB
+# How to connect Spark to DocumentDB using pyDocumentDB
 
-The current [`pyDocumentDB SDK`](https://github.com/Azure/azure-documentdb-python) allows us to connect `Spark` to `DocumentDB`.  
+The current [`pyDocumentDB SDK`](https://github.com/Azure/azure-documentdb-python) allows us to connect `Spark` to `DocumentDB`. Here's a small code snippet that queries for airport codes from the DoctorWho Azure DocumentDB database; the results are in the `df` DataFrame.
 
 ```
 # Import Necessary Libraries
@@ -42,7 +42,7 @@ import datetime
 # Configuring the connection policy (allowing for endpoint discovery)
 connectionPolicy = documents.ConnectionPolicy()
 connectionPolicy.EnableEndpointDiscovery 
-connectionPolicy.PreferredLocations = ["West US", "East US 2", "Southeast Asia", "Western Europe","Canada Central"]
+connectionPolicy.PreferredLocations = ["Central US", "East US 2", "Southeast Asia", "Western Europe","Canada Central"]
 
 # Set keys to connect to DocumentDB 
 masterKey = 'le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==' 
