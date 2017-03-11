@@ -1,5 +1,15 @@
 # azure-documentdb-spark
+Experimental connector for [Azure DocumentDB](http://documentdb.com) and [Apache Spark](http://spark.apache.org).
+
 This project provides a client library that allows Azure DocumentDB to act as an input source or output sink for Spark jobs.
+
+> This connector is experimental and is provided as a public technical preview only
+
+Officially supports Spark version: 2.0.2, Scala version: 2.11, Azure DocumentDB Java SDK: 1.9.6
+
+See the user guide for more information about the API.
+
+# Requirements
 
 There will be two approaches for the **Spark-to-DocumentDB** connector:
 
