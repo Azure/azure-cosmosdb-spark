@@ -15,7 +15,7 @@ There are currently two approaches to connect Apache Spark to Azure DocumentDB:
 
 See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-DocumentDB-Spark-Connector-User-Guide) for more information about the API.
 
-# Requirements
+## Requirements
 
 * Apache Spark 2.0+
 * Java Version >= 7.0
@@ -28,7 +28,7 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
 For those using HDInsight, this has been tested on HDI 3.5
 
 
-# How to connect Spark to DocumentDB using pyDocumentDB
+## How to connect Spark to DocumentDB using pyDocumentDB
 
 The current [`pyDocumentDB SDK`](https://github.com/Azure/azure-documentdb-python) allows us to connect `Spark` to `DocumentDB`. Here's a small code snippet that queries for airport codes from the DoctorWho Azure DocumentDB database; the results are in the `df` DataFrame.
 
@@ -73,44 +73,45 @@ elements = list(query)
 df = spark.createDataFrame(elements)
 ```
 
+## How to connect Spark to DocumentDB using azure-documentdb-spark
 
-
-## Spark to DocumentDB Connector
-**IMPORTANT: Design Stage**
-
-The Spark to DocumentDB connector that will utilize the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java) will utilize the following flow:
-
-![Spark to DocumentDB via Azure DocumentDB Java SDK](documentation/images/Spark-DocumentDB_JavaFiloDB.png)
-
-The data flow is as follows:
-
-1. Connection is made from Spark master node to DocumentDB gateway node to obtain the partition map.  Note, user only specifies Spark and DocumentDB connections, the fact that it connects to the respective master and gateway nodes is transparent to the user.
-2. This information is provided back to the Spark master node.  At this point, we should be able to parse the query to determine which partitions (and their locations) within DocumentDB we need to access.
-3. This information is transmitted to the Spark worker nodes ...
-4. Thus allowing the Spark worker nodes to connect directly to the DocumentDB partitions directly to extract the data that is needed and bring the data back to the Spark partitions within the Spark worker nodes.
-
-
-To perform this flow, we will need to develop the following:
-
-1. Ensure the DocumentDB Java SDK can parse the SQL queries and pass the partition map information *in Linux*.
-2. Utilize Evan Chan's [`FiloDB project`](https://github.com/filodb/FiloDB).  This project utilizes Spark DataFrames, Cassandra, and Parquet to provide updateable, columnar query performance that is distributed and versioned.  
-
-The key component of the `FiloDB` project for partitioning and data locality (to perform steps 3 and 4 above) is within `FiloRelation.scala`.  Specficially,
+The `azure-documentdb-spark` connector connects Apache Spark to DocumentDB usign the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java).  Here's a small code snippet that queries for flight data from the DoctorWho Azure DocumentDB database; the results are in the `df` DataFrame.
 
 ```
-FiloRelation.scala:
-    val splitsWithLocations = splits.map { s => (s, s.hostnames.toSeq) }
-    // NOTE: It's critical that the closure inside mapPartitions only references
-    // vars from buildScan() method, and not the FiloRelation class.  Otherwise
-    // the entire FiloRelation class would get serialized.
-    // Also, each partition should only need one param.
-    sqlContext.sparkContext.makeRDD(splitsWithLocations)
-      .mapPartitions { splitIter =>
-        perPartitionRowScanner(config, readOnlyProjStr, version, f(splitIter.next))
-      }
+// Import Necessary Libraries
+import org.joda.time._
+import org.joda.time.format._
+import com.microsoft.azure.documentdb.spark.schema._
+import com.microsoft.azure.documentdb.spark._
+import com.microsoft.azure.documentdb.spark.config.Config
+
+// Configure connection to your collection
+val readConfig2 = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.com:443/",
+"Masterkey" -> "le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==",
+"Database" -> "DepartureDelays",
+"preferredRegions" -> "Central US;East US2;",
+"Collection" -> "flights_pcoll", 
+"SamplingRatio" -> "1.0"))
+
+// Create collection connection 
+val coll = spark.sqlContext.read.DocumentDB(readConfig2)
+coll.createOrReplaceTempView("c")
+
+// Queries
+var query = "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'"
+val df = spark.sql(query)
+
+// Run DF query (count)
+df.count()
 ```
 
-This `splitsWithLocations` basically create an RDD with list of hostnames attached to each item which is a “split” in Cassandra of a token range or series of token ranges.  Therefore your reads will be local on each partition.
+## How to build the connector
+Currently, this connector project uses `maven` so to build without dependencies, you can run:
+
+```
+mvn clean package
+```
+
 
 
 
