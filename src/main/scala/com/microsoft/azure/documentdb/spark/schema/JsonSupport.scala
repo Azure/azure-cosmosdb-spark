@@ -139,8 +139,6 @@ trait JsonSupport {
     value match {
       case value: java.util.Date => new Date(value.getTime)
       case value: java.lang.Long => new Date(value)
-      // TODO Parse string to date when a String type arrives
-      // case value: java.lang.String => ???
     }
   }
 
