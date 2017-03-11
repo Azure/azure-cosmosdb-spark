@@ -112,6 +112,7 @@ Currently, this connector project uses `maven` so to build without dependencies,
 mvn clean package
 ```
 
+You can also download the latest versions of the jar within the *releases* folder.
 
 
 
