@@ -47,7 +47,7 @@ limitations under the License.
     <dependency>
       <groupId>com.microsoft.azure</groupId>
       <artifactId>azure-documentdb</artifactId>
-      <version>1.9.7-SNAPSHOT</version>
+      <version>1.9.6</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
