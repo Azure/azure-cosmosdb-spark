@@ -5,7 +5,7 @@ This project provides a client library that allows Azure DocumentDB to act as an
 
 > This connector is experimental and is provided as a public technical preview only
 
-Officially supports Spark version: 2.0.2, Scala version: 2.11, Azure DocumentDB Java SDK: 1.9.6
+Officially supports Spark version: 2.0.2, Scala version: 2.11, Azure DocumentDB Java SDK: 1.10.0
 
 There are currently two approaches to connect Apache Spark to Azure DocumentDB:
 
@@ -23,7 +23,7 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
  * `pyDocumentDB` package
  * Python >= 2.7 or Python >= 3.3
 * If using Scala
- * Azure DocumentDB Java SDK 1.9.6
+ * Azure DocumentDB Java SDK 1.10.0
 
 For those using HDInsight, this has been tested on HDI 3.5
 
