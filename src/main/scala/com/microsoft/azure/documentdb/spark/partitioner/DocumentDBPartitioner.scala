@@ -32,17 +32,8 @@ class DocumentDBPartitioner() extends Partitioner[DocumentDBPartition] with Logg
     */
   override def computePartitions(config: Config): Array[DocumentDBPartition] = {
     var connection: DocumentDBConnection = new DocumentDBConnection(config)
-
-    var partitions = connection.getAllPartitions.map(p => DocumentDBPartition(p.getId().toInt, List("")))
-    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitions.size} partitions")
-
-    partitions
+    var partitionKeyRanges = connection.getAllPartitions
+    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.size} partitions")
+    partitionKeyRanges.map(p => DocumentDBPartition(p.getId().toInt, partitionKeyRanges.length))
   }
-
-}
-
-object DocumentDBPartitioner {
-  val ConfigDatabase = "config"
-  val ChunksCollection = "chunks"
-  val ShardsCollection = "shards"
 }

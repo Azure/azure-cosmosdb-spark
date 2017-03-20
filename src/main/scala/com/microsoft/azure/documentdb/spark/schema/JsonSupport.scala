@@ -23,6 +23,7 @@
 package com.microsoft.azure.documentdb.spark.schema
 
 import java.sql.{Date, Timestamp}
+import java.util.Optional
 
 import org.apache.spark.sql.types._
 
@@ -51,7 +52,7 @@ trait JsonSupport {
         case ByteType => toByte(value)
         case BinaryType => toBinary(value)
         case ShortType => toShort(value)
-        case IntegerType => toInt(value)
+        case IntegerType => toInt(value).getOrElse(null)
         case LongType => toLong(value)
         case DoubleType => toDouble(value)
         case DecimalType() => toDecimal(value)
@@ -86,11 +87,15 @@ trait JsonSupport {
     }
   }
 
-  private def toInt(value: Any): Int = {
+  private def toInt(value: Any): Option[Int] = {
     import scala.language.reflectiveCalls
-    value match {
-      case value: String => value.toInt
-      case _ => value.asInstanceOf[ {def toInt: Int}].toInt
+    try {
+      value match {
+        case value: String => Some(value.toInt)
+        case _ => Some(value.asInstanceOf[ {def toInt: Int}].toInt)
+      }
+    } catch {
+      case e: Exception => None
     }
   }
 

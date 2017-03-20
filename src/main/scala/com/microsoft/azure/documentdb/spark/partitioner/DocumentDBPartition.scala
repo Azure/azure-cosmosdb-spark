@@ -26,4 +26,4 @@ import org.apache.spark.Partition
 
 case class DocumentDBPartition(
                                 index: Int,
-                                hosts: Seq[String]) extends Partition
+                                partitionCount: Int) extends Partition

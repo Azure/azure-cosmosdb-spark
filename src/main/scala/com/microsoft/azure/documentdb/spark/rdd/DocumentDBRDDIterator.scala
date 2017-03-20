@@ -63,7 +63,7 @@ class DocumentDBRDDIterator(
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
 
   override def hasNext: Boolean = {
-    if (maxItems != null && maxItems.isDefined && maxItems.get < itemCount) {
+    if (maxItems != null && maxItems.isDefined && maxItems.get <= itemCount) {
       return false
     }
     !closed && reader.hasNext
