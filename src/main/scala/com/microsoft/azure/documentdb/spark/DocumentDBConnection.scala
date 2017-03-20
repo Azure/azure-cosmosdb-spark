@@ -48,21 +48,22 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
   }
 
   private def accquireClient(): DocumentClient = {
-    val cp = ConnectionPolicy.GetDefault()
-    cp.setConnectionMode(ConnectionMode.DirectHttps)
+    val connectionPolicy = ConnectionPolicy.GetDefault()
+    connectionPolicy.setConnectionMode(ConnectionMode.DirectHttps)
+    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
 
     val option = config.get[String](DocumentDBConfig.PreferredRegionsList)
 
     if (option.isDefined) {
       logWarning(s"DocumentDBConnection::Input preferred region list: ${option.get}")
       val preferredLocations = option.get.split(";").toSeq.map(_.trim)
-      cp.setPreferredLocations(preferredLocations)
+      connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
     client = new DocumentClient(
       config.get("EndPoint").getOrElse("endpoint"),
       config.get("Masterkey").getOrElse("masterkey"),
-      cp,
+      connectionPolicy,
       ConsistencyLevel.Session)
     client
   }

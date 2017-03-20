@@ -38,7 +38,7 @@ import scala.reflect.runtime.universe._
 class DocumentDBRDD(
                      spark: SparkSession,
                      config: Config,
-                     maxItems: Option[Long] = null,
+                     maxItems: Option[Long] = None,
                      partitioner: DocumentDBPartitioner = new DocumentDBPartitioner(),
                      requiredColumns: Array[String] = Array(),
                      filters: Array[Filter] = Array())
@@ -52,9 +52,6 @@ class DocumentDBRDD(
 
   override def getPartitions: Array[Partition] =
     partitioner.computePartitions(config).asInstanceOf[Array[Partition]]
-
-  override def getPreferredLocations(split: Partition): Seq[String] =
-    split.asInstanceOf[DocumentDBPartition].hosts.map(new String(_))
 
   /**
     * Creates a `DataFrame` based on the schema derived from the optional type.
@@ -117,7 +114,7 @@ class DocumentDBRDD(
       context,
       documentDBPartition,
       config,
-      maxItems,
+      maxItems.map{ x => x / documentDBPartition.partitionCount },
       requiredColumns,
       filters)
   }

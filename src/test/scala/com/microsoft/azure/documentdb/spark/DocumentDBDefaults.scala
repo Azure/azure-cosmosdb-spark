@@ -38,17 +38,18 @@ class DocumentDBDefaults extends LoggingTrait {
 
   // local emulator
   val EMULATOR_ENDPOINT: String = "https://localhost:443/"
-  val EMULATOR_MASTERKEY: String = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+  val EMULATOR_MASTERKEY: String = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
   val DATABASE_NAME = "documentdb-spark-connector-test"
 
   var collectionName: String = _
 
-  private val cp = ConnectionPolicy.GetDefault()
-  cp.setConnectionMode(ConnectionMode.DirectHttps)
+  private val connectionPolicy = ConnectionPolicy.GetDefault()
+  connectionPolicy.setConnectionMode(ConnectionMode.DirectHttps)
+  connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
 
   lazy val documentDBClient = {
     var client = new DocumentClient(EMULATOR_ENDPOINT, EMULATOR_MASTERKEY,
-      cp,
+      connectionPolicy,
       ConsistencyLevel.Session)
     client
   }

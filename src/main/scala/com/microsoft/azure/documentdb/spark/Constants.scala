@@ -20,10 +20,9 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.documentdb.spark.partitioner
+package com.microsoft.azure.documentdb.spark
 
-import org.apache.spark.Partition
-
-case class DocumentDBPartition(
-                                index: Int,
-                                partitionCount: Int) extends Partition
+object Constants {
+  val currentVersion = "0.0.2-SNAPSHOT"
+  val userAgentSuffix = s" SparkConnector/$currentVersion"
+}

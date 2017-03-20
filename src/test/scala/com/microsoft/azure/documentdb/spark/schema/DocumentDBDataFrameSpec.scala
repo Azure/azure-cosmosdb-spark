@@ -11,6 +11,7 @@ import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode}
 
 import scala.collection.immutable.IndexedSeq
+import scala.collection.mutable.ListBuffer
 
 case class SimpleDocument(id: String, pkey: Int, intString: String)
 
@@ -77,7 +78,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val sparkSession = createOrGetDefaultSparkSession(sc)
 
     val coll = sparkSession.sqlContext.read.DocumentDB()
-    coll.createTempView("c")
+    coll.createOrReplaceTempView("c")
 
     var query = "SELECT * FROM c "
 
@@ -96,6 +97,34 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     end = System.nanoTime()
     durationSeconds = (end - start) / nanoPerSecond
     logDebug(s"df.query() took ${durationSeconds}s")
+  }
+
+  it should "should work with data with a property containing integer and string values" in withSparkContext() { sc =>
+    var largeCount = 1001
+    sc.parallelize((1 to largeCount).map(x => {
+      if (x <= largeCount - 2)
+        new Document(s"{pkey: $x, intValue: $x}")
+      else if (x == largeCount - 1)
+        // document with intValue property with a different type
+        new Document(s"{pkey: $x, intValue: 'abc'}")
+      else
+        // document with missing intValue property
+        new Document(s"{pkey: $x}")
+    })).saveToDocumentDB()
+
+    val sparkSession = createOrGetDefaultSparkSession(sc)
+
+    val coll = sparkSession.sqlContext.read.DocumentDB()
+    coll.createOrReplaceTempView("c")
+
+    var query = "SELECT c.intValue + 1 FROM c"
+    var expectedValues = new ListBuffer[Any]
+    expectedValues ++= (2 until largeCount)
+    expectedValues += null
+    expectedValues += null
+    var df = sparkSession.sql(query)
+    df.count() shouldBe largeCount
+    df.rdd.map(x => x.get(0)).collect() should contain theSameElementsAs expectedValues
   }
 
   it should "should be easily created from the SQLContext and load from DocumentDB" in withSparkContext() { sc =>
