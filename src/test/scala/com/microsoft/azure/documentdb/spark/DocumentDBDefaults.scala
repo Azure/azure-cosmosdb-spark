@@ -43,12 +43,13 @@ class DocumentDBDefaults extends LoggingTrait {
 
   var collectionName: String = _
 
-  private val cp = ConnectionPolicy.GetDefault()
-  cp.setConnectionMode(ConnectionMode.DirectHttps)
+  private val connectionPolicy = ConnectionPolicy.GetDefault()
+  connectionPolicy.setConnectionMode(ConnectionMode.DirectHttps)
+  connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
 
   lazy val documentDBClient = {
     var client = new DocumentClient(EMULATOR_ENDPOINT, EMULATOR_MASTERKEY,
-      cp,
+      connectionPolicy,
       ConsistencyLevel.Session)
     client
   }
