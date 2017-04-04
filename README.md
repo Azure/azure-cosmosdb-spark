@@ -1,5 +1,7 @@
 # azure-documentdb-spark
-Experimental connector for [Azure DocumentDB](http://documentdb.com) and [Apache Spark](http://spark.apache.org).
+Preview connector for [Azure DocumentDB](http://documentdb.com) and [Apache Spark](http://spark.apache.org). 
+
+Official instructions for using the connector are included in the DocumentDB documentation, in the [Accelerate real-time big-data analytics with the Spark to DocumentDB connector](https://docs.microsoft.com/azure/documentdb/documentdb-spark-connector) article.
 
 This project provides a client library that allows Azure DocumentDB to act as an input source or output sink for Spark jobs.
 
