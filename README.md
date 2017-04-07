@@ -22,10 +22,10 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
 * Apache Spark 2.0+
 * Java Version >= 7.0
 * If using Python
- * `pyDocumentDB` package
- * Python >= 2.7 or Python >= 3.3
+  * `pyDocumentDB` package
+  * Python >= 2.7 or Python >= 3.3
 * If using Scala
- * Azure DocumentDB Java SDK 1.10.0
+  * Azure DocumentDB Java SDK 1.10.0
 
 For those using HDInsight, this has been tested on HDI 3.5
 
