@@ -25,13 +25,14 @@ package com.microsoft.azure.documentdb.spark.rdd
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.spark._
 import com.microsoft.azure.documentdb.spark.config.Config
+import com.microsoft.azure.documentdb.spark.partitioner.DocumentDBPartition
 import com.microsoft.azure.documentdb.spark.schema._
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
 class DocumentDBRDDIterator(
                              taskContext: TaskContext,
-                             partition: Partition,
+                             partition: DocumentDBPartition,
                              config: Config,
                              maxItems: Option[Long],
                              requiredColumns: Array[String],
@@ -43,18 +44,18 @@ class DocumentDBRDDIterator(
   private var initialized = false
   private var itemCount: Long = 0
 
-  lazy val reader = {
+  lazy val reader: Iterator[Document] = {
     initialized = true
     var conn: DocumentDBConnection = new DocumentDBConnection(config)
 
     val feedOpts = new FeedOptions()
     feedOpts.setPageSize(300)
     // limit the query to only single partition of DocumentDB
-    BridgeInternal.SetFeedOptionPartitionKeyRangeId(feedOpts, partition.index.toString())
+    BridgeInternal.SetFeedOptionPartitionKeyRangeId(feedOpts, partition.documentDBIndex.toString)
     feedOpts.setEnableCrossPartitionQuery(true)
 
     var queryString = FilterConverter.createQueryString(requiredColumns, filters)
-    logDebug(s"DocumentDBRDDIterator::LazyReader, convert to predicate: ${queryString}")
+    logDebug(s"DocumentDBRDDIterator::LazyReader, convert to predicate: $queryString")
 
     conn.queryDocuments(queryString, feedOpts)
   }
@@ -74,7 +75,7 @@ class DocumentDBRDDIterator(
       throw new NoSuchElementException("End of stream")
     }
     itemCount = itemCount + 1
-    return reader.next()
+    reader.next()
   }
 
   def closeIfNeeded(): Unit = {
@@ -89,5 +90,4 @@ class DocumentDBRDDIterator(
       initialized = false
     }
   }
-
 }
