@@ -36,6 +36,8 @@ object DocumentDBConnection {
 private[spark] case class DocumentDBConnection(config: Config) extends LoggingTrait with Serializable {
   private val databaseName = config.get[String](DocumentDBConfig.Database).get
   private val collectionName = config.get[String](DocumentDBConfig.Collection).get
+  private val connectionMode = ConnectionMode.valueOf(config.get[String](DocumentDBConfig.ConnectionMode)
+    .getOrElse(ConnectionMode.DirectHttps.toString))
   private val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
   
   @transient private var client: DocumentClient = _

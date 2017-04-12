@@ -9,9 +9,11 @@ import com.microsoft.azure.documentdb.spark.rdd.DocumentDBRDD
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode}
+import org.apache.spark.sql.functions._
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable.ListBuffer
+import scala.util.Random
 
 case class SimpleDocument(id: String, pkey: Int, intString: String)
 
@@ -19,18 +21,6 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
   val documentCount = 100
   val simpleDocuments: IndexedSeq[SimpleDocument] = (1 to documentCount)
     .map(x => SimpleDocument(x.toString, x, (documentCount - x + 1).toString))
-
-  val expectedSchema: StructType = {
-    DataTypes.createStructType(Array(
-      DataTypes.createStructField("id", DataTypes.StringType, true),
-      DataTypes.createStructField("_self", DataTypes.StringType, true),
-      DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
-      DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
-      DataTypes.createStructField("_etag", DataTypes.StringType, true),
-      DataTypes.createStructField("intString", DataTypes.StringType, true),
-      DataTypes.createStructField("_rid", DataTypes.StringType, true),
-      DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
-  }
 
   // DataFrameWriter
   "DataFrameWriter" should "be easily created from a DataFrame and save to DocumentDB" in withSparkContext() { sc =>
@@ -135,6 +125,18 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
 
     val df = sparkSession.read.DocumentDB()
 
+    val expectedSchema: StructType = {
+      DataTypes.createStructType(Array(
+        DataTypes.createStructField("id", DataTypes.StringType, true),
+        DataTypes.createStructField("_self", DataTypes.StringType, true),
+        DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_etag", DataTypes.StringType, true),
+        DataTypes.createStructField("intString", DataTypes.StringType, true),
+        DataTypes.createStructField("_rid", DataTypes.StringType, true),
+        DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
+    }
+
     df.schema should equal(expectedSchema)
     df.count() should equal(documentCount)
     df.filter(s"pkey = ${documentCount / 2}").map(x => x.getInt(x.fieldIndex("pkey"))).collect() should equal(Array(documentCount / 2))
@@ -233,5 +235,47 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
 
     val savedDF = sparkSession.read.schema(schema).DocumentDB()
     savedDF.collectAsList() should contain theSameElementsAs df.collect()
+  }
+
+  it should "work with complex json type" in withSparkContext() { sc =>
+    val sparkSession = createOrGetDefaultSparkSession(sc)
+    val random: Random = new Random
+    val maxSchoolCount = 5
+    val maxRecordCount = 10
+    sc.parallelize((1 to documentCount).map(x => {
+      val recordJson = (1 to random.nextInt(maxRecordCount)).mkString("[", ",", "]")
+      val schoolsJson = (1 to random.nextInt(maxSchoolCount))
+        .map(c => s"{'sname': 'school $c', year: $c, record: $recordJson}")
+        .toList
+        .mkString("[", ",", "]")
+      new Document(s"{pkey: $x, name: 'name $x', schools: $schoolsJson}")
+    })).saveToDocumentDB()
+
+    val expectedSchema: StructType = {
+      DataTypes.createStructType(Array(
+        DataTypes.createStructField("id", DataTypes.StringType, true),
+        DataTypes.createStructField("_self", DataTypes.StringType, true),
+        DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_etag", DataTypes.StringType, true),
+        DataTypes.createStructField("name", DataTypes.StringType, true),
+        DataTypes.createStructField("_rid", DataTypes.StringType, true),
+        DataTypes.createStructField("schools",
+          DataTypes.createArrayType(
+            DataTypes.createStructType(Array(
+              DataTypes.createStructField("record",
+                DataTypes.createArrayType(DataTypes.IntegerType, false),
+                true),
+              DataTypes.createStructField("sname", DataTypes.StringType, true),
+              DataTypes.createStructField("year", DataTypes.IntegerType, true)
+            )),
+            false),
+          true),
+        DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
+    }
+
+    val df = sparkSession.read.DocumentDB()
+    df.schema should equal(expectedSchema)
+    df.collect().length should equal(documentCount)
   }
 }
