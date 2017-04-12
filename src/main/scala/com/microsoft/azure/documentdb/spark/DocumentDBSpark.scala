@@ -43,8 +43,6 @@ import scala.reflect.runtime.universe._
   */
 object DocumentDBSpark {
 
-  private val DefaultMaxBatchSize = 512
-
   /**
    * The default source string for creating DataFrames from DocumentDB
    */
