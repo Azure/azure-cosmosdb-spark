@@ -35,21 +35,26 @@ import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 
 object DocumentDBConnection {
-
+  // For verification purpose
+  var lastConnectionPolicy: ConnectionPolicy = _
+  var lastConsistencyLevel: Option[ConsistencyLevel] = _
 }
 
 private[spark] case class DocumentDBConnection(config: Config) extends LoggingTrait with Serializable {
   private val databaseName = config.get[String](DocumentDBConfig.Database).get
   private val collectionName = config.get[String](DocumentDBConfig.Collection).get
   private val connectionMode = ConnectionMode.valueOf(config.get[String](DocumentDBConfig.ConnectionMode)
-    .getOrElse(ConnectionMode.DirectHttps.toString))
+    .getOrElse(DocumentDBConfig.DefaultConnectionMode))
   private val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
-  
+
   @transient private var client: DocumentClient = _
 
   private def documentClient(): DocumentClient = {
-    if (client == null)
-      client = accquireClient(ConnectionMode.DirectHttps)
+    if (client == null) {
+      client = accquireClient(connectionMode)
+
+      DocumentDBConnection.lastConnectionPolicy = client.getConnectionPolicy
+    }
     client
   }
 
@@ -57,6 +62,16 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    val maxRetryAttemptsOnThrottled = config.get[String](DocumentDBConfig.MaxRetryOnThrottled)
+    if (maxRetryAttemptsOnThrottled.isDefined) {
+      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
+    }
+    val maxRetryWaitTimeSecs = config.get[String](DocumentDBConfig.MaxRetryWaitTimeSecs)
+    if (maxRetryWaitTimeSecs.isDefined) {
+      connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
+    }
+    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](DocumentDBConfig.ConsistencyLevel)
+      .getOrElse(DocumentDBConfig.DefaultConsistencyLevel))
 
     val option = config.get[String](DocumentDBConfig.PreferredRegionsList)
 
@@ -67,10 +82,13 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
     }
 
     var documentClient = new DocumentClient(
-      config.get("EndPoint").getOrElse("endpoint"),
-      config.get("Masterkey").getOrElse("masterkey"),
+      config.get[String](DocumentDBConfig.Endpoint).get,
+      config.get[String](DocumentDBConfig.Masterkey).get,
       connectionPolicy,
-      ConsistencyLevel.Session)
+      consistencyLevel)
+
+    DocumentDBConnection.lastConsistencyLevel = Some(consistencyLevel)
+
     documentClient
   }
 

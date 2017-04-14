@@ -24,11 +24,18 @@ package com.microsoft.azure.documentdb.spark.rdd
 
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.spark._
-import com.microsoft.azure.documentdb.spark.config.Config
+import com.microsoft.azure.documentdb.spark.config.{Config, DocumentDBConfig}
 import com.microsoft.azure.documentdb.spark.partitioner.DocumentDBPartition
 import com.microsoft.azure.documentdb.spark.schema._
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
+
+object DocumentDBRDDIterator {
+
+  // For verification purpose
+  var lastFeedOptions: FeedOptions = _
+
+}
 
 class DocumentDBRDDIterator(
                              taskContext: TaskContext,
@@ -49,10 +56,15 @@ class DocumentDBRDDIterator(
     var conn: DocumentDBConnection = new DocumentDBConnection(config)
 
     val feedOpts = new FeedOptions()
-    feedOpts.setPageSize(300)
-    // limit the query to only single partition of DocumentDB
-    BridgeInternal.SetFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
+    val pageSize: Int = config
+      .get[String](DocumentDBConfig.QueryPageSize)
+      .getOrElse(DocumentDBConfig.DefaultPageSize.toString)
+      .toInt
+    feedOpts.setPageSize(pageSize)
+    // Set target partition ID
+    BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
     feedOpts.setEnableCrossPartitionQuery(true)
+    DocumentDBRDDIterator.lastFeedOptions = feedOpts
 
     var queryString = FilterConverter.createQueryString(requiredColumns, filters)
     logDebug(s"DocumentDBRDDIterator::LazyReader, convert to predicate: $queryString")

@@ -78,11 +78,11 @@ case class DocumentDBSchema[T <: RDD[Document]](
   }
 
   private def convertToStruct(dataType: Any): DataType = dataType match {
-    case array: util.ArrayList[Any] =>
+    case array: util.ArrayList[_] =>
       val arrayType: immutable.Seq[DataType] = array.asScala.toList.map(x => convertToStruct(x)).distinct
       ArrayType(if (arrayType.nonEmpty) arrayType.head else NullType, arrayType.contains(NullType))
-    case hm: util.HashMap[String, Any] =>
-      val fields = hm.asScala.toMap.map {
+    case hm: util.HashMap[_, _] =>
+      val fields = hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap.map {
         case (k, v) => StructField(k, convertToStruct(v))
       }.toSeq
       StructType(fields)

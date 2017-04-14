@@ -23,7 +23,6 @@
 package com.microsoft.azure.documentdb.spark.schema
 
 import java.sql.{Date, Timestamp}
-import java.util.Optional
 
 import org.apache.spark.sql.types._
 

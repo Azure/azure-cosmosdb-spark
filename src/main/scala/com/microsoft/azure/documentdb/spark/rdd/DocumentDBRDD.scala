@@ -114,9 +114,8 @@ class DocumentDBRDD(
       context,
       documentDBPartition,
       config,
-      maxItems.map{ x => x / documentDBPartition.partitionCount },
+      maxItems,
       requiredColumns,
       filters)
   }
-
 }
