@@ -22,6 +22,8 @@
   */
 package com.microsoft.azure.documentdb.spark.schema
 
+import java.util
+
 import com.microsoft.azure.documentdb.Document
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
@@ -29,6 +31,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
+import scala.collection.immutable
 
 /**
   * Knows the way to provide some Data Source schema
@@ -53,13 +56,16 @@ case class DocumentDBSchema[T <: RDD[Document]](
       if (samplingRatio > 0.99) rdd
       else rdd.sample(withReplacement = false, samplingRatio, 1)
 
-    val structFields = schemaData.flatMap {
-      dbo => {
+    val flatMap = schemaData.flatMap {
+      dbo =>
         val doc: Map[String, AnyRef] = dbo.getHashMap().asScala.toMap
         val fields = doc.mapValues(f => convertToStruct(f))
         fields
-      }
-    }.reduceByKey(compatibleType).aggregate(Seq[StructField]())({
+    }
+
+    val reduced = flatMap.reduceByKey(compatibleType)
+
+    val structFields = reduced.aggregate(Seq[StructField]())({
       case (fields, (name, tpe)) =>
         val newType = tpe match {
           case ArrayType(NullType, containsNull) => ArrayType(StringType, containsNull)
@@ -67,20 +73,27 @@ case class DocumentDBSchema[T <: RDD[Document]](
         }
         fields :+ StructField(name, newType)
     }, (oldFields, newFields) => oldFields ++ newFields)
+
     StructType(structFields)
   }
 
   private def convertToStruct(dataType: Any): DataType = dataType match {
+    case array: util.ArrayList[Any] =>
+      val arrayType: immutable.Seq[DataType] = array.asScala.toList.map(x => convertToStruct(x)).distinct
+      ArrayType(if (arrayType.nonEmpty) arrayType.head else NullType, arrayType.contains(NullType))
+    case hm: util.HashMap[String, Any] =>
+      val fields = hm.asScala.toMap.map {
+        case (k, v) => StructField(k, convertToStruct(v))
+      }.toSeq
+      StructType(fields)
     case bo: Document =>
       val fields = bo.getHashMap().asScala.toMap.map {
         case (k, v) =>
           StructField(k, convertToStruct(v))
       }.toSeq
       StructType(fields)
-
     case elem =>
       elemType(elem)
-
   }
 
   /**
