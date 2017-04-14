@@ -51,7 +51,7 @@ class DocumentDBRDD(
   override def toJavaRDD(): JavaDocumentDBRDD = JavaDocumentDBRDD(this)
 
   override def getPartitions: Array[Partition] =
-    partitioner.computePartitions(config).asInstanceOf[Array[Partition]]
+    partitioner.computePartitions(config, requiredColumns, filters).asInstanceOf[Array[Partition]]
 
   /**
     * Creates a `DataFrame` based on the schema derived from the optional type.
@@ -104,10 +104,10 @@ class DocumentDBRDD(
                         context: TaskContext): DocumentDBRDDIterator = {
 
     var documentDBPartition: DocumentDBPartition = split.asInstanceOf[DocumentDBPartition]
-    logDebug(s"DocumentDBRDD:compute: Start DocumentDBRDD compute on partition with index ${split.index}")
+    logDebug(s"DocumentDBRDD:compute: Start DocumentDBRDD compute on partition with index ${documentDBPartition.partitionKeyRangeId}")
 
     context.addTaskCompletionListener((ctx: TaskContext) => {
-      logDebug("DocumentDBRDD:compute: Task completed RDD compute ${split.index}")
+      logDebug(s"DocumentDBRDD:compute: Task completed RDD compute ${documentDBPartition.partitionKeyRangeId}")
     })
 
     new DocumentDBRDDIterator(

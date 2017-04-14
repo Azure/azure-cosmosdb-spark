@@ -117,6 +117,19 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     df.rdd.map(x => x.get(0)).collect() should contain theSameElementsAs expectedValues
   }
 
+  it should "send query to target partitions only" in withSparkContext() { sc =>
+    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToDocumentDB()
+
+    val sparkSession = createOrGetDefaultSparkSession(sc)
+
+    val coll = sparkSession.sqlContext.read.DocumentDB()
+    coll.createOrReplaceTempView("c")
+
+    sparkSession.sql("SELECT * FROM c WHERE c.pkey = 1").rdd.getNumPartitions should equal(1)
+    sparkSession.sql("SELECT * FROM c WHERE c.pkey IN (1, 2)").rdd.getNumPartitions should equal(2)
+    sparkSession.sql("SELECT * FROM c").rdd.getNumPartitions should equal(coll.rdd.getNumPartitions)
+  }
+
   it should "should be easily created from the SQLContext and load from DocumentDB" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
