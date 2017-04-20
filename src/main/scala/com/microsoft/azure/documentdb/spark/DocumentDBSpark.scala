@@ -49,6 +49,11 @@ object DocumentDBSpark {
   val defaultSource = "com.microsoft.azure.documentdb.spark.DefaultSource"
 
   /**
+    * For verfication purpose
+    */
+  var lastUpsertSetting: Option[Boolean] = _
+
+  /**
     * Create a builder for configuring the [[DocumentDBSpark]]
     *
     * @return a DocumentDBSession Builder
@@ -123,7 +128,11 @@ object DocumentDBSpark {
     */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
     var connection = DocumentDBConnection(writeConfig)
-    val upsert: Boolean = writeConfig.getOrElse(DocumentDBConfig.Upsert, String.valueOf(false)).toBoolean
+    val upsert: Boolean = writeConfig
+      .getOrElse(DocumentDBConfig.Upsert, String.valueOf(DocumentDBConfig.DefaultUpsert))
+      .toBoolean
+
+    DocumentDBSpark.lastUpsertSetting = Some(upsert)
 
     rdd.foreachPartition(iter => if (iter.nonEmpty) {
       iter.foreach(item => {

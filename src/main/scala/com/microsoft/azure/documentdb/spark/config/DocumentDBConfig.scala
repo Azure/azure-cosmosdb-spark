@@ -33,21 +33,29 @@ object DocumentDBConfig {
   val Collection = "collection"
   val Masterkey = "masterkey"
   val SamplingRatio = "schema_samplingratio"
+  val SampleSize = "schema_samplesize"
+  val QueryPageSize = "query_pagesize"
+  val MaxRetryOnThrottled = "query_maxretryattemptsonthrottledrequests"
+  val MaxRetryWaitTimeSecs = "query_maxretrywaittimeinseconds"
   val PreferredRegionsList = "preferredregions"
   val Upsert = "upsert"
   val ConnectionMode = "connectionmode"
-  
+  val ConsistencyLevel = "consistencylevel"
+
   // Mandatory
   val required = List(
     Endpoint,
+    Masterkey,
     Database,
-    Collection,
-    Masterkey
+    Collection
   )
 
   val DefaultSamplingRatio = 1.0
-  val DefaultSampleSize = 100
-  val DefaultSplitKey = "id"
+  val DefaultPageSize = 300
+  val DefaultSampleSize = DefaultPageSize
+  val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString
+  val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
+  val DefaultUpsert = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

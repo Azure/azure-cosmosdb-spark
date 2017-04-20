@@ -97,7 +97,7 @@ object DocumentDBRowConverter extends RowConverter[Document]
         case (_, struct: StructType) =>
           val jsonMap: Map[String, AnyRef] = value match {
             case doc: Document => documentToMap(doc)
-            case hm: util.HashMap[String, AnyRef] => hm.asScala.toMap
+            case hm: util.HashMap[_, _] => hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap
           }
           recordAsRow(jsonMap, struct)
         case (_, map: MapType) =>

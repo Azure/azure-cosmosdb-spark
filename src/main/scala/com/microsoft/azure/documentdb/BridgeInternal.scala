@@ -32,7 +32,7 @@ import com.microsoft.azure.documentdb.internal.{DocumentServiceRequest, Document
   **/
 object BridgeInternal {
 
-  def SetFeedOptionPartitionKeyRangeId(options: FeedOptions, partitionKeyRangeId: String): Unit = {
+  def setFeedOptionPartitionKeyRangeId(options: FeedOptions, partitionKeyRangeId: String): Unit = {
     options.setPartitionKeyRangeIdInternal(partitionKeyRangeId)
   }
 
