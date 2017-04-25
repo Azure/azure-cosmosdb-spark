@@ -1,3 +1,25 @@
+/**
+  * The MIT License (MIT)
+  * Copyright (c) 2016 Microsoft Corporation
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a copy
+  * of this software and associated documentation files (the "Software"), to deal
+  * in the Software without restriction, including without limitation the rights
+  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  * copies of the Software, and to permit persons to whom the Software is
+  * furnished to do so, subject to the following conditions:
+  *
+  * The above copyright notice and this permission notice shall be included in all
+  * copies or substantial portions of the Software.
+  *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  * SOFTWARE.
+  */
 package com.microsoft.azure.documentdb.spark.schema
 
 import java.sql.{Date, Timestamp}
@@ -9,9 +31,11 @@ import com.microsoft.azure.documentdb.spark.rdd.DocumentDBRDD
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode}
+import org.apache.spark.sql.functions._
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable.ListBuffer
+import scala.util.Random
 
 case class SimpleDocument(id: String, pkey: Int, intString: String)
 
@@ -19,18 +43,6 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
   val documentCount = 100
   val simpleDocuments: IndexedSeq[SimpleDocument] = (1 to documentCount)
     .map(x => SimpleDocument(x.toString, x, (documentCount - x + 1).toString))
-
-  val expectedSchema: StructType = {
-    DataTypes.createStructType(Array(
-      DataTypes.createStructField("id", DataTypes.StringType, true),
-      DataTypes.createStructField("_self", DataTypes.StringType, true),
-      DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
-      DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
-      DataTypes.createStructField("_etag", DataTypes.StringType, true),
-      DataTypes.createStructField("intString", DataTypes.StringType, true),
-      DataTypes.createStructField("_rid", DataTypes.StringType, true),
-      DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
-  }
 
   // DataFrameWriter
   "DataFrameWriter" should "be easily created from a DataFrame and save to DocumentDB" in withSparkContext() { sc =>
@@ -57,7 +69,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     import sparkSession.implicits._
 
     val config: Config = Config(sc)
-    val databaseName: String = config.get(DocumentDBConfig.Database).getOrElse(DocumentDBConfig.Database)
+    val databaseName: String = config.get(DocumentDBConfig.Database).get
     val collectionName: String = "NewCollection"
     documentDBDefaults.createCollection(databaseName, collectionName)
     var configMap: collection.Map[String, String] = config.asOptions
@@ -127,6 +139,19 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     df.rdd.map(x => x.get(0)).collect() should contain theSameElementsAs expectedValues
   }
 
+  it should "send query to target partitions only" in withSparkContext() { sc =>
+    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToDocumentDB()
+
+    val sparkSession = createOrGetDefaultSparkSession(sc)
+
+    val coll = sparkSession.sqlContext.read.DocumentDB()
+    coll.createOrReplaceTempView("c")
+
+    sparkSession.sql("SELECT * FROM c WHERE c.pkey = 1").rdd.getNumPartitions should equal(1)
+    sparkSession.sql("SELECT * FROM c WHERE c.pkey IN (1, 2)").rdd.getNumPartitions should equal(2)
+    sparkSession.sql("SELECT * FROM c").rdd.getNumPartitions should equal(coll.rdd.getNumPartitions)
+  }
+
   it should "should be easily created from the SQLContext and load from DocumentDB" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
@@ -134,6 +159,18 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     sc.parallelize(simpleDocuments).toDF().write.documentDB()
 
     val df = sparkSession.read.DocumentDB()
+
+    val expectedSchema: StructType = {
+      DataTypes.createStructType(Array(
+        DataTypes.createStructField("id", DataTypes.StringType, true),
+        DataTypes.createStructField("_self", DataTypes.StringType, true),
+        DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_etag", DataTypes.StringType, true),
+        DataTypes.createStructField("intString", DataTypes.StringType, true),
+        DataTypes.createStructField("_rid", DataTypes.StringType, true),
+        DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
+    }
 
     df.schema should equal(expectedSchema)
     df.count() should equal(documentCount)
@@ -153,6 +190,9 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val somePrimeStrings = List("2", "19", "43", "47", "53", "73", "97")
     df.filter($"intString".isin(somePrimeStrings:_*)).rdd.map(x => x.getString(x.fieldIndex("intString"))).collect() should
       contain theSameElementsAs somePrimeStrings
+    val somePrimeVals = List(2, 11)
+    df.filter($"pkey".isin(somePrimeVals:_*)).rdd.map(x => x.getInt(x.fieldIndex("pkey"))).collect() should
+      contain theSameElementsAs somePrimeVals
   }
 
   it should "should be easily created from the SQLContext and load a lot of documents from DocumentDB" in withSparkContext() { sc =>
@@ -233,5 +273,47 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
 
     val savedDF = sparkSession.read.schema(schema).DocumentDB()
     savedDF.collectAsList() should contain theSameElementsAs df.collect()
+  }
+
+  it should "work with complex json type" in withSparkContext() { sc =>
+    val sparkSession = createOrGetDefaultSparkSession(sc)
+    val random: Random = new Random
+    val maxSchoolCount = 5
+    val maxRecordCount = 10
+    sc.parallelize((1 to documentCount).map(x => {
+      val recordJson = (1 to random.nextInt(maxRecordCount)).mkString("[", ",", "]")
+      val schoolsJson = (1 to random.nextInt(maxSchoolCount))
+        .map(c => s"{'sname': 'school $c', year: $c, record: $recordJson}")
+        .toList
+        .mkString("[", ",", "]")
+      new Document(s"{pkey: $x, name: 'name $x', schools: $schoolsJson}")
+    })).saveToDocumentDB()
+
+    val expectedSchema: StructType = {
+      DataTypes.createStructType(Array(
+        DataTypes.createStructField("id", DataTypes.StringType, true),
+        DataTypes.createStructField("_self", DataTypes.StringType, true),
+        DataTypes.createStructField("pkey", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
+        DataTypes.createStructField("_etag", DataTypes.StringType, true),
+        DataTypes.createStructField("name", DataTypes.StringType, true),
+        DataTypes.createStructField("_rid", DataTypes.StringType, true),
+        DataTypes.createStructField("schools",
+          DataTypes.createArrayType(
+            DataTypes.createStructType(Array(
+              DataTypes.createStructField("record",
+                DataTypes.createArrayType(DataTypes.IntegerType, false),
+                true),
+              DataTypes.createStructField("sname", DataTypes.StringType, true),
+              DataTypes.createStructField("year", DataTypes.IntegerType, true)
+            )),
+            false),
+          true),
+        DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
+    }
+
+    val df = sparkSession.read.DocumentDB()
+    df.schema should equal(expectedSchema)
+    df.collect().length should equal(documentCount)
   }
 }

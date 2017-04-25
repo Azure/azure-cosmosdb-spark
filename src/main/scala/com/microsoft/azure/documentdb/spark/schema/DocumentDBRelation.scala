@@ -24,7 +24,6 @@ package com.microsoft.azure.documentdb.spark.schema
 
 import com.microsoft.azure.documentdb.spark._
 import com.microsoft.azure.documentdb.spark.config._
-import com.microsoft.azure.documentdb.spark.partitioner.DocumentDBPartitioner
 import com.microsoft.azure.documentdb.spark.rdd.DocumentDBRDD
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
@@ -41,17 +40,24 @@ class DocumentDBRelation(private val config: Config,
 
   implicit val _: Config = config
 
-  import DocumentDBRelation._
+  // Take sample documents to infer the schema
+  private lazy val lazySchema = {
+    val sampleSize: Long = config.get[String](DocumentDBConfig.SampleSize)
+      .getOrElse(DocumentDBConfig.DefaultSampleSize.toString)
+      .toLong
+    val samplingRatio = config.get[String](DocumentDBConfig.SamplingRatio)
+      .getOrElse(DocumentDBConfig.DefaultSamplingRatio.toString)
+      .toDouble
 
-  private lazy val lazySchema = DocumentDBSchema(
-    // Take sample documents to infer the schema
-    new DocumentDBRDD(sparkSession, config, Some(DocumentDBConfig.DefaultSampleSize)),
-    config.get[Any](DocumentDBConfig.SamplingRatio).fold(DocumentDBConfig.DefaultSamplingRatio)(_.toString.toDouble))
-    .schema()
+    DocumentDBRelation.lastSampleSize = sampleSize
+    DocumentDBRelation.lastSamplingRatio = samplingRatio
+
+    DocumentDBSchema(new DocumentDBRDD(sparkSession, config, Some(sampleSize)), samplingRatio).schema()
+  }
 
   override lazy val schema: StructType = schemaProvided.getOrElse(lazySchema)
 
-  override val sqlContext: SQLContext = sparkSession.sqlContext;
+  override val sqlContext: SQLContext = sparkSession.sqlContext
 
   override def buildScan(
                           requiredColumns: Array[String],
@@ -65,7 +71,7 @@ class DocumentDBRelation(private val config: Config,
       requiredColumns = requiredColumns,
       filters = filters)
 
-    DocumentDBRowConverter.asRow(pruneSchema(schema, requiredColumns), rdd)
+    DocumentDBRowConverter.asRow(DocumentDBRelation.pruneSchema(schema, requiredColumns), rdd)
   }
 
   override def equals(other: Any): Boolean = other match {
@@ -89,6 +95,12 @@ class DocumentDBRelation(private val config: Config,
 }
 
 object DocumentDBRelation {
+
+  /**
+    * For verification purpose
+    */
+  var lastSampleSize: Long = _
+  var lastSamplingRatio: Double = _
 
   /**
     * Prune whole schema in order to fit with

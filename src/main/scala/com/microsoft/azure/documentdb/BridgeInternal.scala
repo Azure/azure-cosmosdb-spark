@@ -22,6 +22,9 @@
   */
 package com.microsoft.azure.documentdb
 
+import com.microsoft.azure.documentdb.internal.routing.RoutingMapProvider
+import com.microsoft.azure.documentdb.internal.{DocumentServiceRequest, DocumentServiceResponse}
+
 
 /**
   * This is meant to be used only internally as a bridge access to
@@ -29,7 +32,15 @@ package com.microsoft.azure.documentdb
   **/
 object BridgeInternal {
 
-  def SetFeedOptionPartitionKeyRangeId(options: FeedOptions, partitionKeyRangeId: String): Unit = {
+  def setFeedOptionPartitionKeyRangeId(options: FeedOptions, partitionKeyRangeId: String): Unit = {
     options.setPartitionKeyRangeIdInternal(partitionKeyRangeId)
+  }
+
+  def getDocumentClientDoQuery(client: DocumentClient): DocumentServiceRequest => DocumentServiceResponse = {
+    client.doQuery
+  }
+
+  def getDocumentClientPartitionKeyRangeCache(client: DocumentClient): RoutingMapProvider = {
+    client.getPartitionKeyRangeCache
   }
 }

@@ -34,7 +34,7 @@ For those using HDInsight, this has been tested on HDI 3.5
 
 The current [`pyDocumentDB SDK`](https://github.com/Azure/azure-documentdb-python) allows us to connect `Spark` to `DocumentDB`. Here's a small code snippet that queries for airport codes from the DoctorWho Azure DocumentDB database; the results are in the `df` DataFrame.
 
-```
+```python
 # Import Necessary Libraries
 import pydocumentdb
 from pydocumentdb import document_client
@@ -79,7 +79,7 @@ df = spark.createDataFrame(elements)
 
 The `azure-documentdb-spark` connector connects Apache Spark to DocumentDB usign the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java).  Here's a small code snippet that queries for flight data from the DoctorWho Azure DocumentDB database; the results are in the `df` DataFrame.
 
-```
+```scala
 // Import Necessary Libraries
 import org.joda.time._
 import org.joda.time.format._
@@ -110,7 +110,7 @@ df.count()
 ## How to build the connector
 Currently, this connector project uses `maven` so to build without dependencies, you can run:
 
-```
+```sh
 mvn clean package
 ```
 

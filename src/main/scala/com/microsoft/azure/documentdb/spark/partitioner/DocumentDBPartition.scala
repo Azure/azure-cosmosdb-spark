@@ -24,6 +24,6 @@ package com.microsoft.azure.documentdb.spark.partitioner
 
 import org.apache.spark.Partition
 
-case class DocumentDBPartition(
-                                index: Int,
-                                partitionCount: Int) extends Partition
+case class DocumentDBPartition(index: Int,
+                               partitionCount: Int,
+                               partitionKeyRangeId: Int) extends Partition

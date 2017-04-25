@@ -73,7 +73,7 @@ trait RequiresDocumentDB extends FlatSpec with Matchers with BeforeAndAfterAll w
   def withSparkSession()(testCode: SparkSession => Any) {
     try {
       logInfo(s"Running Test: '${_currentTestName.getOrElse(suiteName)}'")
-      testCode(SparkSession.builder().getOrCreate()) // "loan" the fixture to the test
+      testCode(createOrGetDefaultSparkSession(sparkContext)) // "loan" the fixture to the test
     } finally {
     }
   }
@@ -83,15 +83,15 @@ trait RequiresDocumentDB extends FlatSpec with Matchers with BeforeAndAfterAll w
     HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true
 
     val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(DocumentDBConfig.Database).getOrElse(DocumentDBConfig.Database)
+    val databaseName: String = config.get(DocumentDBConfig.Database).get
     documentDBDefaults.deleteDatabase(databaseName)
     documentDBDefaults.createDatabase(databaseName)
   }
 
   override def beforeEach(): Unit = {
     val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(DocumentDBConfig.Database).getOrElse(DocumentDBConfig.Database)
-    val collectionName: String = config.get(DocumentDBConfig.Collection).getOrElse(DocumentDBConfig.Collection)
+    val databaseName: String = config.get(DocumentDBConfig.Database).get
+    val collectionName: String = config.get(DocumentDBConfig.Collection).get
     documentDBDefaults.deleteCollection(databaseName, collectionName)
     documentDBDefaults.createCollection(databaseName, collectionName)
   }

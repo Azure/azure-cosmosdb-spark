@@ -24,6 +24,8 @@ package com.microsoft.azure.documentdb.spark.partitioner
 
 import com.microsoft.azure.documentdb.spark._
 import com.microsoft.azure.documentdb.spark.config._
+import com.microsoft.azure.documentdb.spark.schema.FilterConverter
+import org.apache.spark.sql.sources.Filter
 
 class DocumentDBPartitioner() extends Partitioner[DocumentDBPartition] with LoggingTrait {
 
@@ -33,7 +35,21 @@ class DocumentDBPartitioner() extends Partitioner[DocumentDBPartition] with Logg
   override def computePartitions(config: Config): Array[DocumentDBPartition] = {
     var connection: DocumentDBConnection = new DocumentDBConnection(config)
     var partitionKeyRanges = connection.getAllPartitions
-    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.size} partitions")
-    partitionKeyRanges.map(p => DocumentDBPartition(p.getId().toInt, partitionKeyRanges.length))
+    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.length} partitions")
+    Array.tabulate(partitionKeyRanges.length){
+      i => DocumentDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+    }
+  }
+
+  def computePartitions(config: Config,
+                       requiredColumns: Array[String] = Array(),
+                       filters: Array[Filter] = Array()): Array[DocumentDBPartition] = {
+    var connection: DocumentDBConnection = new DocumentDBConnection(config)
+    var query: String = FilterConverter.createQueryString(requiredColumns, filters)
+    var partitionKeyRanges = connection.getAllPartitions(query)
+    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.length} partitions")
+    Array.tabulate(partitionKeyRanges.length){
+      i => DocumentDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+    }
   }
 }
