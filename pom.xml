@@ -21,7 +21,7 @@ limitations under the License.
   <artifactId>azure-documentdb-spark</artifactId>
   <packaging>jar</packaging>
   <groupId>com.microsoft.azure</groupId>
-  <version>0.0.2-SNAPSHOT</version>
+  <version>0.0.3-SNAPSHOT</version>
   <properties>
     <scala.version>2.11.8</scala.version>
     <scala.binary.version>2.11</scala.binary.version>
