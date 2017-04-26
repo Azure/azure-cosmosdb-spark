@@ -63,10 +63,10 @@ collLink = dbLink + '/colls/' + collectionId
 querystr = "SELECT c.City FROM c WHERE c.State='WA'"
 
 # Query documents
-query = client.QueryDocuments(collLink, query, options=None, partition_key=None)
+query = client.QueryDocuments(collLink, querystr, options=None, partition_key=None)
 
 # Query for partitioned collections
-# query = client.QueryDocuments(collLink, query, options= { 'enableCrossPartitionQuery': True }, partition_key=None)
+# query = client.QueryDocuments(collLink, querystr, options= { 'enableCrossPartitionQuery': True }, partition_key=None)
 
 # Push into list `elements`
 elements = list(query)
