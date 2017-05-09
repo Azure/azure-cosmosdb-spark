@@ -37,6 +37,7 @@ object DocumentDBConfig {
   val QueryPageSize = "query_pagesize"
   val MaxRetryOnThrottled = "query_maxretryattemptsonthrottledrequests"
   val MaxRetryWaitTimeSecs = "query_maxretrywaittimeinseconds"
+  val QueryCustom = "query_custom"
   val PreferredRegionsList = "preferredregions"
   val Upsert = "upsert"
   val ConnectionMode = "connectionmode"

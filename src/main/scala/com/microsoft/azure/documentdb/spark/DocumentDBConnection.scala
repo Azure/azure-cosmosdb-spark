@@ -139,6 +139,10 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
       }
     } catch {
       case dce: DocumentClientException =>
+        if (dce.getError == null) {
+          // This exception is unexpected, it's likely an issue with the query
+          throw dce
+        }
         val partitionedQueryExecutionInfo = new PartitionedQueryExecutionInfo(dce.getError.getPartitionedQueryExecutionInfo)
         partitionKeyRanges = RoutingMapProviderHelper.getOverlappingRanges(
           BridgeInternal.getDocumentClientPartitionKeyRangeCache(documentClient()),

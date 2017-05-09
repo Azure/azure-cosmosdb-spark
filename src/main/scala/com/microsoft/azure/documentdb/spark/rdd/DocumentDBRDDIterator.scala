@@ -61,12 +61,14 @@ class DocumentDBRDDIterator(
       .getOrElse(DocumentDBConfig.DefaultPageSize.toString)
       .toInt
     feedOpts.setPageSize(pageSize)
-    // Set target partition ID
+    // Set target partition ID_PROPERTY
     BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
     feedOpts.setEnableCrossPartitionQuery(true)
     DocumentDBRDDIterator.lastFeedOptions = feedOpts
 
-    var queryString = FilterConverter.createQueryString(requiredColumns, filters)
+    val queryString = config
+      .get[String](DocumentDBConfig.QueryCustom)
+      .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
     logDebug(s"DocumentDBRDDIterator::LazyReader, convert to predicate: $queryString")
 
     conn.queryDocuments(queryString, feedOpts)
