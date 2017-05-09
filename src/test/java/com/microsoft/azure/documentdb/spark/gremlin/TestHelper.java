@@ -1,13 +1,34 @@
+/**
+ * The MIT License (MIT)
+ * Copyright (c) 2017 Microsoft Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 package com.microsoft.azure.documentdb.spark.gremlin;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 public final class TestHelper {
 
@@ -39,14 +60,6 @@ public final class TestHelper {
     }
 
     /**
-     * Internally calls {@link #makeTestDataPath(Class, String...)} but returns the path as a string with the system
-     * separator appended to the end.
-     */
-    public static String makeTestDataDirectory(final Class clazz, final String... childPath) {
-        return makeTestDataPath(clazz, childPath).getAbsolutePath() + SEP;
-    }
-
-    /**
      * Gets and/or creates the root of the test data directory.  This  method is here as a convenience and should not
      * be used to store test data.  Use {@link #makeTestDataPath(Class, String...)} instead.
      */
@@ -72,6 +85,16 @@ public final class TestHelper {
             throw new RuntimeException("Unable to computePath for " + clazz, e);
         }
         return clsPath.substring(0, clsPath.length() - clsUri.length());
+    }
+
+    /**
+     * Creates a {@link File} reference in the path returned from {@link TestHelper#makeTestDataPath} in a subdirectory
+     * called {@code temp}.
+     */
+    public static File generateTempFile(final Class clazz, final String fileName, final String fileNameSuffix) throws IOException {
+        final File path = makeTestDataPath(clazz, "temp");
+        if (!path.exists()) path.mkdirs();
+        return File.createTempFile(fileName, fileNameSuffix, path);
     }
 
     /**

@@ -84,6 +84,11 @@ limitations under the License.
       <artifactId>spark-gremlin</artifactId>
       <version>${tinkerpop.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.tinkerpop</groupId>
+      <artifactId>tinkergraph-gremlin</artifactId>
+      <version>${tinkerpop.version}</version>
+    </dependency>
   </dependencies>
   <build>
     <testResources>

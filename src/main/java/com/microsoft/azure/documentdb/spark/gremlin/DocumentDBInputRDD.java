@@ -66,7 +66,7 @@ public final class DocumentDBInputRDD implements InputRDD {
     private static DocumentDBRDD documentDBRDD = null;
 
     static {
-        InputOutputHelper.registerInputOutputPair(DocumentDBInputRDD.class, com.microsoft.azure.documentdb.spark.gremlin.DocumentDBOutputRDD.class);
+        InputOutputHelper.registerInputOutputPair(DocumentDBInputRDD.class, DocumentDBOutputRDD.class);
     }
 
     @Override
@@ -235,11 +235,14 @@ public final class DocumentDBInputRDD implements InputRDD {
     static class Constants {
         public static final String VERTEX_ID_PROPERTY = "_vertex_id";
         public static final String VERTEXID_PROPERTY = "_vertexId";
+        public static final String VERTEX_LABEL_PROPERTY = "_vertexLabel";
         public static final String ID_PROPERTY = "id";
         public static final String EDGE_PROPERTY = "_edge";
         public static final String SINK_V_PROPERTY = "_sinkV";
         public static final String SINK_PROPERTY = "_sink";
+        public static final String SINK_LABEL_PROPERTY = "_sinkLabel";
         public static final String LABEL_PROPERTY = "label";
+        public static final String VALUE_PROPERTY = "_value";
 
         public static final String SPARK_DOCUMENTDB_ENDPOINT = "spark.documentdb.endpoint";
         public static final String SPARK_DOCUMENTDB_MASTERKEY = "spark.documentdb.masterkey";

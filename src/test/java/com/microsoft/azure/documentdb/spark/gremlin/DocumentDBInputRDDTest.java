@@ -29,9 +29,6 @@ import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 import org.junit.Test;
 
-import com.microsoft.azure.documentdb.internal.directconnectivity.HttpClientFactory;
-import com.microsoft.azure.documentdb.spark.DocumentDBDefaults;
-
 import static org.junit.Assert.assertEquals;
 
 public class DocumentDBInputRDDTest extends AbstractGremlinSparkTest {
@@ -39,14 +36,7 @@ public class DocumentDBInputRDDTest extends AbstractGremlinSparkTest {
     @Test
     public void shouldReadFromDocumentDBRDD() {
         final Configuration configuration = getBaseConfiguration();
-
-        HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true; // needed to run on localhost
-
-        DocumentDBDefaults documentDBDefaults = DocumentDBDefaults.apply();
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, documentDBDefaults.EMULATOR_ENDPOINT());
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, documentDBDefaults.EMULATOR_MASTERKEY());
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_DATABASE, DATABASE_NAME);
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, COLLECTION_NAME);
+        populateDocumentDBConfiguration(configuration);
 
         Graph graph = GraphFactory.open(configuration);
         GraphTraversalSource g = graph.traversal().withComputer(SparkGraphComputer.class);

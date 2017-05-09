@@ -51,6 +51,7 @@ import com.microsoft.azure.documentdb.Document;
 import com.microsoft.azure.documentdb.DocumentClient;
 import com.microsoft.azure.documentdb.DocumentClientException;
 import com.microsoft.azure.documentdb.DocumentCollection;
+import com.microsoft.azure.documentdb.internal.directconnectivity.HttpClientFactory;
 import com.microsoft.azure.documentdb.spark.DocumentDBDefaults;
 
 public abstract class AbstractGremlinSparkTest {
@@ -58,12 +59,15 @@ public abstract class AbstractGremlinSparkTest {
 
     static final String DATABASE_NAME = "graphDatabase";
     static final String COLLECTION_NAME = "graphCollection";
+    static final String PERSISTED_COLLECTION_NAME = "graphCollectionPersisted";
     static final int VERTEX_COUNT = 5;
     private static DocumentClient documentClient;
 
     @After
     @Before
     public void setupTest() {
+        HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true; // needed to run on localhost
+
         Spark.close();
         HadoopPools.close();
         KryoShimServiceLoader.close();
@@ -96,7 +100,11 @@ public abstract class AbstractGremlinSparkTest {
         collection.setId(COLLECTION_NAME);
         DocumentCollection createdCollection = documentClient.createCollection(createdDb.getSelfLink(), collection, null).getResource();
 
-        List<Document> documents = new ArrayList<Document>();
+        DocumentCollection outputCollection = new DocumentCollection();
+        outputCollection.setId(PERSISTED_COLLECTION_NAME);
+        documentClient.createCollection(createdDb.getSelfLink(), outputCollection, null);
+
+        List<Document> documents = new ArrayList<>();
         for (int i = 0; i < VERTEX_COUNT; ++i) {
             documents.add(createVertexDocument(i));
             documents.add(createEdgeDocument(i, (i + 1) % VERTEX_COUNT));
@@ -131,16 +139,24 @@ public abstract class AbstractGremlinSparkTest {
         return vEdge;
     }
 
-    protected Configuration getBaseConfiguration() {
+    Configuration getBaseConfiguration() {
         final BaseConfiguration configuration = new BaseConfiguration();
         configuration.setProperty("spark.master", "local[4]");
         configuration.setProperty("spark.serializer", KryoSerializer.class.getCanonicalName());
         configuration.setProperty(Graph.GRAPH, HadoopGraph.class.getName());
         configuration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_READER, DocumentDBInputRDD.class.getCanonicalName());
         configuration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_WRITER, GryoOutputFormat.class.getCanonicalName());
-        configuration.setProperty(Constants.GREMLIN_HADOOP_OUTPUT_LOCATION, TestHelper.makeTestDataDirectory(this.getClass(), "AbstractSparkTest"));
         configuration.setProperty(Constants.GREMLIN_HADOOP_JARS_IN_DISTRIBUTED_CACHE, false);
         configuration.setProperty(Constants.GREMLIN_SPARK_PERSIST_CONTEXT, true);
+        return configuration;
+    }
+
+    Configuration populateDocumentDBConfiguration(Configuration configuration) {
+        DocumentDBDefaults documentDBDefaults = DocumentDBDefaults.apply();
+        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, documentDBDefaults.EMULATOR_ENDPOINT());
+        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, documentDBDefaults.EMULATOR_MASTERKEY());
+        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_DATABASE, DATABASE_NAME);
+        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, COLLECTION_NAME);
         return configuration;
     }
 }
