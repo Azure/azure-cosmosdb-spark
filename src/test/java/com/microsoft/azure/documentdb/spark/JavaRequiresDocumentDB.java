@@ -36,7 +36,7 @@ public abstract class JavaRequiresDocumentDB implements Serializable {
 
     private transient JavaSparkContext jsc;
 
-    private static final DocumentDBDefaults documentDBDefaults = new DocumentDBDefaults();
+    private static final DocumentDBDefaults documentDBDefaults = DocumentDBDefaults$.MODULE$.apply();
 
     public DocumentClient getDocumentClient() {
         return documentDBDefaults.getDocumentClient();
