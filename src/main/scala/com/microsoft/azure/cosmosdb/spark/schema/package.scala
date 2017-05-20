@@ -29,16 +29,16 @@ import org.apache.spark.sql._
 import scala.language.implicitConversions
 
 /**
-  * The DocumentDB Spark Connector schema package
+  * The CosmosDB Spark Connector schema package
   */
 package object spark {
   /**
     * :: DeveloperApi ::
     *
-    * Helper to implicitly add DocumentDB based functions to a DataFrameReader
+    * Helper to implicitly add CosmosDB based functions to a DataFrameReader
     *
     * @param dfr the DataFrameReader
-    * @return the DocumentDB based DataFrameReader
+    * @return the CosmosDB based DataFrameReader
     */
   @DeveloperApi
   implicit def toDataFrameReaderFunctions(dfr: DataFrameReader): DataFrameReaderFunctions = DataFrameReaderFunctions(dfr)
@@ -46,10 +46,10 @@ package object spark {
   /**
     * :: DeveloperApi ::
     *
-    * Helper to implicitly add DocumentDB based functions to a DataFrameWriter
+    * Helper to implicitly add CosmosDB based functions to a DataFrameWriter
     *
     * @param dfw the DataFrameWriter
-    * @return the DocumentDB based DataFrameWriter
+    * @return the CosmosDB based DataFrameWriter
     */
   @DeveloperApi
   implicit def toDataFrameWriterFunctions(dfw: DataFrameWriter[_]): DataFrameWriterFunctions = DataFrameWriterFunctions(dfw)

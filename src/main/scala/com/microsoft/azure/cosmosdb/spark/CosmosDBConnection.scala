@@ -34,17 +34,17 @@ import scala.collection.{JavaConversions, mutable}
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 
-object DocumentDBConnection {
+object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
 }
 
-private[spark] case class DocumentDBConnection(config: Config) extends LoggingTrait with Serializable {
-  private val databaseName = config.get[String](DocumentDBConfig.Database).get
-  private val collectionName = config.get[String](DocumentDBConfig.Collection).get
-  private val connectionMode = ConnectionMode.valueOf(config.get[String](DocumentDBConfig.ConnectionMode)
-    .getOrElse(DocumentDBConfig.DefaultConnectionMode))
+private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
+  private val databaseName = config.get[String](CosmosDBConfig.Database).get
+  private val collectionName = config.get[String](CosmosDBConfig.Collection).get
+  private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
+    .getOrElse(CosmosDBConfig.DefaultConnectionMode))
   private val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
 
   @transient private var client: DocumentClient = _
@@ -53,7 +53,7 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
     if (client == null) {
       client = accquireClient(connectionMode)
 
-      DocumentDBConnection.lastConnectionPolicy = client.getConnectionPolicy
+      CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
     }
     client
   }
@@ -62,32 +62,32 @@ private[spark] case class DocumentDBConnection(config: Config) extends LoggingTr
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
-    val maxRetryAttemptsOnThrottled = config.get[String](DocumentDBConfig.MaxRetryOnThrottled)
+    val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.MaxRetryOnThrottled)
     if (maxRetryAttemptsOnThrottled.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
     }
-    val maxRetryWaitTimeSecs = config.get[String](DocumentDBConfig.MaxRetryWaitTimeSecs)
+    val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.MaxRetryWaitTimeSecs)
     if (maxRetryWaitTimeSecs.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
     }
-    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](DocumentDBConfig.ConsistencyLevel)
-      .getOrElse(DocumentDBConfig.DefaultConsistencyLevel))
+    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
+      .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    val option = config.get[String](DocumentDBConfig.PreferredRegionsList)
+    val option = config.get[String](CosmosDBConfig.PreferredRegionsList)
 
     if (option.isDefined) {
-      logWarning(s"DocumentDBConnection::Input preferred region list: ${option.get}")
+      logWarning(s"CosmosDBConnection::Input preferred region list: ${option.get}")
       val preferredLocations = option.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
     var documentClient = new DocumentClient(
-      config.get[String](DocumentDBConfig.Endpoint).get,
-      config.get[String](DocumentDBConfig.Masterkey).get,
+      config.get[String](CosmosDBConfig.Endpoint).get,
+      config.get[String](CosmosDBConfig.Masterkey).get,
       connectionPolicy,
       consistencyLevel)
 
-    DocumentDBConnection.lastConsistencyLevel = Some(consistencyLevel)
+    CosmosDBConnection.lastConsistencyLevel = Some(consistencyLevel)
 
     documentClient
   }

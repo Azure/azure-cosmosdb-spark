@@ -35,20 +35,20 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * Creates a [[DataFrame]] through schema inference via the `T` type, otherwise will sample the collection to
     * determine the type.
     *
-    * @tparam T The optional type of the data from DocumentDB
+    * @tparam T The optional type of the data from CosmosDB
     * @return DataFrame
     */
-  def DocumentDB[T <: Product : TypeTag](): DataFrame = createDataFrame(InferSchema.reflectSchema[T](), None)
+  def cosmosDB[T <: Product : TypeTag](): DataFrame = createDataFrame(InferSchema.reflectSchema[T](), None)
 
   /**
     * Creates a [[DataFrame]] through schema inference via the `T` type, otherwise will sample the collection to
     * determine the type.
     *
     * @param readConfig any connection read configuration overrides. Overrides the configuration set in [[org.apache.spark.SparkConf]]
-    * @tparam T The optional type of the data from DocumentDB
+    * @tparam T The optional type of the data from CosmosDB
     * @return DataFrame
     */
-  def DocumentDB[T <: Product : TypeTag](readConfig: Config): DataFrame =
+  def cosmosDB[T <: Product : TypeTag](readConfig: Config): DataFrame =
     createDataFrame(InferSchema.reflectSchema[T](), Some(readConfig))
 
   /**
@@ -57,7 +57,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * @param schema the schema definition
     * @return DataFrame
     */
-  def DocumentDB(schema: StructType): DataFrame = createDataFrame(Some(schema), None)
+  def cosmosDB(schema: StructType): DataFrame = createDataFrame(Some(schema), None)
 
   /**
     * Creates a [[DataFrame]] with the set schema
@@ -66,7 +66,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * @param readConfig any custom read configuration
     * @return DataFrame
     */
-  def DocumentDB(schema: StructType, readConfig: Config): DataFrame = createDataFrame(Some(schema), Some(readConfig))
+  def cosmosDB(schema: StructType, readConfig: Config): DataFrame = createDataFrame(Some(schema), Some(readConfig))
 
   private def createDataFrame(schema: Option[StructType], readConfig: Option[Config]): DataFrame = {
     val builder = dfr.format(classOf[DefaultSource].getPackage.getName)

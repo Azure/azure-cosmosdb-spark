@@ -40,15 +40,15 @@ import org.apache.tinkerpop.gremlin.structure.util.star.StarGraph;
 import org.json.JSONObject;
 
 import com.microsoft.azure.documentdb.Document;
-import com.microsoft.azure.cosmosdb.spark.DocumentDBSpark$;
+import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark$;
 import com.microsoft.azure.cosmosdb.spark.config.Config;
 import com.microsoft.azure.cosmosdb.spark.config.Config$;
 
 
-public final class DocumentDBOutputRDD implements OutputRDD {
+public final class CosmosDBOutputRDD implements OutputRDD {
 
     static {
-        InputOutputHelper.registerInputOutputPair(DocumentDBInputRDD.class, DocumentDBOutputRDD.class);
+        InputOutputHelper.registerInputOutputPair(CosmosDBInputRDD.class, CosmosDBOutputRDD.class);
     }
 
     @Override
@@ -60,7 +60,7 @@ public final class DocumentDBOutputRDD implements OutputRDD {
 
                    Document d = new Document();
                    d.setId(v.id().toString());
-                   d.set(DocumentDBInputRDD.Constants.LABEL_PROPERTY, v.label());
+                   d.set(CosmosDBInputRDD.Constants.LABEL_PROPERTY, v.label());
                    Map<String, List<String>> vps = new HashMap<>();
                    v.properties().forEachRemaining(p -> {
                                 if (!vps.containsKey(p.label())) {
@@ -72,9 +72,9 @@ public final class DocumentDBOutputRDD implements OutputRDD {
                        JSONObject[] jsonObjArr = new JSONObject[entry.getValue().size()];
                        for (int i = 0; i < entry.getValue().size(); ++i) {
                            jsonObjArr[i] = new JSONObject(String.format("{ '%s': '%s', '%s': '%s' }",
-                                   DocumentDBInputRDD.Constants.ID_PROPERTY,
+                                   CosmosDBInputRDD.Constants.ID_PROPERTY,
                                    UUID.randomUUID().toString(),
-                                   DocumentDBInputRDD.Constants.VALUE_PROPERTY,
+                                   CosmosDBInputRDD.Constants.VALUE_PROPERTY,
                                    entry.getValue().get(i)));
                        }
                        d.set(entry.getKey(), jsonObjArr);
@@ -85,10 +85,10 @@ public final class DocumentDBOutputRDD implements OutputRDD {
                    v.edges(Direction.OUT).forEachRemaining(edge -> {
                        Document e = new Document();
                        e.setId(edge.id().toString());
-                       e.set(DocumentDBInputRDD.Constants.LABEL_PROPERTY, edge.label());
-                       e.set(DocumentDBInputRDD.Constants.SINK_PROPERTY, edge.inVertex().id().toString());
-                       e.set(DocumentDBInputRDD.Constants.VERTEXID_PROPERTY, v.id().toString());
-                       e.set(DocumentDBInputRDD.Constants.VERTEX_LABEL_PROPERTY, v.label());
+                       e.set(CosmosDBInputRDD.Constants.LABEL_PROPERTY, edge.label());
+                       e.set(CosmosDBInputRDD.Constants.SINK_PROPERTY, edge.inVertex().id().toString());
+                       e.set(CosmosDBInputRDD.Constants.VERTEXID_PROPERTY, v.id().toString());
+                       e.set(CosmosDBInputRDD.Constants.VERTEX_LABEL_PROPERTY, v.label());
                        edge.properties().forEachRemaining(p -> e.set(p.key(), p.value()));
                        documentList.add(e);
                    });
@@ -99,6 +99,6 @@ public final class DocumentDBOutputRDD implements OutputRDD {
         SparkContext sparkContext = graphRDD.rdd().sparkContext();
         Config writeConfig = Config$.MODULE$.apply(sparkContext.getConf());
 
-        DocumentDBSpark$.MODULE$.save(javaRDD, writeConfig);
+        CosmosDBSpark$.MODULE$.save(javaRDD, writeConfig);
     }
 }

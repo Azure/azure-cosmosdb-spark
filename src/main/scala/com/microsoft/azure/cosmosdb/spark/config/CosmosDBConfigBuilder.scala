@@ -20,10 +20,17 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.cosmosdb.spark.partitioner
+package com.microsoft.azure.cosmosdb.spark.config
 
-import org.apache.spark.Partition
+import com.microsoft.azure.cosmosdb.spark.config.Config._
 
-case class DocumentDBPartition(index: Int,
-                               partitionCount: Int,
-                               partitionKeyRangeId: Int) extends Partition
+case class CosmosDBConfigBuilder(props: Map[Property, Any] = Map()) extends {
+
+  override val properties = Map() ++ props
+
+} with ConfigBuilder[CosmosDBConfigBuilder](properties) {
+
+  val requiredProperties: List[Property] = CosmosDBConfig.required
+
+  def apply(props: Map[Property, Any]) = CosmosDBConfigBuilder(props)
+}

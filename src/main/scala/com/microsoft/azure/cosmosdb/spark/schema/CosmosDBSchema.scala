@@ -47,7 +47,7 @@ trait SchemaProvider {
 
 }
 
-case class DocumentDBSchema[T <: RDD[Document]](
+case class CosmosDBSchema[T <: RDD[Document]](
                                                  rdd: T,
                                                  samplingRatio: Double) extends SchemaProvider with Serializable {
 

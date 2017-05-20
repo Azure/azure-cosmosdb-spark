@@ -52,7 +52,7 @@ import com.microsoft.azure.documentdb.DocumentClient;
 import com.microsoft.azure.documentdb.DocumentClientException;
 import com.microsoft.azure.documentdb.DocumentCollection;
 import com.microsoft.azure.documentdb.internal.directconnectivity.HttpClientFactory;
-import com.microsoft.azure.cosmosdb.spark.DocumentDBDefaults;
+import com.microsoft.azure.cosmosdb.spark.CosmosDBDefaults;
 
 public abstract class AbstractGremlinSparkTest {
     private static final Logger logger = LoggerFactory.getLogger(AbstractGremlinSparkTest.class);
@@ -75,10 +75,10 @@ public abstract class AbstractGremlinSparkTest {
     }
 
     @BeforeClass
-    public static void setUpDocumentDB() throws DocumentClientException {
-        DocumentDBDefaults documentDBDefaults = DocumentDBDefaults.apply();
-        documentClient = new DocumentClient(documentDBDefaults.EMULATOR_ENDPOINT(),
-                documentDBDefaults.EMULATOR_MASTERKEY(),
+    public static void setUpCosmosDB() throws DocumentClientException {
+        CosmosDBDefaults cosmosDBDefaults = CosmosDBDefaults.apply();
+        documentClient = new DocumentClient(cosmosDBDefaults.EMULATOR_ENDPOINT(),
+                cosmosDBDefaults.EMULATOR_MASTERKEY(),
                 new ConnectionPolicy(),
                 ConsistencyLevel.Session);
 
@@ -87,7 +87,7 @@ public abstract class AbstractGremlinSparkTest {
     }
 
     @AfterClass
-    public static void cleanUpDocumentDB() {
+    public static void cleanUpCosmosDB() {
         deleteData();
     }
 
@@ -126,16 +126,16 @@ public abstract class AbstractGremlinSparkTest {
         Document vDoc = new Document();
         vDoc.setId(String.valueOf(documentId));
         vDoc.set("ModTwo", new JSONObject[] { new JSONObject(String.format("{'id': '%s', '_value': '%s'}", UUID.randomUUID().toString(), documentId % 2)) });
-        vDoc.set(DocumentDBInputRDD.Constants.LABEL_PROPERTY, String.format("vertex%d", documentId));
+        vDoc.set(CosmosDBInputRDD.Constants.LABEL_PROPERTY, String.format("vertex%d", documentId));
         return vDoc;
     }
 
     private static Document createEdgeDocument(int sourceId, int sinkId) {
         Document vEdge = new Document();
         vEdge.setId(UUID.randomUUID().toString());
-        vEdge.set(DocumentDBInputRDD.Constants.LABEL_PROPERTY, String.format("edge%d-%d", sourceId, sinkId));
-        vEdge.set(DocumentDBInputRDD.Constants.SINK_PROPERTY, String.valueOf(sinkId));
-        vEdge.set(DocumentDBInputRDD.Constants.VERTEXID_PROPERTY, String.valueOf(sourceId));
+        vEdge.set(CosmosDBInputRDD.Constants.LABEL_PROPERTY, String.format("edge%d-%d", sourceId, sinkId));
+        vEdge.set(CosmosDBInputRDD.Constants.SINK_PROPERTY, String.valueOf(sinkId));
+        vEdge.set(CosmosDBInputRDD.Constants.VERTEXID_PROPERTY, String.valueOf(sourceId));
         return vEdge;
     }
 
@@ -144,19 +144,19 @@ public abstract class AbstractGremlinSparkTest {
         configuration.setProperty("spark.master", "local[4]");
         configuration.setProperty("spark.serializer", KryoSerializer.class.getCanonicalName());
         configuration.setProperty(Graph.GRAPH, HadoopGraph.class.getName());
-        configuration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_READER, DocumentDBInputRDD.class.getCanonicalName());
+        configuration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_READER, CosmosDBInputRDD.class.getCanonicalName());
         configuration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_WRITER, GryoOutputFormat.class.getCanonicalName());
         configuration.setProperty(Constants.GREMLIN_HADOOP_JARS_IN_DISTRIBUTED_CACHE, false);
         configuration.setProperty(Constants.GREMLIN_SPARK_PERSIST_CONTEXT, true);
         return configuration;
     }
 
-    Configuration populateDocumentDBConfiguration(Configuration configuration) {
-        DocumentDBDefaults documentDBDefaults = DocumentDBDefaults.apply();
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, documentDBDefaults.EMULATOR_ENDPOINT());
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, documentDBDefaults.EMULATOR_MASTERKEY());
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_DATABASE, DATABASE_NAME);
-        configuration.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, COLLECTION_NAME);
+    Configuration populateCosmosDBConfiguration(Configuration configuration) {
+        CosmosDBDefaults cosmosDBDefaults = CosmosDBDefaults.apply();
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, cosmosDBDefaults.EMULATOR_ENDPOINT());
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, cosmosDBDefaults.EMULATOR_MASTERKEY());
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_DATABASE, DATABASE_NAME);
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, COLLECTION_NAME);
         return configuration;
     }
 }

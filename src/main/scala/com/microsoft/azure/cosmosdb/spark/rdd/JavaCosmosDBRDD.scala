@@ -26,9 +26,9 @@ import com.microsoft.azure.documentdb._
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.sql.{DataFrame, Dataset};
 
-case class JavaDocumentDBRDD(override val rdd: DocumentDBRDD) extends JavaRDD[Document](rdd) {
+case class JavaCosmosDBRDD(override val rdd: CosmosDBRDD) extends JavaRDD[Document](rdd) {
   /**
-    * Creates a `DataFrame` inferring the schema by sampling data from DcoumentDB.
+    * Creates a `DataFrame` inferring the schema by sampling data from CosmosDB.
     *
     * '''Note:''' Prefer [[toDS[T](beanClass:Class[T])*]] as any computations will be more efficient.
     *
@@ -39,8 +39,8 @@ case class JavaDocumentDBRDD(override val rdd: DocumentDBRDD) extends JavaRDD[Do
   /**
     * Creates a `DataFrame` based on the schema derived from the bean class
     *
-    * @param beanClass encapsulating the data from DocumentDB
-    * @tparam T The bean class type to shape the data from DocumentDB into
+    * @param beanClass encapsulating the data from CosmosDB
+    * @tparam T The bean class type to shape the data from CosmosDB into
     * @return a DataFrame
     */
   def toDF[T](beanClass: Class[T]): DataFrame = {
@@ -51,8 +51,8 @@ case class JavaDocumentDBRDD(override val rdd: DocumentDBRDD) extends JavaRDD[Do
   /**
     * Creates a `Dataset` from the RDD strongly typed to the provided java bean.
     *
-    * @param beanClass encapsulating the data from DocumentDB
-    * @tparam T The type of the data from DocumentDB
+    * @param beanClass encapsulating the data from CosmosDB
+    * @tparam T The type of the data from CosmosDB
     * @return a Dataset
     */
   def toDS[T](beanClass: Class[T]): Dataset[T] = {

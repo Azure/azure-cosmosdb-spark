@@ -40,10 +40,10 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class DocumentDBOutputRDDTest extends AbstractGremlinSparkTest {
+public class CosmosDBOutputRDDTest extends AbstractGremlinSparkTest {
 
     @Test
-    public void shouldWriteToDocumentDB() throws Exception {
+    public void shouldWriteToCosmosDB() throws Exception {
         // Create a Tinkerpop modern graph in a file
         final Configuration tinkerGraphConfig = new BaseConfiguration();
         String tinkerGraphPath = TestHelper
@@ -55,13 +55,13 @@ public class DocumentDBOutputRDDTest extends AbstractGremlinSparkTest {
         TinkerFactory.generateModern(tinkerGraph);
         tinkerGraph.close();
 
-        // Load the modern graph and persist into DocumentDB
+        // Load the modern graph and persist into CosmosDB
         final Configuration writeConfig = getBaseConfiguration();
         writeConfig.setProperty(Constants.GREMLIN_HADOOP_INPUT_LOCATION, tinkerGraphPath);
         writeConfig.setProperty(Constants.GREMLIN_HADOOP_GRAPH_READER, GryoInputFormat.class.getCanonicalName());
-        writeConfig.setProperty(Constants.GREMLIN_HADOOP_GRAPH_WRITER, DocumentDBOutputRDD.class.getCanonicalName());
-        populateDocumentDBConfiguration(writeConfig);
-        writeConfig.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, PERSISTED_COLLECTION_NAME);
+        writeConfig.setProperty(Constants.GREMLIN_HADOOP_GRAPH_WRITER, CosmosDBOutputRDD.class.getCanonicalName());
+        populateCosmosDBConfiguration(writeConfig);
+        writeConfig.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, PERSISTED_COLLECTION_NAME);
 
         Graph graph = GraphFactory.open(writeConfig);
         graph.compute(SparkGraphComputer.class)
@@ -72,10 +72,10 @@ public class DocumentDBOutputRDDTest extends AbstractGremlinSparkTest {
                                 "gremlin-groovy",
                                 "g.V()").create(graph)).submit().get();
 
-        // Read from DocumentDB
+        // Read from CosmosDB
         Configuration readConfig = getBaseConfiguration();
-        populateDocumentDBConfiguration(readConfig);
-        readConfig.setProperty(DocumentDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, PERSISTED_COLLECTION_NAME);
+        populateCosmosDBConfiguration(readConfig);
+        readConfig.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, PERSISTED_COLLECTION_NAME);
 
         Graph readGraph = GraphFactory.open(readConfig);
         GraphTraversalSource g = readGraph.traversal().withComputer(SparkGraphComputer.class);

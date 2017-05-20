@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.config
 /**
  * Values and Functions for access and parse the configuration parameters
  */
-object DocumentDBConfig {
+object CosmosDBConfig {
 
   //  Parameter names
   val Endpoint = "endpoint"

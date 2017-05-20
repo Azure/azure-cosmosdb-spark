@@ -23,21 +23,21 @@
 package com.microsoft.azure.cosmosdb.spark.schema
 
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.cosmosdb.spark.{DocumentDBSpark, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBSpark, LoggingTrait}
 import org.apache.spark.sql.DataFrameWriter
 
 private[spark] case class DataFrameWriterFunctions(@transient dfw: DataFrameWriter[_]) extends LoggingTrait {
 
   /**
-    * Saves the contents of the `DataFrame` to DocumentDB.
+    * Saves the contents of the `DataFrame` to CosmosDB.
     */
-  def documentDB(): Unit = DocumentDBSpark.save(dfw)
+  def cosmosDB(): Unit = CosmosDBSpark.save(dfw)
 
   /**
-    * Saves the contents of the `DataFrame` to DocumentDB.
+    * Saves the contents of the `DataFrame` to CosmosDB.
     *
     * @param writeConfig the [[com.microsoft.azure.cosmosdb.spark.config.Config]] to use
     */
-  def documentDB(writeConfig: Config): Unit = DocumentDBSpark.save(dfw, writeConfig)
+  def cosmosDB(writeConfig: Config): Unit = CosmosDBSpark.save(dfw, writeConfig)
 
 }

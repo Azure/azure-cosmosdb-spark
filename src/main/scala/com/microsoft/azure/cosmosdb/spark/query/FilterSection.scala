@@ -37,7 +37,7 @@ object FilterSection {
 }
 
 /**
-  * Trait to be implemented to those classes describing the Filter section of a DocumentDB query.
+  * Trait to be implemented to those classes describing the Filter section of a CosmosDB query.
   */
 trait FilterSection {
   def filtersToDBObject(): Unit

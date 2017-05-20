@@ -22,24 +22,24 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
-import com.microsoft.azure.cosmosdb.spark.config.{Config, DocumentDBConfig}
-import com.microsoft.azure.cosmosdb.spark.partitioner.DocumentDBPartition
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
-import com.microsoft.azure.cosmosdb.spark.{DocumentDBConnection, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
-object DocumentDBRDDIterator {
+object CosmosDBRDDIterator {
 
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
 
 }
 
-class DocumentDBRDDIterator(
+class CosmosDBRDDIterator(
                              taskContext: TaskContext,
-                             partition: DocumentDBPartition,
+                             partition: CosmosDBPartition,
                              config: Config,
                              maxItems: Option[Long],
                              requiredColumns: Array[String],
@@ -53,23 +53,23 @@ class DocumentDBRDDIterator(
 
   lazy val reader: Iterator[Document] = {
     initialized = true
-    var conn: DocumentDBConnection = new DocumentDBConnection(config)
+    var conn: CosmosDBConnection = new CosmosDBConnection(config)
 
     val feedOpts = new FeedOptions()
     val pageSize: Int = config
-      .get[String](DocumentDBConfig.QueryPageSize)
-      .getOrElse(DocumentDBConfig.DefaultPageSize.toString)
+      .get[String](CosmosDBConfig.QueryPageSize)
+      .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
       .toInt
     feedOpts.setPageSize(pageSize)
     // Set target partition ID_PROPERTY
     BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
     feedOpts.setEnableCrossPartitionQuery(true)
-    DocumentDBRDDIterator.lastFeedOptions = feedOpts
+    CosmosDBRDDIterator.lastFeedOptions = feedOpts
 
     val queryString = config
-      .get[String](DocumentDBConfig.QueryCustom)
+      .get[String](CosmosDBConfig.QueryCustom)
       .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
-    logDebug(s"DocumentDBRDDIterator::LazyReader, convert to predicate: $queryString")
+    logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
 
     conn.queryDocuments(queryString, feedOpts)
   }

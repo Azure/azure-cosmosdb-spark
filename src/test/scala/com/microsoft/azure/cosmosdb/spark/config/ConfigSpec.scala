@@ -22,47 +22,47 @@
   */
 package com.microsoft.azure.cosmosdb.spark.config
 
-import com.microsoft.azure.cosmosdb.spark.{DocumentDBConnection, DocumentDBDefaults, DocumentDBSpark, RequiresDocumentDB}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBDefaults, CosmosDBSpark, RequiresCosmosDB}
 import com.microsoft.azure.documentdb.ConnectionPolicy
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentDBRDDIterator
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.spark._
-import com.microsoft.azure.cosmosdb.spark.schema.DocumentDBRelation
+import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRelation
 
-class ConfigSpec extends RequiresDocumentDB {
+class ConfigSpec extends RequiresCosmosDB {
     "Config" should "have the expected defaults" in withSparkSession() { ss =>
-      val readConfig = Config(Map("Endpoint" -> DocumentDBDefaults().EMULATOR_ENDPOINT,
-        "Masterkey" -> DocumentDBDefaults().EMULATOR_MASTERKEY,
-        "Database" -> DocumentDBDefaults().DATABASE_NAME,
+      val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().EMULATOR_ENDPOINT,
+        "Masterkey" -> CosmosDBDefaults().EMULATOR_MASTERKEY,
+        "Database" -> CosmosDBDefaults().DATABASE_NAME,
         "Collection" -> collectionName))
 
-      val df = ss.sqlContext.read.DocumentDB(readConfig)
+      val df = ss.sqlContext.read.cosmosDB(readConfig)
       df.collect()
-      df.write.documentDB(readConfig)
+      df.write.cosmosDB(readConfig)
 
-      DocumentDBConnection.lastConsistencyLevel.get.toString should equal(DocumentDBConfig.DefaultConsistencyLevel)
+      CosmosDBConnection.lastConsistencyLevel.get.toString should equal(CosmosDBConfig.DefaultConsistencyLevel)
 
       val plainConnectionPolicy = new ConnectionPolicy()
-      val connectionPolicy = DocumentDBConnection.lastConnectionPolicy
-      connectionPolicy.getConnectionMode.toString should equal(DocumentDBConfig.DefaultConnectionMode)
+      val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
+      connectionPolicy.getConnectionMode.toString should equal(CosmosDBConfig.DefaultConnectionMode)
       connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests should
         equal(plainConnectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests)
       connectionPolicy.getRetryOptions.getMaxRetryWaitTimeInSeconds should
         equal(plainConnectionPolicy.getRetryOptions.getMaxRetryWaitTimeInSeconds)
       connectionPolicy.getPreferredLocations should equal(null)
 
-      val feedOptions = DocumentDBRDDIterator.lastFeedOptions
-      feedOptions.getPageSize should equal(DocumentDBConfig.DefaultPageSize)
+      val feedOptions = CosmosDBRDDIterator.lastFeedOptions
+      feedOptions.getPageSize should equal(CosmosDBConfig.DefaultPageSize)
 
-      DocumentDBRelation.lastSamplingRatio should equal(DocumentDBConfig.DefaultSamplingRatio)
-      DocumentDBRelation.lastSampleSize should equal(DocumentDBConfig.DefaultSampleSize)
+      CosmosDBRelation.lastSamplingRatio should equal(CosmosDBConfig.DefaultSamplingRatio)
+      CosmosDBRelation.lastSampleSize should equal(CosmosDBConfig.DefaultSampleSize)
 
-      DocumentDBSpark.lastUpsertSetting.get should equal(DocumentDBConfig.DefaultUpsert)
+      CosmosDBSpark.lastUpsertSetting.get should equal(CosmosDBConfig.DefaultUpsert)
     }
 
   it should "be able to override the defaults" in withSparkSession() { ss =>
-    val readConfig = Config(Map("Endpoint" -> DocumentDBDefaults().EMULATOR_ENDPOINT,
-      "Masterkey" -> DocumentDBDefaults().EMULATOR_MASTERKEY,
-      "Database" -> DocumentDBDefaults().DATABASE_NAME,
+    val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().EMULATOR_ENDPOINT,
+      "Masterkey" -> CosmosDBDefaults().EMULATOR_MASTERKEY,
+      "Database" -> CosmosDBDefaults().DATABASE_NAME,
       "Collection" -> collectionName,
       "ConsistencyLevel" -> "Strong",
       "conNeCtIoNMODE" -> "Gateway",
@@ -75,13 +75,13 @@ class ConfigSpec extends RequiresDocumentDB {
       "preferredregions" -> "West US; West US 2")
     )
 
-    val df = ss.sqlContext.read.DocumentDB(readConfig)
+    val df = ss.sqlContext.read.cosmosDB(readConfig)
     df.collect()
-    df.write.documentDB(readConfig)
+    df.write.cosmosDB(readConfig)
 
-    DocumentDBConnection.lastConsistencyLevel.get.toString should equal(readConfig.properties("consistencylevel").toString)
+    CosmosDBConnection.lastConsistencyLevel.get.toString should equal(readConfig.properties("consistencylevel").toString)
 
-    val connectionPolicy = DocumentDBConnection.lastConnectionPolicy
+    val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
     connectionPolicy.getConnectionMode.toString should equal(readConfig.properties("connectionmode").toString)
     connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests.toString should
       equal(readConfig.properties("query_maxretryattemptsonthrottledrequests"))
@@ -89,12 +89,12 @@ class ConfigSpec extends RequiresDocumentDB {
       equal(readConfig.properties("query_maxretrywaittimeinseconds"))
     connectionPolicy.getPreferredLocations.size() should equal(2)
 
-    val feedOptions = DocumentDBRDDIterator.lastFeedOptions
+    val feedOptions = CosmosDBRDDIterator.lastFeedOptions
     feedOptions.getPageSize.toString should equal(readConfig.properties("query_pagesize"))
 
-    DocumentDBRelation.lastSamplingRatio.toString should equal(readConfig.properties("schema_samplingratio"))
-    DocumentDBRelation.lastSampleSize.toString should equal(readConfig.properties("schema_samplesize"))
+    CosmosDBRelation.lastSamplingRatio.toString should equal(readConfig.properties("schema_samplingratio"))
+    CosmosDBRelation.lastSampleSize.toString should equal(readConfig.properties("schema_samplesize"))
 
-    DocumentDBSpark.lastUpsertSetting.get.toString should equal(readConfig.properties("upsert"))
+    CosmosDBSpark.lastUpsertSetting.get.toString should equal(readConfig.properties("upsert"))
   }
 }

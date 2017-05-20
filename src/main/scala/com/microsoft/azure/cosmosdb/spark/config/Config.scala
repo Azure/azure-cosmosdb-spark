@@ -40,7 +40,7 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
   builder =>
 
   /**
-    * Required properties to build a DocumentDB config object.
+    * Required properties to build a CosmosDB config object.
     * At build time, if these properties are not set, an assert
     * exception will be thrown.
     */
@@ -68,7 +68,7 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
   /**
     * Build the config object from current builder properties.
     *
-    * @return The DocumentDB configuration object.
+    * @return The CosmosDB configuration object.
     */
   def build(): Config = new Config {
 
@@ -104,7 +104,7 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
 }
 
 /**
-  * DocumentDB standard configuration object
+  * CosmosDB standard configuration object
   */
 trait Config extends Serializable {
 
@@ -156,7 +156,7 @@ trait Config extends Serializable {
 
 object Config {
 
-  val configPrefix = "spark.documentdb."
+  val configPrefix = "spark.cosmosdb."
 
   type Property = String
 
@@ -244,7 +244,7 @@ object Config {
         case None => Map.empty[String, String]
       }
     }
-    var builder = DocumentDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
+    var builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
 
     builder.build()
   }

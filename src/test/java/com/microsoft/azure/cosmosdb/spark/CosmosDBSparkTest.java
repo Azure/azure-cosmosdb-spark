@@ -29,13 +29,13 @@ import org.apache.spark.api.java.function.Function;
 import org.junit.Test;
 
 import com.microsoft.azure.documentdb.Document;
-import com.microsoft.azure.cosmosdb.spark.DocumentDBSpark;
-import com.microsoft.azure.cosmosdb.spark.rdd.JavaDocumentDBRDD;
+import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark;
+import com.microsoft.azure.cosmosdb.spark.rdd.JavaCosmosDBRDD;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
-public final class DocumentDBSparkTest extends JavaRequiresDocumentDB {
+public final class CosmosDBSparkTest extends JavaRequiresCosmosDB {
 
     List<Document> counters = asList(new Document("{counter: 0}"), new Document("{counter: 1}"),
             new Document("{counter: 2}"));
@@ -44,12 +44,12 @@ public final class DocumentDBSparkTest extends JavaRequiresDocumentDB {
     public void shouldBeCreatableFromTheSparkContext() {
         JavaSparkContext jsc = getJavaSparkContext();
 
-        DocumentDBSpark.save(jsc.parallelize(counters));
-        JavaDocumentDBRDD documentDBRDD = DocumentDBSpark.load(jsc);
+        CosmosDBSpark.save(jsc.parallelize(counters));
+        JavaCosmosDBRDD cosmosDBRDD = CosmosDBSpark.load(jsc);
 
-        assertEquals(documentDBRDD.count(), 3);
+        assertEquals(cosmosDBRDD.count(), 3);
 
-        List<Integer> counters = documentDBRDD.map(new Function<Document, Integer>() {
+        List<Integer> counters = cosmosDBRDD.map(new Function<Document, Integer>() {
             public Integer call(final Document x) throws Exception {
                 return x.getInt("counter");
             }

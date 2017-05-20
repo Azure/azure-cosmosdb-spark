@@ -31,12 +31,12 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class DocumentDBInputRDDTest extends AbstractGremlinSparkTest {
+public class CosmosDBInputRDDTest extends AbstractGremlinSparkTest {
 
     @Test
-    public void shouldReadFromDocumentDBRDD() {
+    public void shouldReadFromCosmosDBRDD() {
         final Configuration configuration = getBaseConfiguration();
-        populateDocumentDBConfiguration(configuration);
+        populateCosmosDBConfiguration(configuration);
 
         Graph graph = GraphFactory.open(configuration);
         GraphTraversalSource g = graph.traversal().withComputer(SparkGraphComputer.class);

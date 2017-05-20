@@ -22,8 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import com.microsoft.azure.cosmosdb.spark.config.{Config, DocumentDBConfig}
-import com.microsoft.azure.cosmosdb.spark.schema.DocumentDBRelation
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRelation
 import org.apache.spark.sql.SaveMode._
 import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider, SchemaRelationProvider}
 import org.apache.spark.sql.types.StructType
@@ -52,7 +52,7 @@ class DefaultSource extends RelationProvider
                             parameters: Predef.Map[String, String],
                             schema: Option[StructType]
                             ): BaseRelation = {
-    new DocumentDBRelation(Config(sqlContext.sparkContext.getConf, parameters), schema)(sqlContext.sparkSession)
+    new CosmosDBRelation(Config(sqlContext.sparkContext.getConf, parameters), schema)(sqlContext.sparkSession)
   }
 
   override def createRelation(
@@ -62,23 +62,23 @@ class DefaultSource extends RelationProvider
                                data: DataFrame): BaseRelation = {
 
     var config: Config = Config(sqlContext.sparkContext.getConf, parameters)
-    var connection: DocumentDBConnection = new DocumentDBConnection(config)
+    var connection: CosmosDBConnection = new CosmosDBConnection(config)
     var isEmptyCollection: Boolean = connection.isDocumentCollectionEmpty
     mode match{
       case Append =>
-        DocumentDBSpark.save(data, config)
+        CosmosDBSpark.save(data, config)
       case Overwrite =>
         var upsertConfig: collection.Map[String, String] = config.asOptions
-        upsertConfig += DocumentDBConfig.Upsert -> String.valueOf(true)
-        DocumentDBSpark.save(data, Config(upsertConfig))
+        upsertConfig += CosmosDBConfig.Upsert -> String.valueOf(true)
+        CosmosDBSpark.save(data, Config(upsertConfig))
       case ErrorIfExists  =>
         if (isEmptyCollection)
-          DocumentDBSpark.save(data, config)
+          CosmosDBSpark.save(data, config)
         else
           throw new UnsupportedOperationException("Writing in a non-empty collection.")
       case Ignore =>
         if (isEmptyCollection)
-          DocumentDBSpark.save(data, config)
+          CosmosDBSpark.save(data, config)
         else
           logInfo("Ignore writing to non empty collection.")
       case default =>

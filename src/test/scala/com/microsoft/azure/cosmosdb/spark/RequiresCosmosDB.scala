@@ -23,15 +23,15 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import com.microsoft.azure.documentdb.internal.directconnectivity.HttpClientFactory
-import com.microsoft.azure.cosmosdb.spark.config.{Config, DocumentDBConfig}
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import org.apache.commons.lang.StringUtils
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 
-trait RequiresDocumentDB extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with LoggingTrait {
+trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with LoggingTrait {
 
-  val documentDBDefaults: DocumentDBDefaults = DocumentDBDefaults()
+  val cosmosDBDefaults: CosmosDBDefaults = CosmosDBDefaults()
   private var _currentTestName: Option[String] = None
 
   private def sparkContext: SparkContext = _sparkContext
@@ -50,7 +50,7 @@ trait RequiresDocumentDB extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def sparkConf: SparkConf = sparkConf(collectionName)
 
-  def sparkConf(collectionName: String): SparkConf = documentDBDefaults.getSparkConf(collectionName)
+  def sparkConf(collectionName: String): SparkConf = cosmosDBDefaults.getSparkConf(collectionName)
 
   /**
     * Test against a set SparkContext
@@ -83,17 +83,17 @@ trait RequiresDocumentDB extends FlatSpec with Matchers with BeforeAndAfterAll w
     HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true
 
     val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(DocumentDBConfig.Database).get
-    documentDBDefaults.deleteDatabase(databaseName)
-    documentDBDefaults.createDatabase(databaseName)
+    val databaseName: String = config.get(CosmosDBConfig.Database).get
+    cosmosDBDefaults.deleteDatabase(databaseName)
+    cosmosDBDefaults.createDatabase(databaseName)
   }
 
   override def beforeEach(): Unit = {
     val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(DocumentDBConfig.Database).get
-    val collectionName: String = config.get(DocumentDBConfig.Collection).get
-    documentDBDefaults.deleteCollection(databaseName, collectionName)
-    documentDBDefaults.createCollection(databaseName, collectionName)
+    val databaseName: String = config.get(CosmosDBConfig.Database).get
+    val collectionName: String = config.get(CosmosDBConfig.Collection).get
+    cosmosDBDefaults.deleteCollection(databaseName, collectionName)
+    cosmosDBDefaults.createCollection(databaseName, collectionName)
   }
 
   def createOrGetDefaultSparkSession(sc: SparkContext): SparkSession = {

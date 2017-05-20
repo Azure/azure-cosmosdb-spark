@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentDBRDD
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
 import com.microsoft.azure.documentdb.Document
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.{DataTypes, StructType}
@@ -38,7 +38,7 @@ class SimpleRDDDocument() extends Document {
   def intString_= (value: String): Unit = set("intString", value)
 }
 
-class DocumentDBRDDSpec extends RequiresDocumentDB {
+class CosmosDBRDDSpec extends RequiresCosmosDB {
   val documentCount = 100
   val simpleDocuments: IndexedSeq[SimpleRDDDocument] = (1 to documentCount)
     .map(x => {
@@ -61,37 +61,37 @@ class DocumentDBRDDSpec extends RequiresDocumentDB {
       DataTypes.createStructField("_ts", DataTypes.IntegerType, true)))
   }
 
-  "DocumentDBRDD" should "be easily created from the SparkContext" in withSparkContext() { sc =>
-    sc.parallelize(simpleDocuments, 2).saveToDocumentDB()
-    val documentDBRDD: DocumentDBRDD = sc.loadFromDocumentDB()
+  "CosmosDBRDD" should "be easily created from the SparkContext" in withSparkContext() { sc =>
+    sc.parallelize(simpleDocuments, 2).saveToCosmosDB()
+    val cosmosDBRDD: CosmosDBRDD = sc.loadFromCosmosDB()
 
-    documentDBRDD.count() shouldBe documentCount
-    documentDBRDD.map(x => x.getInt("pkey")).collect() should contain theSameElementsAs (1 to documentCount).toList
+    cosmosDBRDD.count() shouldBe documentCount
+    cosmosDBRDD.map(x => x.getInt("pkey")).collect() should contain theSameElementsAs (1 to documentCount).toList
   }
 
-  it should "be easy to save to all DocumentDB partitions" in withSparkContext() { sc =>
-    sc.parallelize(simpleDocuments).saveToDocumentDB()
+  it should "be easy to save to all CosmosDB partitions" in withSparkContext() { sc =>
+    sc.parallelize(simpleDocuments).saveToCosmosDB()
 
-    val documentDBRDD: DocumentDBRDD = DocumentDBSpark.builder().sparkContext(sc).build().toRDD
-    val partitionCount = documentDBRDD.getNumPartitions
+    val cosmosDBRDD: CosmosDBRDD = CosmosDBSpark.builder().sparkContext(sc).build().toRDD
+    val partitionCount = cosmosDBRDD.getNumPartitions
 
     // verify the documents distribute among the partitions withint a margin of distributionMargin percent
     val distributionMargin = 10.0 / 100
     val idealDocsPerPartition = documentCount / partitionCount
-    var docsDistribution = documentDBRDD.mapPartitions(iter => Array(iter.size).iterator).collect()
+    var docsDistribution = cosmosDBRDD.mapPartitions(iter => Array(iter.size).iterator).collect()
     docsDistribution.foreach(count => assert(Math.abs(count * 1.0 / idealDocsPerPartition - 1) <= distributionMargin))
   }
 
   it should "be able to handle empty collections" in withSparkContext() { sc =>
-    sc.loadFromDocumentDB().count() shouldBe 0
+    sc.loadFromCosmosDB().count() shouldBe 0
   }
 
   it should "be able to create a DataFrame by inferring the schema" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
 
-    sc.parallelize(simpleDocuments).saveToDocumentDB()
+    sc.parallelize(simpleDocuments).saveToCosmosDB()
 
-    val dataFrame: DataFrame = sc.loadFromDocumentDB().toDF()
+    val dataFrame: DataFrame = sc.loadFromCosmosDB().toDF()
     dataFrame.schema should equal(expectedSchema)
     dataFrame.count() should equal(documentCount)
   }

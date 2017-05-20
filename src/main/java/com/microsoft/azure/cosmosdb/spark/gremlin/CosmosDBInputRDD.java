@@ -46,27 +46,27 @@ import com.microsoft.azure.cosmosdb.spark.SparkContextFunctions$;
 import com.microsoft.azure.documentdb.Document;
 import com.microsoft.azure.cosmosdb.spark.config.Config;
 import com.microsoft.azure.cosmosdb.spark.config.Config$;
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentDBRDD;
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD;
 
 import scala.Option;
 import scala.Tuple2;
 
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.EDGE_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.ID_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.LABEL_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.SINK_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.SINK_V_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.VERTEXID_PROPERTY;
-import static com.microsoft.azure.cosmosdb.spark.gremlin.DocumentDBInputRDD.Constants.VERTEX_ID_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.EDGE_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.ID_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.LABEL_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.SINK_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.SINK_V_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.VERTEXID_PROPERTY;
+import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Constants.VERTEX_ID_PROPERTY;
 
-public final class DocumentDBInputRDD implements InputRDD {
+public final class CosmosDBInputRDD implements InputRDD {
 
-    private static Logger LOGGER = LoggerFactory.getLogger(DocumentDBInputRDD.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(CosmosDBInputRDD.class);
 
-    private static DocumentDBRDD documentDBRDD = null;
+    private static CosmosDBRDD cosmosDBRDD = null;
 
     static {
-        InputOutputHelper.registerInputOutputPair(DocumentDBInputRDD.class, DocumentDBOutputRDD.class);
+        InputOutputHelper.registerInputOutputPair(CosmosDBInputRDD.class, CosmosDBOutputRDD.class);
     }
 
     @Override
@@ -74,11 +74,11 @@ public final class DocumentDBInputRDD implements InputRDD {
 
         Config readConfig = Config$.MODULE$.apply(sparkContext.getConf());
 
-        if (documentDBRDD == null) {
-            documentDBRDD = SparkContextFunctions$.MODULE$
+        if (cosmosDBRDD == null) {
+            cosmosDBRDD = SparkContextFunctions$.MODULE$
                     .apply(JavaSparkContext.toSparkContext(sparkContext))
-                    .loadFromDocumentDB(readConfig);
-            documentDBRDD.cache();
+                    .loadFromCosmosDB(readConfig);
+            cosmosDBRDD.cache();
         }
 
         Option<Object> graphSchemaVersion = readConfig.properties().get(Constants.GRAPH_SCHEMA_VERSION);
@@ -87,7 +87,7 @@ public final class DocumentDBInputRDD implements InputRDD {
             // Read the graph using the latest schema
 
             // parsing all properties - groupBy approach
-            JavaPairRDD<String, Iterable<String>> edges = documentDBRDD
+            JavaPairRDD<String, Iterable<String>> edges = cosmosDBRDD
                     .toJavaRDD()
                     .filter(d -> d.get(VERTEXID_PROPERTY) != null)
                     .mapToPair(d -> new Tuple2<>(
@@ -95,7 +95,7 @@ public final class DocumentDBInputRDD implements InputRDD {
                             d.toJson()))
                     .groupByKey();
 
-            return documentDBRDD
+            return cosmosDBRDD
                     .toJavaRDD()
                     .filter(d -> d.get(VERTEXID_PROPERTY) == null)
                     .mapToPair(d -> new Tuple2<>(d.getId(), d.toJson()))
@@ -154,7 +154,7 @@ public final class DocumentDBInputRDD implements InputRDD {
                     });
         } else if (graphSchemaVersion.get().toString().equals(Constants.SPARK_DOCUMENTDB_GRAPH_SCHEMA_2017_05_01)) {
             // parsing all properties - groupBy approach
-            JavaPairRDD<String, Iterable<String>> edges = documentDBRDD
+            JavaPairRDD<String, Iterable<String>> edges = cosmosDBRDD
                     .toJavaRDD()
                     .filter(d -> d.get(VERTEX_ID_PROPERTY) != null)
                     .mapToPair(d -> new Tuple2<>(
@@ -162,7 +162,7 @@ public final class DocumentDBInputRDD implements InputRDD {
                             d.toJson()))
                     .groupByKey();
 
-            return documentDBRDD
+            return cosmosDBRDD
                     .toJavaRDD()
                     .filter(d -> d.get(VERTEX_ID_PROPERTY) == null)
                     .mapToPair(d -> new Tuple2<>(d.getId(), d.toJson()))
@@ -244,14 +244,14 @@ public final class DocumentDBInputRDD implements InputRDD {
         public static final String LABEL_PROPERTY = "label";
         public static final String VALUE_PROPERTY = "_value";
 
-        public static final String SPARK_DOCUMENTDB_ENDPOINT = "spark.documentdb.endpoint";
-        public static final String SPARK_DOCUMENTDB_MASTERKEY = "spark.documentdb.masterkey";
-        public static final String SPARK_DOCUMENTDB_DATABASE = "spark.documentdb.database";
-        public static final String SPARK_DOCUMENTDB_COLLECTION = "spark.documentdb.collection";
-        public static final String SPARK_DOCUMENTDB_CONNECTIONMODE = "spark.documentdb.connectionMode";
-        public static final String SPARK_DOCUMENTDB_SCHEMA_SAMPLING_RATIO = "spark.documentdb.schema_samplingratio";
-        public static final String SPARK_DOCUMENTDB_QUERY_CUSTOM = "spark.documentdb.query_custom";
-        public static final String SPARK_DOCUMENTDB_GRAPH_SCHEMA_VERSION = "spark.documentdb.graph_schema_version";
+        public static final String SPARK_DOCUMENTDB_ENDPOINT = "spark.cosmosdb.endpoint";
+        public static final String SPARK_DOCUMENTDB_MASTERKEY = "spark.cosmosdb.masterkey";
+        public static final String SPARK_DOCUMENTDB_DATABASE = "spark.cosmosdb.database";
+        public static final String SPARK_DOCUMENTDB_COLLECTION = "spark.cosmosdb.collection";
+        public static final String SPARK_DOCUMENTDB_CONNECTIONMODE = "spark.cosmosdb.connectionMode";
+        public static final String SPARK_DOCUMENTDB_SCHEMA_SAMPLING_RATIO = "spark.cosmosdb.schema_samplingratio";
+        public static final String SPARK_DOCUMENTDB_QUERY_CUSTOM = "spark.cosmosdb.query_custom";
+        public static final String SPARK_DOCUMENTDB_GRAPH_SCHEMA_VERSION = "spark.cosmosdb.graph_schema_version";
         public static final String GRAPH_SCHEMA_VERSION =  "graph_schema_version";
         public static final String SPARK_DOCUMENTDB_GRAPH_SCHEMA_2017_05_01 = "2017-05-01";
     }

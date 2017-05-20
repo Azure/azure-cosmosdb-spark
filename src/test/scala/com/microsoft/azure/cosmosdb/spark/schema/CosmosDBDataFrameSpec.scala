@@ -25,9 +25,9 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 
 import com.microsoft.azure.cosmosdb.spark.spark._
-import com.microsoft.azure.cosmosdb.spark.{RequiresDocumentDB, _}
-import com.microsoft.azure.cosmosdb.spark.config.{Config, DocumentDBConfig}
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentDBRDD
+import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
 import com.microsoft.azure.documentdb.Document
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
@@ -39,29 +39,29 @@ import scala.util.Random
 
 case class SimpleDocument(id: String, pkey: Int, intString: String)
 
-class DocumentDBDataFrameSpec extends RequiresDocumentDB {
+class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   val documentCount = 100
   val simpleDocuments: IndexedSeq[SimpleDocument] = (1 to documentCount)
     .map(x => SimpleDocument(x.toString, x, (documentCount - x + 1).toString))
 
   // DataFrameWriter
-  "DataFrameWriter" should "be easily created from a DataFrame and save to DocumentDB" in withSparkContext() { sc =>
+  "DataFrameWriter" should "be easily created from a DataFrame and save to CosmosDB" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
 
-    sc.parallelize(simpleDocuments).toDF().write.documentDB()
+    sc.parallelize(simpleDocuments).toDF().write.cosmosDB()
 
-    var documentDBRDD: DocumentDBRDD = sc.loadFromDocumentDB()
-    documentDBRDD.map(x => x.getInt("pkey")).collect() should contain theSameElementsAs (1 to documentCount).toList
-    documentDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
+    var cosmosDBRDD: CosmosDBRDD = sc.loadFromCosmosDB()
+    cosmosDBRDD.map(x => x.getInt("pkey")).collect() should contain theSameElementsAs (1 to documentCount).toList
+    cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
 
     // Create new documents and overwrite the previous ones
     sc.parallelize((1 to documentCount)
       .map(x => SimpleDocument(x.toString, x, ((documentCount - x + 1) + documentCount).toString)))
-      .toDF().write.mode(SaveMode.Overwrite).documentDB()
-    documentDBRDD = sc.loadFromDocumentDB()
+      .toDF().write.mode(SaveMode.Overwrite).cosmosDB()
+    cosmosDBRDD = sc.loadFromCosmosDB()
     var expectedNewValues = (documentCount + 1 to documentCount * 2).toList
-    documentDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs expectedNewValues
+    cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs expectedNewValues
   }
 
   it should "take custom writeConfig" in withSparkContext() { sc =>
@@ -69,27 +69,27 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     import sparkSession.implicits._
 
     val config: Config = Config(sc)
-    val databaseName: String = config.get(DocumentDBConfig.Database).get
+    val databaseName: String = config.get(CosmosDBConfig.Database).get
     val collectionName: String = "NewCollection"
-    documentDBDefaults.createCollection(databaseName, collectionName)
+    cosmosDBDefaults.createCollection(databaseName, collectionName)
     var configMap: collection.Map[String, String] = config.asOptions
-    configMap = configMap.updated(DocumentDBConfig.Collection, collectionName)
+    configMap = configMap.updated(CosmosDBConfig.Collection, collectionName)
     val newConfig: Config = Config(configMap)
 
-    sc.parallelize(simpleDocuments).toDF().write.documentDB(newConfig)
-    var documentDBRDD: DocumentDBRDD = sc.loadFromDocumentDB(newConfig)
-    documentDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
+    sc.parallelize(simpleDocuments).toDF().write.cosmosDB(newConfig)
+    var cosmosDBRDD: CosmosDBRDD = sc.loadFromCosmosDB(newConfig)
+    cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
 
-    documentDBDefaults.deleteCollection(databaseName, collectionName)
+    cosmosDBDefaults.deleteCollection(databaseName, collectionName)
   }
 
   // DataFrameReader
   "DataFrameReader" should "should be easily created from SQLContext query" in withSparkContext() { sc =>
-    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToDocumentDB()
+    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToCosmosDB()
 
     val sparkSession = createOrGetDefaultSparkSession(sc)
 
-    val coll = sparkSession.sqlContext.read.DocumentDB()
+    val coll = sparkSession.sqlContext.read.cosmosDB()
     coll.createOrReplaceTempView("c")
 
     var query = "SELECT * FROM c "
@@ -122,11 +122,11 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
       else
         // document with missing intValue property
         new Document(s"{pkey: $x}")
-    })).saveToDocumentDB()
+    })).saveToCosmosDB()
 
     val sparkSession = createOrGetDefaultSparkSession(sc)
 
-    val coll = sparkSession.sqlContext.read.DocumentDB()
+    val coll = sparkSession.sqlContext.read.cosmosDB()
     coll.createOrReplaceTempView("c")
 
     var query = "SELECT c.intValue + 1 FROM c"
@@ -140,11 +140,11 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
   }
 
   it should "send query to target partitions only" in withSparkContext() { sc =>
-    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToDocumentDB()
+    sc.parallelize((1 to documentCount).map(x => new Document(s"{pkey: $x}"))).saveToCosmosDB()
 
     val sparkSession = createOrGetDefaultSparkSession(sc)
 
-    val coll = sparkSession.sqlContext.read.DocumentDB()
+    val coll = sparkSession.sqlContext.read.cosmosDB()
     coll.createOrReplaceTempView("c")
 
     sparkSession.sql("SELECT * FROM c WHERE c.pkey = 1").rdd.getNumPartitions should equal(1)
@@ -152,13 +152,13 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     sparkSession.sql("SELECT * FROM c").rdd.getNumPartitions should equal(coll.rdd.getNumPartitions)
   }
 
-  it should "should be easily created from the SQLContext and load from DocumentDB" in withSparkContext() { sc =>
+  it should "should be easily created from the SQLContext and load from CosmosDB" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
 
-    sc.parallelize(simpleDocuments).toDF().write.documentDB()
+    sc.parallelize(simpleDocuments).toDF().write.cosmosDB()
 
-    val df = sparkSession.read.DocumentDB()
+    val df = sparkSession.read.cosmosDB()
 
     val expectedSchema: StructType = {
       DataTypes.createStructType(Array(
@@ -195,7 +195,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
       contain theSameElementsAs somePrimeVals
   }
 
-  it should "should be easily created from the SQLContext and load a lot of documents from DocumentDB" in withSparkContext() { sc =>
+  it should "should be easily created from the SQLContext and load a lot of documents from CosmosDB" in withSparkContext() { sc =>
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
 
@@ -203,14 +203,14 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val manyDocuments: IndexedSeq[SimpleDocument] = (1 to largeNumberOfDocuments)
       .map(x => SimpleDocument(x.toString, x, (largeNumberOfDocuments - x + 1).toString))
 
-    // write some documents to DocumentDB and load them back
-    sc.parallelize(manyDocuments).toDF().write.documentDB()
-    var df = sparkSession.read.DocumentDB()
+    // write some documents to CosmosDB and load them back
+    sc.parallelize(manyDocuments).toDF().write.cosmosDB()
+    var df = sparkSession.read.cosmosDB()
     df.rdd.map(x => x.getInt(x.fieldIndex("pkey"))).collect() should contain theSameElementsAs (1 to largeNumberOfDocuments).toList
 
     // create an RDD specifying number of slices and load
-    sc.parallelize(manyDocuments, 5).toDF().write.mode(SaveMode.Overwrite).documentDB()
-    df = sparkSession.read.DocumentDB()
+    sc.parallelize(manyDocuments, 5).toDF().write.mode(SaveMode.Overwrite).cosmosDB()
+    df = sparkSession.read.cosmosDB()
     df.rdd.map(x => x.getInt(x.fieldIndex("pkey"))).collect() should contain theSameElementsAs (1 to largeNumberOfDocuments).toList
   }
 
@@ -218,9 +218,9 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
 
-    sc.parallelize(simpleDocuments).toDF().write.documentDB()
+    sc.parallelize(simpleDocuments).toDF().write.cosmosDB()
 
-    val df = sparkSession.read.DocumentDB[SimpleDocument]()
+    val df = sparkSession.read.cosmosDB[SimpleDocument]()
     val reflectedSchema: StructType = ScalaReflection.schemaFor[SimpleDocument].dataType.asInstanceOf[StructType]
 
     df.schema should equal(reflectedSchema)
@@ -232,9 +232,9 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val sparkSession = createOrGetDefaultSparkSession(sc)
     import sparkSession.implicits._
 
-    sc.parallelize(simpleDocuments).toDF().write.documentDB()
+    sc.parallelize(simpleDocuments).toDF().write.cosmosDB()
 
-    val df = sparkSession.read.DocumentDB()
+    val df = sparkSession.read.cosmosDB()
 
     df.select("id", "intString").orderBy("intString").rdd.map(r => (r.get(0), r.get(1))).collect() should
       equal(simpleDocuments.sortBy(_.intString).map(doc => (doc.id, doc.intString)))
@@ -245,7 +245,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
     val sparkSession = createOrGetDefaultSparkSession(sc)
     val characterMap = simpleDocuments.map(doc =>
       Row(doc.id,
-        Map("platform" -> "Azure DocumentDB", "doc" -> doc.id),
+        Map("platform" -> "Azure CosmosDB", "doc" -> doc.id),
         doc.pkey,
         if (doc.id.hashCode % 2 == 0) true else false,
         Array(doc.id, doc.intString),
@@ -269,9 +269,9 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
       StructField("binary", BinaryType, nullable = false)
     ))
     val df = sparkSession.createDataFrame(sc.parallelize(characterMap), schema)
-    df.write.documentDB()
+    df.write.cosmosDB()
 
-    val savedDF = sparkSession.read.schema(schema).DocumentDB()
+    val savedDF = sparkSession.read.schema(schema).cosmosDB()
     savedDF.collectAsList() should contain theSameElementsAs df.collect()
   }
 
@@ -287,7 +287,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
         .toList
         .mkString("[", ",", "]")
       new Document(s"{pkey: $x, name: 'name $x', schools: $schoolsJson}")
-    })).saveToDocumentDB()
+    })).saveToCosmosDB()
 
     val expectedSchema: StructType = {
       DataTypes.createStructType(Array(
@@ -312,7 +312,7 @@ class DocumentDBDataFrameSpec extends RequiresDocumentDB {
         DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
     }
 
-    val df = sparkSession.read.DocumentDB()
+    val df = sparkSession.read.cosmosDB()
     df.schema should equal(expectedSchema)
     df.collect().length should equal(documentCount)
   }

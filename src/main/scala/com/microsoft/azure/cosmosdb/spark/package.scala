@@ -23,7 +23,7 @@
 package com.microsoft.azure.cosmosdb
 
 import com.microsoft.azure.cosmosdb.spark.DefaultHelper.DefaultsTo
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentRDDFunctions
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosRDDFunctions
 import com.microsoft.azure.documentdb.Document
 import org.apache.spark.SparkContext
 import org.apache.spark.annotation.DeveloperApi
@@ -32,16 +32,16 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 
 /**
-  * Whole DocumentDB helpers.
+  * Whole CosmosDB helpers.
   */
 package object spark {
   /**
     * :: DeveloperApi ::
     *
-    * Helper to implicitly add DocumentDB based functions to a SparkContext
+    * Helper to implicitly add CosmosDB based functions to a SparkContext
     *
     * @param sc the current SparkContext
-    * @return the DocumentDB based Spark Context
+    * @return the CosmosDB based Spark Context
     */
   @DeveloperApi
   implicit def toSparkContextFunctions(sc: SparkContext): SparkContextFunctions = SparkContextFunctions(sc)
@@ -49,12 +49,12 @@ package object spark {
   /**
     * :: DeveloperApi ::
     *
-    * Helper to implicitly add DocumentDB based functions to a SparkContext
+    * Helper to implicitly add CosmosDB based functions to a SparkContext
     *
-    * @param rdd the RDD to save to DocumentDB
-    * @return the DocumentDB based Spark Context
+    * @param rdd the RDD to save to CosmosDB
+    * @return the CosmosDB based Spark Context
     */
   @DeveloperApi
   implicit def toDocumentRDDFunctions[D](rdd: RDD[D])(implicit e: D DefaultsTo Document, ct: ClassTag[D]):
-    DocumentRDDFunctions[D] = DocumentRDDFunctions(rdd)
+    CosmosRDDFunctions[D] = CosmosRDDFunctions(rdd)
 }

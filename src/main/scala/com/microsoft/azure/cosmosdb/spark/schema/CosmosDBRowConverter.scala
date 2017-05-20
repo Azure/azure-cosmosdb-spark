@@ -55,7 +55,7 @@ trait RowConverter[T] {
 }
 
 
-object DocumentDBRowConverter extends RowConverter[Document]
+object CosmosDBRowConverter extends RowConverter[Document]
   with JsonSupport
   with Serializable {
 

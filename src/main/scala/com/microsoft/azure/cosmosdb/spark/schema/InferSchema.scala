@@ -22,8 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark.schema
 
-import com.microsoft.azure.cosmosdb.spark.DocumentDBSpark
-import com.microsoft.azure.cosmosdb.spark.config.DocumentDBConfig
+import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
+import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig
 import com.microsoft.azure.cosmosdb.spark.rdd._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
@@ -51,7 +51,7 @@ private case object SkipFieldType extends SkipFieldType
 object InferSchema {
 
   /**
-    * Gets a schema for the specified DocumentDB collection. It is required that the
+    * Gets a schema for the specified CosmosDB collection. It is required that the
     * collection provides Documents.
     *
     * Utilizes the `\$sample` aggregation operator in server versions 3.2+. Older versions take a sample of the most recent 10k documents.
@@ -59,22 +59,22 @@ object InferSchema {
     * @param sc the spark context
     * @return the schema for the collection
     */
-  def apply(sc: SparkContext): StructType = apply(DocumentDBSpark.load(sc))
+  def apply(sc: SparkContext): StructType = apply(CosmosDBSpark.load(sc))
 
   /**
-    * Gets a schema for the specified DocumentDB collection. It is required that the
+    * Gets a schema for the specified CosmosDB collection. It is required that the
     * collection provides Documents.
     *
     * Utilizes the `\$sample` aggregation operator in server versions 3.2+. Older versions take a sample of the most recent 10k documents.
     *
-    * @param rdd the DocumentDB to be sampled
+    * @param rdd the CosmosDB to be sampled
     * @return the schema for the collection
     */
-  def apply(rdd: DocumentDBRDD): StructType = {
-    val sampleData = rdd.sparkContext.parallelize(rdd.takeSample(withReplacement = false, DocumentDBConfig.DefaultSampleSize))
-    val samplingRatio = rdd.sparkContext.getConf.getDouble(DocumentDBConfig.SamplingRatio, DocumentDBConfig.DefaultSamplingRatio)
+  def apply(rdd: CosmosDBRDD): StructType = {
+    val sampleData = rdd.sparkContext.parallelize(rdd.takeSample(withReplacement = false, CosmosDBConfig.DefaultSampleSize))
+    val samplingRatio = rdd.sparkContext.getConf.getDouble(CosmosDBConfig.SamplingRatio, CosmosDBConfig.DefaultSamplingRatio)
 
-    DocumentDBSchema(sampleData, samplingRatio).schema()
+    CosmosDBSchema(sampleData, samplingRatio).schema()
   }
 
   /**

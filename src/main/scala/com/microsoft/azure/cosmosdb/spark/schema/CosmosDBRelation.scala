@@ -24,14 +24,14 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import com.microsoft.azure.cosmosdb.spark.{DefaultSource, LoggingTrait}
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.cosmosdb.spark.rdd.DocumentDBRDD
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, Filter, InsertableRelation, PrunedFilteredScan}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, _}
 
-class DocumentDBRelation(private val config: Config,
-                         schemaProvided: Option[StructType] = None)(
+class CosmosDBRelation(private val config: Config,
+                       schemaProvided: Option[StructType] = None)(
                           @transient val sparkSession: SparkSession)
   extends BaseRelation
     with PrunedFilteredScan
@@ -42,17 +42,17 @@ class DocumentDBRelation(private val config: Config,
 
   // Take sample documents to infer the schema
   private lazy val lazySchema = {
-    val sampleSize: Long = config.get[String](DocumentDBConfig.SampleSize)
-      .getOrElse(DocumentDBConfig.DefaultSampleSize.toString)
+    val sampleSize: Long = config.get[String](CosmosDBConfig.SampleSize)
+      .getOrElse(CosmosDBConfig.DefaultSampleSize.toString)
       .toLong
-    val samplingRatio = config.get[String](DocumentDBConfig.SamplingRatio)
-      .getOrElse(DocumentDBConfig.DefaultSamplingRatio.toString)
+    val samplingRatio = config.get[String](CosmosDBConfig.SamplingRatio)
+      .getOrElse(CosmosDBConfig.DefaultSamplingRatio.toString)
       .toDouble
 
-    DocumentDBRelation.lastSampleSize = sampleSize
-    DocumentDBRelation.lastSamplingRatio = samplingRatio
+    CosmosDBRelation.lastSampleSize = sampleSize
+    CosmosDBRelation.lastSamplingRatio = samplingRatio
 
-    DocumentDBSchema(new DocumentDBRDD(sparkSession, config, Some(sampleSize)), samplingRatio).schema()
+    CosmosDBSchema(new CosmosDBRDD(sparkSession, config, Some(sampleSize)), samplingRatio).schema()
   }
 
   override lazy val schema: StructType = schemaProvided.getOrElse(lazySchema)
@@ -63,19 +63,19 @@ class DocumentDBRelation(private val config: Config,
                           requiredColumns: Array[String],
                           filters: Array[Filter]): RDD[Row] = {
 
-    logDebug(s"DocumentDBRelation:buildScan, requiredColumns: ${requiredColumns.mkString(", ")}, filters: ${filters.mkString(", ")}")
+    logDebug(s"CosmosDBRelation:buildScan, requiredColumns: ${requiredColumns.mkString(", ")}, filters: ${filters.mkString(", ")}")
 
-    val rdd = new DocumentDBRDD(
+    val rdd = new CosmosDBRDD(
       spark = sparkSession,
       config = config,
       requiredColumns = requiredColumns,
       filters = filters)
 
-    DocumentDBRowConverter.asRow(DocumentDBRelation.pruneSchema(schema, requiredColumns), rdd)
+    CosmosDBRowConverter.asRow(CosmosDBRelation.pruneSchema(schema, requiredColumns), rdd)
   }
 
   override def equals(other: Any): Boolean = other match {
-    case that: DocumentDBRelation =>
+    case that: CosmosDBRelation =>
       schema == that.schema && config == that.config
     case _ => false
   }
@@ -94,7 +94,7 @@ class DocumentDBRelation(private val config: Config,
   }
 }
 
-object DocumentDBRelation {
+object CosmosDBRelation {
 
   /**
     * For verification purpose

@@ -24,32 +24,32 @@ package com.microsoft.azure.cosmosdb.spark.partitioner
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.schema.FilterConverter
-import com.microsoft.azure.cosmosdb.spark.{DocumentDBConnection, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import org.apache.spark.sql.sources.Filter
 
-class DocumentDBPartitioner() extends Partitioner[DocumentDBPartition] with LoggingTrait {
+class CosmosDBPartitioner() extends Partitioner[CosmosDBPartition] with LoggingTrait {
 
   /**
     * @param config Partition configuration
     */
-  override def computePartitions(config: Config): Array[DocumentDBPartition] = {
-    var connection: DocumentDBConnection = new DocumentDBConnection(config)
+  override def computePartitions(config: Config): Array[CosmosDBPartition] = {
+    var connection: CosmosDBConnection = new CosmosDBConnection(config)
     var partitionKeyRanges = connection.getAllPartitions
-    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.length} partitions")
+    logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length){
-      i => DocumentDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
     }
   }
 
   def computePartitions(config: Config,
                        requiredColumns: Array[String] = Array(),
-                       filters: Array[Filter] = Array()): Array[DocumentDBPartition] = {
-    var connection: DocumentDBConnection = new DocumentDBConnection(config)
+                       filters: Array[Filter] = Array()): Array[CosmosDBPartition] = {
+    var connection: CosmosDBConnection = new CosmosDBConnection(config)
     var query: String = FilterConverter.createQueryString(requiredColumns, filters)
     var partitionKeyRanges = connection.getAllPartitions(query)
-    logDebug(s"DocumentDBPartitioner: This DocumentDB has ${partitionKeyRanges.length} partitions")
+    logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length){
-      i => DocumentDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
     }
   }
 }

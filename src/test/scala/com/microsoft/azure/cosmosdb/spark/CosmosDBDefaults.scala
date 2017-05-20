@@ -29,16 +29,16 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.util.control.NonFatal
 
-object DocumentDBDefaults {
-  def apply(): DocumentDBDefaults = new DocumentDBDefaults()
+object CosmosDBDefaults {
+  def apply(): CosmosDBDefaults = new CosmosDBDefaults()
 }
 
-class DocumentDBDefaults extends LoggingTrait {
+class CosmosDBDefaults extends LoggingTrait {
 
   // local emulator
   val EMULATOR_ENDPOINT: String = "https://localhost:443/"
   val EMULATOR_MASTERKEY: String = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-  val DATABASE_NAME = "documentdb-spark-connector-test"
+  val DATABASE_NAME = "cosmosdb-spark-connector-test"
 
   var collectionName: String = _
 
@@ -59,17 +59,17 @@ class DocumentDBDefaults extends LoggingTrait {
     collectionName = colName
     new SparkConf()
       .setMaster("local")
-      .setAppName("DocumentDBSparkConnector")
+      .setAppName("CosmosDBSparkConnector")
       .set("spark.driver.allowMultipleContexts", "false")
       .set("spark.sql.allowMultipleContexts", "false")
-      .set("spark.app.id", "DocumentDBSparkConnector")
-      .set("spark.documentdb.endpoint", EMULATOR_ENDPOINT)
-      .set("spark.documentdb.database", DATABASE_NAME)
-      .set("spark.documentdb.masterkey", EMULATOR_MASTERKEY)
-      .set("spark.documentdb.collection", collectionName)
+      .set("spark.app.id", "CosmosDBSparkConnector")
+      .set("spark.cosmosdb.endpoint", EMULATOR_ENDPOINT)
+      .set("spark.cosmosdb.database", DATABASE_NAME)
+      .set("spark.cosmosdb.masterkey", EMULATOR_MASTERKEY)
+      .set("spark.cosmosdb.collection", collectionName)
   }
 
-  def isDocumentDBOnline(): Boolean = true
+  def isCosmosDBOnline(): Boolean = true
 
   def createDatabase(databaseName: String): Unit = {
     var database: Database = new Database()

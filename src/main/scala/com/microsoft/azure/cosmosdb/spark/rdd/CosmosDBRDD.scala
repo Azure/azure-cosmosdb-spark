@@ -22,10 +22,10 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
-import com.microsoft.azure.cosmosdb.spark.DocumentDBSpark
+import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.cosmosdb.spark.config.Config
-import com.microsoft.azure.cosmosdb.spark.partitioner.{DocumentDBPartition, DocumentDBPartitioner}
+import com.microsoft.azure.cosmosdb.spark.partitioner.{CosmosDBPartition, CosmosDBPartitioner}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
@@ -34,20 +34,20 @@ import org.apache.spark.{Partition, TaskContext}
 
 import scala.reflect.runtime.universe._
 
-class DocumentDBRDD(
+class CosmosDBRDD(
                      spark: SparkSession,
                      config: Config,
                      maxItems: Option[Long] = None,
-                     partitioner: DocumentDBPartitioner = new DocumentDBPartitioner(),
+                     partitioner: CosmosDBPartitioner = new CosmosDBPartitioner(),
                      requiredColumns: Array[String] = Array(),
                      filters: Array[Filter] = Array())
   extends RDD[Document](spark.sparkContext, deps = Nil) {
 
-  private def documentDBSpark = {
-    DocumentDBSpark(spark, config)
+  private def cosmosDBSpark = {
+    CosmosDBSpark(spark, config)
   }
 
-  override def toJavaRDD(): JavaDocumentDBRDD = JavaDocumentDBRDD(this)
+  override def toJavaRDD(): JavaCosmosDBRDD = JavaCosmosDBRDD(this)
 
   override def getPartitions: Array[Partition] =
     partitioner.computePartitions(config, requiredColumns, filters).asInstanceOf[Array[Partition]]
@@ -56,23 +56,23 @@ class DocumentDBRDD(
     * Creates a `DataFrame` based on the schema derived from the optional type.
     *
     * '''Note:''' Prefer [[toDS[T<:Product]()*]] as computations will be more efficient.
-    * The rdd must contain an `_id` for DocumentDB versions < 3.2.
+    * The rdd must contain an `_id` for CosmosDB versions < 3.2.
     *
-    * @tparam T The optional type of the data from DocumentDB, if not provided the schema will be inferred from the collection
+    * @tparam T The optional type of the data from CosmosDB, if not provided the schema will be inferred from the collection
     * @return a DataFrame
     */
-  def toDF[T <: Product : TypeTag](): DataFrame = documentDBSpark.toDF[T]()
+  def toDF[T <: Product : TypeTag](): DataFrame = cosmosDBSpark.toDF[T]()
 
   /**
     * Creates a `DataFrame` based on the schema derived from the bean class.
     *
     * '''Note:''' Prefer [[toDS[T](beanClass:Class[T])*]] as computations will be more efficient.
     *
-    * @param beanClass encapsulating the data from DocumentDB
-    * @tparam T The bean class type to shape the data from DocumentDB into
+    * @param beanClass encapsulating the data from CosmosDB
+    * @tparam T The bean class type to shape the data from CosmosDB into
     * @return a DataFrame
     */
-  def toDF[T](beanClass: Class[T]): DataFrame = documentDBSpark.toDF(beanClass)
+  def toDF[T](beanClass: Class[T]): DataFrame = cosmosDBSpark.toDF(beanClass)
 
   /**
     * Creates a `DataFrame` based on the provided schema.
@@ -80,38 +80,38 @@ class DocumentDBRDD(
     * @param schema the schema representing the DataFrame.
     * @return a DataFrame.
     */
-  def toDF(schema: StructType): DataFrame = documentDBSpark.toDF(schema)
+  def toDF(schema: StructType): DataFrame = cosmosDBSpark.toDF(schema)
 
   /**
     * Creates a `Dataset` from the collection strongly typed to the provided case class.
     *
-    * @tparam T The type of the data from DocumentDB
+    * @tparam T The type of the data from CosmosDB
     * @return
     */
-  def toDS[T <: Product : TypeTag](): Dataset[T] = documentDBSpark.toDS[T]()
+  def toDS[T <: Product : TypeTag](): Dataset[T] = cosmosDBSpark.toDS[T]()
 
   /**
     * Creates a `Dataset` from the RDD strongly typed to the provided java bean.
     *
-    * @tparam T The type of the data from DocumentDB
+    * @tparam T The type of the data from CosmosDB
     * @return
     */
-  def toDS[T](beanClass: Class[T]): Dataset[T] = documentDBSpark.toDS[T](beanClass)
+  def toDS[T](beanClass: Class[T]): Dataset[T] = cosmosDBSpark.toDS[T](beanClass)
 
   override def compute(
                         split: Partition,
-                        context: TaskContext): DocumentDBRDDIterator = {
+                        context: TaskContext): CosmosDBRDDIterator = {
 
-    var documentDBPartition: DocumentDBPartition = split.asInstanceOf[DocumentDBPartition]
-    logDebug(s"DocumentDBRDD:compute: Start DocumentDBRDD compute on partition with index ${documentDBPartition.partitionKeyRangeId}")
+    var cosmosDBPartition: CosmosDBPartition = split.asInstanceOf[CosmosDBPartition]
+    logDebug(s"CosmosDBRDD:compute: Start CosmosDBRDD compute on partition with index ${cosmosDBPartition.partitionKeyRangeId}")
 
     context.addTaskCompletionListener((ctx: TaskContext) => {
-      logDebug(s"DocumentDBRDD:compute: Task completed RDD compute ${documentDBPartition.partitionKeyRangeId}")
+      logDebug(s"CosmosDBRDD:compute: Task completed RDD compute ${cosmosDBPartition.partitionKeyRangeId}")
     })
 
-    new DocumentDBRDDIterator(
+    new CosmosDBRDDIterator(
       context,
-      documentDBPartition,
+      cosmosDBPartition,
       config,
       maxItems,
       requiredColumns,

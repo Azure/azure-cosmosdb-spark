@@ -32,14 +32,14 @@ import org.junit.Before;
 
 import com.microsoft.azure.documentdb.DocumentClient;
 
-public abstract class JavaRequiresDocumentDB implements Serializable {
+public abstract class JavaRequiresCosmosDB implements Serializable {
 
     private transient JavaSparkContext jsc;
 
-    private static final DocumentDBDefaults documentDBDefaults = DocumentDBDefaults$.MODULE$.apply();
+    private static final CosmosDBDefaults COSMOS_DB_DEFAULTS = CosmosDBDefaults$.MODULE$.apply();
 
     public DocumentClient getDocumentClient() {
-        return documentDBDefaults.getDocumentClient();
+        return COSMOS_DB_DEFAULTS.getDocumentClient();
     }
 
     public SparkConf getSparkConf() {
@@ -47,7 +47,7 @@ public abstract class JavaRequiresDocumentDB implements Serializable {
     }
 
     public SparkConf getSparkConf(final String collectionName) {
-        return documentDBDefaults.getSparkConf(collectionName);
+        return COSMOS_DB_DEFAULTS.getSparkConf(collectionName);
     }
 
     public JavaSparkContext getJavaSparkContext() {
@@ -67,7 +67,7 @@ public abstract class JavaRequiresDocumentDB implements Serializable {
     }
 
     public String getDatabaseName() {
-        return documentDBDefaults.DATABASE_NAME();
+        return COSMOS_DB_DEFAULTS.DATABASE_NAME();
     }
 
     public String getCollectionName() {
