@@ -31,7 +31,7 @@ import scala.language.implicitConversions
 /**
   * The CosmosDB Spark Connector schema package
   */
-package object spark {
+package object schema {
   /**
     * :: DeveloperApi ::
     *
