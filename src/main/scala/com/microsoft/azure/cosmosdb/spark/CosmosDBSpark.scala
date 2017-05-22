@@ -139,21 +139,11 @@ object CosmosDBSpark {
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
 
     rdd.foreachPartition(iter => if (iter.nonEmpty) {
-      val executorService = Executors.newCachedThreadPool()
-      var callables = new ListBuffer[Callable[Document]]()
       iter.foreach(item => {
-        callables.append(new Callable[Document] {
-          override def call(): Document = {
-            if (upsert)
-              connection.upsertDocument(item.asInstanceOf[Document], null)
-            else
-              connection.createDocument(item.asInstanceOf[Document], null)
-          }
-        })
-      })
-      val futures = executorService.invokeAll(callables.asJava)
-      futures.forEach(new Consumer[Future[Document]] {
-        override def accept(t: Future[Document]): Unit = t.get()
+        if (upsert)
+          connection.upsertDocument(item.asInstanceOf[Document], null)
+        else
+          connection.createDocument(item.asInstanceOf[Document], null)
       })
     })
   }
