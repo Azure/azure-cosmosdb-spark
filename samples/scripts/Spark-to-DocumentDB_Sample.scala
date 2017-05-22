@@ -10,9 +10,9 @@
 //	Preferred Regions example: "preferredRegions" -> "Central US;East US 2",
 import org.joda.time._
 import org.joda.time.format._
-import com.microsoft.azure.documentdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.documentdb.spark._
-import com.microsoft.azure.documentdb.spark.config.Config
+import com.microsoft.azure.cosmosdb.spark.config.Config
 val readConfig2 = Config(Map("Endpoint" -> "[Enter Endpoint Here]",
 "Masterkey" -> "[Enter Masterkey Here]",
 "Database" -> "[Enter Database Here]",
