@@ -18,18 +18,19 @@ limitations under the License.
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>azure-documentdb-spark</artifactId>
+  <artifactId>azure-cosmosdb-spark</artifactId>
   <packaging>jar</packaging>
   <groupId>com.microsoft.azure</groupId>
   <version>0.0.3-SNAPSHOT</version>
   <properties>
     <scala.version>2.11.8</scala.version>
     <scala.binary.version>2.11</scala.binary.version>
-    <sonar.projectBaseDir>azure-documentdb-spark</sonar.projectBaseDir>
+    <sonar.projectBaseDir>azure-cosmosdb-spark</sonar.projectBaseDir>
     <scala.test.version>3.0.1</scala.test.version>
-    <spark.version>2.1.0</spark.version>
+    <spark.version>2.0.2</spark.version>
     <slf4j.version>1.7.6</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
+    <tinkerpop.version>3.2.4</tinkerpop.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <dependencies>
@@ -78,6 +79,16 @@ limitations under the License.
       <version>${log4j.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.tinkerpop</groupId>
+      <artifactId>spark-gremlin</artifactId>
+      <version>${tinkerpop.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tinkerpop</groupId>
+      <artifactId>tinkergraph-gremlin</artifactId>
+      <version>${tinkerpop.version}</version>
+    </dependency>
   </dependencies>
   <build>
     <testResources>
@@ -86,7 +97,7 @@ limitations under the License.
         <filtering>true</filtering>
       </testResource>
     </testResources>
-    <sourceDirectory>./src/main/scala</sourceDirectory>
+    <sourceDirectory>./src/main/java</sourceDirectory>
     <testSourceDirectory>./src/test/scala</testSourceDirectory>
     <plugins>
       <plugin>
@@ -128,9 +139,24 @@ limitations under the License.
         </executions>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.5</version>
+        <configuration>
+          <source>1.8</source>
+          <target>1.8</target>
+        </configuration>
+        <executions>
+          <execution>
+            <id>default-compile</id>
+            <phase>none</phase>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
-        <version>3.2.1</version>
+        <version>3.2.2</version>
         <configuration>
           <checkMultipleScalaVersions>false</checkMultipleScalaVersions>
           <scalaVersion>${scala.version}</scalaVersion>
