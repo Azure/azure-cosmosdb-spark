@@ -22,6 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -34,6 +36,8 @@ object CosmosDBRDDIterator {
 
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
+
+  var changeFeedContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, String]] = new ConcurrentHashMap[String, ConcurrentMap[String, String]] {}
 
 }
 
@@ -55,23 +59,50 @@ class CosmosDBRDDIterator(
     initialized = true
     var conn: CosmosDBConnection = new CosmosDBConnection(config)
 
-    val feedOpts = new FeedOptions()
-    val pageSize: Int = config
-      .get[String](CosmosDBConfig.QueryPageSize)
-      .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
-      .toInt
-    feedOpts.setPageSize(pageSize)
-    // Set target partition ID_PROPERTY
-    BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
-    feedOpts.setEnableCrossPartitionQuery(true)
-    CosmosDBRDDIterator.lastFeedOptions = feedOpts
+    val readingChangeFeed: Boolean = config
+      .get[String](CosmosDBConfig.ReadChangeFeed)
+      .getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString)
+      .toBoolean
 
-    val queryString = config
-      .get[String](CosmosDBConfig.QueryCustom)
-      .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
-    logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
+    if (!readingChangeFeed) {
+      val feedOpts = new FeedOptions()
+      val pageSize: Int = config
+        .get[String](CosmosDBConfig.QueryPageSize)
+        .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
+        .toInt
+      feedOpts.setPageSize(pageSize)
+      // Set target partition ID_PROPERTY
+      BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
+      feedOpts.setEnableCrossPartitionQuery(true)
+      CosmosDBRDDIterator.lastFeedOptions = feedOpts
 
-    conn.queryDocuments(queryString, feedOpts)
+      val queryString = config
+        .get[String](CosmosDBConfig.QueryCustom)
+        .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
+      logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
+
+      conn.queryDocuments(queryString, feedOpts)
+    } else {
+      val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
+      changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
+
+      val collectionLink = conn.collectionLink
+      if (!CosmosDBRDDIterator.changeFeedContinuationTokens.containsKey(collectionLink)) {
+        CosmosDBRDDIterator.changeFeedContinuationTokens.put(collectionLink, new ConcurrentHashMap[String, String]())
+      }
+
+      val collectionContinuationMap = CosmosDBRDDIterator.changeFeedContinuationTokens.get(collectionLink)
+      val changeFeedContinuation = collectionContinuationMap.get(partition.partitionKeyRangeId.toString)
+      if (changeFeedContinuation != null) {
+        changeFeedOptions.setRequestContinuation(changeFeedContinuation)
+      }
+
+      val response = conn.readChangeFeed(changeFeedOptions)
+      collectionContinuationMap.put(partition.partitionKeyRangeId.toString, response._2)
+      logInfo(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $changeFeedContinuation, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+
+      response._1
+    }
   }
 
   // Register an on-task-completion callback to close the input stream.

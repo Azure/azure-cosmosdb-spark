@@ -42,6 +42,7 @@ object CosmosDBConfig {
   val Upsert = "upsert"
   val ConnectionMode = "connectionmode"
   val ConsistencyLevel = "consistencylevel"
+  val ReadChangeFeed = "readchangefeed"
 
   // Mandatory
   val required = List(
@@ -57,6 +58,7 @@ object CosmosDBConfig {
   val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
   val DefaultUpsert = false
+  val DefaultReadChangeFeed = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

@@ -52,7 +52,9 @@ class CosmosDBRelation(private val config: Config,
     CosmosDBRelation.lastSampleSize = sampleSize
     CosmosDBRelation.lastSamplingRatio = samplingRatio
 
-    CosmosDBSchema(new CosmosDBRDD(sparkSession, config, Some(sampleSize)), samplingRatio).schema()
+    val sampleConfig = Config(config.asOptions.-(CosmosDBConfig.ReadChangeFeed))
+
+    CosmosDBSchema(new CosmosDBRDD(sparkSession, sampleConfig, Some(sampleSize)), samplingRatio).schema()
   }
 
   override lazy val schema: StructType = schemaProvided.getOrElse(lazySchema)

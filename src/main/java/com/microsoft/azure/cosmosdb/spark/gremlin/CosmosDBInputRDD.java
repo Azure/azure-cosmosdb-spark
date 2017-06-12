@@ -143,7 +143,7 @@ public final class CosmosDBInputRDD implements InputRDD {
                                     if (!key.startsWith("_") && !key.equals(LABEL_PROPERTY) && !key.equals(ID_PROPERTY)) {
                                         Object value = entry.getValue();
                                         properties.add(key);
-                                        properties.add(value.toString());
+                                        properties.add(value);
                                     }
                                 }
                                 v.addEdge(edgeLabel, graph.addVertex(T.id, sinkVId), properties.toArray());

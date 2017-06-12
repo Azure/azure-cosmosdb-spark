@@ -24,11 +24,11 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.sql.{Date, Timestamp}
 
-import com.microsoft.azure.cosmosdb.spark._
+import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
-import com.microsoft.azure.documentdb.Document
+import com.microsoft.azure.documentdb.{ConnectionPolicy, ConsistencyLevel, Document, DocumentClient}
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode}
@@ -109,6 +109,42 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     end = System.nanoTime()
     durationSeconds = (end - start) / nanoPerSecond
     logDebug(s"df.query() took ${durationSeconds}s")
+  }
+
+  it should "read documents change feed" in withSparkSession() { spark =>
+    spark.sparkContext.parallelize((1 to documentCount).map(x => new Document(s"{ id: '$x' }"))).saveToCosmosDB()
+
+    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
+    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
+    val dbName = CosmosDBDefaults().DATABASE_NAME
+    val collName = collectionName
+
+    val readConfig = Config(Map("Endpoint" -> host,
+     "Masterkey" -> key,
+     "Database" -> dbName,
+     "Collection" -> collName,
+     "ReadChangeFeed" -> "true",
+     "SamplingRatio" -> "1.0"))
+
+    val coll = spark.sqlContext.read.cosmosDB(readConfig)
+
+    coll.count() should equal(0)
+
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
+    val collectionLink = s"dbs/$dbName/colls/$collName"
+
+    val ITERATION = 3
+
+    (1 to ITERATION).foreach(b => {
+      (1 to documentCount).foreach(i => {
+        val document = new Document()
+        document.setId((b * documentCount + i).toString)
+        documentClient.createDocument(collectionLink, document, null, false)
+      })
+
+      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+        contain theSameElementsAs ((b * documentCount + 1) to (b * documentCount + documentCount)).toList
+    })
   }
 
   it should "should work with data with a property containing integer and string values" in withSparkContext() { sc =>
