@@ -43,6 +43,9 @@ object CosmosDBConfig {
   val ConnectionMode = "connectionmode"
   val ConsistencyLevel = "consistencylevel"
   val ReadChangeFeed = "readchangefeed"
+  val RollingChangeFeed = "rollingchangefeed"
+  val IncrementalView = "incrementalview"
+  val CachingModeParam = "cachingmode"
 
   // Mandatory
   val required = List(
@@ -59,8 +62,18 @@ object CosmosDBConfig {
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
+  val DefaultRollingChangeFeed = false
+  val DefaultIncrementalView = false
+  val DefaultCacheMode = 0
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
   }
+}
+
+object CachingMode extends Enumeration {
+  type WeekDay = Value
+  val NONE = Value("None")
+  val CACHE = Value("Cache")
+  val REFRESH_CACHE = Value("RefreshCache")
 }

@@ -63,6 +63,10 @@ class CosmosDBRDDIterator(
       .get[String](CosmosDBConfig.ReadChangeFeed)
       .getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString)
       .toBoolean
+    val rollingChangeFeed: Boolean = config
+      .get[String](CosmosDBConfig.RollingChangeFeed)
+      .getOrElse(CosmosDBConfig.DefaultRollingChangeFeed.toString)
+      .toBoolean
 
     if (!readingChangeFeed) {
       val feedOpts = new FeedOptions()
@@ -98,7 +102,11 @@ class CosmosDBRDDIterator(
       }
 
       val response = conn.readChangeFeed(changeFeedOptions)
-      collectionContinuationMap.put(partition.partitionKeyRangeId.toString, response._2)
+
+      if (changeFeedContinuation == null || rollingChangeFeed) {
+        collectionContinuationMap.put(partition.partitionKeyRangeId.toString, response._2)
+      }
+
       logInfo(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $changeFeedContinuation, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
 
       response._1

@@ -147,6 +147,44 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     })
   }
 
+  it should "produce incremental view" in withSparkSession() { spark =>
+    spark.sparkContext.parallelize((1 to documentCount).map(x => new Document(s"{ id: '$x' }"))).saveToCosmosDB()
+
+    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
+    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
+    val dbName = CosmosDBDefaults().DATABASE_NAME
+    val collName = collectionName
+
+    val readConfig = Config(Map("Endpoint" -> host,
+      "Masterkey" -> key,
+      "Database" -> dbName,
+      "Collection" -> collName,
+      "IncrementalView" -> "true",
+      "SamplingRatio" -> "1.0"))
+
+    var coll = spark.sqlContext.read.cosmosDB(readConfig)
+
+    coll.count() should equal(100)
+
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
+    val collectionLink = s"dbs/$dbName/colls/$collName"
+
+    val ITERATION = 3
+
+    (1 to ITERATION).foreach(b => {
+      (1 to documentCount).foreach(i => {
+        val document = new Document()
+        document.setId((b * documentCount + i).toString)
+        documentClient.createDocument(collectionLink, document, null, false)
+      })
+
+      coll = spark.sqlContext.read.cosmosDB(readConfig)
+
+      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+        contain theSameElementsAs (1 to (b * documentCount + documentCount)).toList
+    })
+  }
+
   it should "should work with data with a property containing integer and string values" in withSparkContext() { sc =>
     var largeCount = 1001
     sc.parallelize((1 to largeCount).map(x => {
