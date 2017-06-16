@@ -23,11 +23,12 @@
 package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.sql.{Date, Timestamp}
+import java.util.concurrent.TimeUnit
 
-import com.microsoft.azure.cosmosdb.spark.schema._
-import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
+import com.microsoft.azure.cosmosdb.spark.streaming.{CosmosDBSinkProvider, CosmosDBSourceProvider}
+import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
@@ -543,5 +544,64 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val df = sparkSession.read.cosmosDB()
     df.schema should equal(expectedSchema)
     df.collect().length should equal(documentCount)
+  }
+
+  // Structured stream
+  "Structured Stream" should "be able to stream change feed from source collection to sink collection" in withSparkSession() { spark =>
+    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
+    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
+    val databaseName = CosmosDBDefaults().DATABASE_NAME
+    val sinkCollection = "cosmosdbsink"
+    val STREAMING_TIME_MS = 10 * 1000
+    val STREAMING_TIME_GAP_MS = 5 * 1000
+    val NEW_DOCUMENT_INTERVAL_MS = 1000
+    val INSERTING_ITERATION: Int = (STREAMING_TIME_GAP_MS * 2 + STREAMING_TIME_MS) / NEW_DOCUMENT_INTERVAL_MS
+
+    var configMap = Config(spark.sparkContext.getConf).asOptions
+
+    // Create the sink collection
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
+    val databaseLink = s"dbs/$databaseName"
+    val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
+    val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
+    val documentCollection = new DocumentCollection()
+    documentCollection.setId(sinkCollection)
+    documentClient.createCollection(databaseLink, documentCollection, null)
+
+    // Start the thread to add new documents
+    new Thread(new Runnable() {
+      override def run(): Unit = {
+        (1 to INSERTING_ITERATION).foreach(i => {
+          val newDoc = new Document()
+          newDoc.setId(s"$i")
+          newDoc.set("content", s"sample content for document with ID $i")
+          documentClient.createDocument(sourceCollectionLink, newDoc, null, true)
+          TimeUnit.MILLISECONDS.sleep(NEW_DOCUMENT_INTERVAL_MS)
+        })
+      }
+    }).start()
+
+    val streamData = spark.readStream
+      .format(classOf[CosmosDBSourceProvider].getName)
+      .options(configMap)
+      .load()
+
+    val stringData = streamData
+
+    val sinkConfigMap = configMap.-(CosmosDBConfig.Collection).+((CosmosDBConfig.Collection, sinkCollection))
+
+    val query = stringData.writeStream
+      .format(classOf[CosmosDBSinkProvider].getName)
+      .outputMode("append")
+      .options(sinkConfigMap)
+      .option("checkpointLocation", "./checkpoint")
+      .start()
+
+    query.awaitTermination(STREAMING_TIME_MS)
+
+    // Verify the documents has streamed to the new collection
+    val df = spark.read.cosmosDB(Config(sinkConfigMap))
+    df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect() should
+      contain atLeastOneElementOf (1 to INSERTING_ITERATION).toList
   }
 }
