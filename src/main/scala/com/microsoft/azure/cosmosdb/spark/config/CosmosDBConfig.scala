@@ -46,6 +46,8 @@ object CosmosDBConfig {
   val RollingChangeFeed = "rollingchangefeed"
   val IncrementalView = "incrementalview"
   val CachingModeParam = "cachingmode"
+  val ChangeFeedQueryName = "changefeedqueryname"
+  val ChangeFeedNewQuery = "changefeednewquery"
 
   // Mandatory
   val required = List(
@@ -64,15 +66,23 @@ object CosmosDBConfig {
   val DefaultReadChangeFeed = false
   val DefaultRollingChangeFeed = false
   val DefaultIncrementalView = false
-  val DefaultCacheMode = 0
+  val DefaultCacheMode = CachingMode.NONE
+  val DefaultChangeFeedNewQuery = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
   }
 }
 
+/**
+  * Represents caching behavior, used internally in incremental view mode.
+  *
+  * None: data is not cached
+  * Cache: data is cached by invoking rdd.cache()
+  * RefreshCache: discard current cache data and read the latest data into cache
+  */
 object CachingMode extends Enumeration {
-  type WeekDay = Value
+  type CachingMode = Value
   val NONE = Value("None")
   val CACHE = Value("Cache")
   val REFRESH_CACHE = Value("RefreshCache")

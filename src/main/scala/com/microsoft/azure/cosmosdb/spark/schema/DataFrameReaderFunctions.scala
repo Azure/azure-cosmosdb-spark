@@ -24,6 +24,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
+import com.microsoft.azure.cosmosdb.spark.config.CachingMode.CachingMode
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.{DefaultSource, LoggingTrait}
 import org.apache.commons.lang3.StringUtils
@@ -76,23 +77,22 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
   def cosmosDB(schema: StructType, readConfig: Config): DataFrame = createCosmosDBDataFrame(Some(schema), Some(readConfig))
 
   private def createDataFrame(schema: Option[StructType], readConfig: Option[Config]): DataFrame = {
-    var cachingMode: Int = 0
+    var cachingMode: CachingMode = CachingMode.NONE
     var database: String = StringUtils.EMPTY
     var collection: String = StringUtils.EMPTY
     var collectionCacheKey: String = StringUtils.EMPTY
 
     if (readConfig.isDefined) {
-      cachingMode = readConfig.get
+      cachingMode = CachingMode.withName(readConfig.get
         .get[String](CosmosDBConfig.CachingModeParam)
-        .getOrElse(CosmosDBConfig.DefaultCacheMode.toString)
-        .toInt
+        .getOrElse(CosmosDBConfig.DefaultCacheMode.toString))
 
       database = readConfig.get.getOrElse[String](CosmosDBConfig.Database, StringUtils.EMPTY)
       collection = readConfig.get.getOrElse[String](CosmosDBConfig.Collection, StringUtils.EMPTY)
       collectionCacheKey = s"dbs/$database/colls/$collection"
     }
 
-    if (cachingMode == 1) { // Cache
+    if (cachingMode == CachingMode.CACHE) {
       if (DataFrameReaderFunctions.cachedData.containsKey(collectionCacheKey)) {
         return DataFrameReaderFunctions.cachedData.get(collectionCacheKey)
       }
@@ -103,7 +103,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     if (readConfig.isDefined) dfr.options(readConfig.get.asOptions)
     val df = builder.load()
 
-    if (cachingMode == 1 || cachingMode == 2) { // Cache or Refresh Cache
+    if (cachingMode == CachingMode.CACHE || cachingMode == CachingMode.REFRESH_CACHE) {
       df.cache()
       DataFrameReaderFunctions.cachedData.put(collection, df)
     }
@@ -123,7 +123,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
           .-(CosmosDBConfig.ReadChangeFeed)
           .-(CosmosDBConfig.RollingChangeFeed)
           .-(CosmosDBConfig.CachingModeParam)
-          .+((CosmosDBConfig.CachingModeParam, "1")))
+          .+((CosmosDBConfig.CachingModeParam, CachingMode.CACHE.toString)))
         val df = createDataFrame(schema, Some(dfConfig))
 
         val changeFeedConfig = Config(dfConfig.asOptions

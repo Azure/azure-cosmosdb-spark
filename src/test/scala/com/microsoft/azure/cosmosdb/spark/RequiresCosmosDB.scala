@@ -92,8 +92,14 @@ trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll wit
     val config: Config = Config(sparkConf)
     val databaseName: String = config.get(CosmosDBConfig.Database).get
     val collectionName: String = config.get(CosmosDBConfig.Collection).get
-    cosmosDBDefaults.deleteCollection(databaseName, collectionName)
     cosmosDBDefaults.createCollection(databaseName, collectionName)
+  }
+
+  override def afterEach(): Unit = {
+    val config: Config = Config(sparkConf)
+    val databaseName: String = config.get(CosmosDBConfig.Database).get
+    val collectionName: String = config.get(CosmosDBConfig.Collection).get
+    cosmosDBDefaults.deleteCollection(databaseName, collectionName)
   }
 
   def createOrGetDefaultSparkSession(sc: SparkContext): SparkSession = {

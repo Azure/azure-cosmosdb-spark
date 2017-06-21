@@ -28,10 +28,10 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
-import com.microsoft.azure.documentdb.{ConnectionPolicy, ConsistencyLevel, Document, DocumentClient}
+import com.microsoft.azure.documentdb._
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
-import org.apache.spark.sql.{Row, SaveMode}
+import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable.ListBuffer
@@ -112,7 +112,17 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   }
 
   it should "read documents change feed" in withSparkSession() { spark =>
-    spark.sparkContext.parallelize((1 to documentCount).map(x => new Document(s"{ id: '$x' }"))).saveToCosmosDB()
+    verifyReadChangeFeed(rollingChangeFeed = false, spark)
+  }
+
+  it should "read documents rolling change feed" in withSparkSession() { spark =>
+    verifyReadChangeFeed(rollingChangeFeed = true, spark)
+  }
+
+  def verifyReadChangeFeed(rollingChangeFeed: Boolean, spark: SparkSession): Unit = {
+    spark.sparkContext.parallelize((1 to documentCount).
+      map(x => new Document(s"{ id: '$x', ${CosmosDBDefaults().PartitionKeyName}: '$x' }"))).
+      saveToCosmosDB()
 
     val host = CosmosDBDefaults().EMULATOR_ENDPOINT
     val key = CosmosDBDefaults().EMULATOR_MASTERKEY
@@ -120,34 +130,55 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val collName = collectionName
 
     val readConfig = Config(Map("Endpoint" -> host,
-     "Masterkey" -> key,
-     "Database" -> dbName,
-     "Collection" -> collName,
-     "ReadChangeFeed" -> "true",
-     "SamplingRatio" -> "1.0"))
+      "Masterkey" -> key,
+      "Database" -> dbName,
+      "Collection" -> collName,
+      "ReadChangeFeed" -> "true",
+      "ChangeFeedQueryName" -> s"read change feed with RollingChangeFeed=$rollingChangeFeed",
+      "RollingChangeFeed" -> rollingChangeFeed.toString,
+      "SamplingRatio" -> "1.0"))
 
     val coll = spark.sqlContext.read.cosmosDB(readConfig)
+
+    coll.count() should equal(0)
+
+    Thread.sleep(3000)
 
     coll.count() should equal(0)
 
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val collectionLink = s"dbs/$dbName/colls/$collName"
 
-    val ITERATION = 3
+    val ReadChangeFeedIterations = 3
 
-    (1 to ITERATION).foreach(b => {
+    (1 to ReadChangeFeedIterations).foreach(b => {
+      // Create documents
       (1 to documentCount).foreach(i => {
         val document = new Document()
         document.setId((b * documentCount + i).toString)
+        document.set(CosmosDBDefaults().PartitionKeyName, document.getId)
         documentClient.createDocument(collectionLink, document, null, false)
       })
 
-      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
-        contain theSameElementsAs ((b * documentCount + 1) to (b * documentCount + documentCount)).toList
+      // Update documents
+      (0 until documentCount / 2).foreach(i => {
+        val documentId: String = (b * documentCount - i).toString
+        val documentLink = s"dbs/$dbName/colls/$collName/docs/$documentId"
+
+        val requestOptions = new RequestOptions()
+        requestOptions.setPartitionKey(new PartitionKey(documentId))
+        val readDocument = documentClient.readDocument(documentLink, requestOptions).getResource
+        readDocument.set("status", "updated")
+        documentClient.replaceDocument(documentLink, readDocument, requestOptions)
+      })
+
+      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
+        contain theSameElementsAs
+        (((if (rollingChangeFeed) b * documentCount else documentCount) - documentCount / 2 + 1) to (b * documentCount + documentCount)).toList
     })
   }
 
-  it should "produce incremental view" in withSparkSession() { spark =>
+  it should "support simple incremental view" in withSparkSession() { spark =>
     spark.sparkContext.parallelize((1 to documentCount).map(x => new Document(s"{ id: '$x' }"))).saveToCosmosDB()
 
     val host = CosmosDBDefaults().EMULATOR_ENDPOINT
@@ -160,18 +191,19 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       "Database" -> dbName,
       "Collection" -> collName,
       "IncrementalView" -> "true",
+      "ChangeFeedQueryName" -> "incremental view",
       "SamplingRatio" -> "1.0"))
 
     var coll = spark.sqlContext.read.cosmosDB(readConfig)
 
-    coll.count() should equal(100)
+    coll.count() should equal(documentCount)
 
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val collectionLink = s"dbs/$dbName/colls/$collName"
 
-    val ITERATION = 3
+    val IncrementalViewReadIterations = 3
 
-    (1 to ITERATION).foreach(b => {
+    (1 to IncrementalViewReadIterations).foreach(b => {
       (1 to documentCount).foreach(i => {
         val document = new Document()
         document.setId((b * documentCount + i).toString)

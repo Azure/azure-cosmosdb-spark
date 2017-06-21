@@ -49,9 +49,11 @@ class CosmosDBRelation(private val config: Config,
       .getOrElse(CosmosDBConfig.DefaultSamplingRatio.toString)
       .toDouble
 
+    // For verification purpose
     CosmosDBRelation.lastSampleSize = sampleSize
     CosmosDBRelation.lastSamplingRatio = samplingRatio
 
+    // Reset read change feed setting when reading for schema
     val sampleConfig = Config(config.asOptions.-(CosmosDBConfig.ReadChangeFeed))
 
     CosmosDBSchema(new CosmosDBRDD(sparkSession, sampleConfig, Some(sampleSize)), samplingRatio).schema()

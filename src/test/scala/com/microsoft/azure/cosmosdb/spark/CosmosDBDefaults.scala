@@ -39,6 +39,7 @@ class CosmosDBDefaults extends LoggingTrait {
   val EMULATOR_ENDPOINT: String = "https://localhost:443/"
   val EMULATOR_MASTERKEY: String = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
   val DATABASE_NAME = "cosmosdb-spark-connector-test"
+  val PartitionKeyName = "pkey"
 
   var collectionName: String = _
 
@@ -94,7 +95,7 @@ class CosmosDBDefaults extends LoggingTrait {
 
     // Partition key definition
     val partitionKeyDef = new PartitionKeyDefinition
-    partitionKeyDef.setPaths(List("/pkey").asJavaCollection)
+    partitionKeyDef.setPaths(List(s"/$PartitionKeyName").asJavaCollection)
     collection.setPartitionKey(partitionKeyDef)
 
     // Indexing paths

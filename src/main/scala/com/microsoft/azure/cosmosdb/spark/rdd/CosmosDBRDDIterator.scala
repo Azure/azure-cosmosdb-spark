@@ -29,6 +29,7 @@ import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
@@ -37,7 +38,9 @@ object CosmosDBRDDIterator {
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
 
-  var changeFeedContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, String]] = new ConcurrentHashMap[String, ConcurrentMap[String, String]] {}
+  // Map of change feed query name -> collection Rid -> partition range ID -> continuation token
+  var changeFeedContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] =
+    new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] {}
 
 }
 
@@ -87,15 +90,19 @@ class CosmosDBRDDIterator(
 
       conn.queryDocuments(queryString, feedOpts)
     } else {
+      val changeFeedQueryName = config
+        .get[String](CosmosDBConfig.ChangeFeedQueryName).get
+      CosmosDBRDDIterator.changeFeedContinuationTokens.putIfAbsent(changeFeedQueryName,
+        new ConcurrentHashMap[String, ConcurrentMap[String, String]]())
+      val currentContinuationTokens = CosmosDBRDDIterator.changeFeedContinuationTokens.get(changeFeedQueryName)
+
       val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
       changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
 
       val collectionLink = conn.collectionLink
-      if (!CosmosDBRDDIterator.changeFeedContinuationTokens.containsKey(collectionLink)) {
-        CosmosDBRDDIterator.changeFeedContinuationTokens.put(collectionLink, new ConcurrentHashMap[String, String]())
-      }
+      currentContinuationTokens.putIfAbsent(collectionLink, new ConcurrentHashMap[String, String]())
 
-      val collectionContinuationMap = CosmosDBRDDIterator.changeFeedContinuationTokens.get(collectionLink)
+      val collectionContinuationMap = currentContinuationTokens.get(collectionLink)
       val changeFeedContinuation = collectionContinuationMap.get(partition.partitionKeyRangeId.toString)
       if (changeFeedContinuation != null) {
         changeFeedOptions.setRequestContinuation(changeFeedContinuation)
