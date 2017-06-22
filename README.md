@@ -107,7 +107,7 @@ val readConfig2 = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.co
 
 // Create collection connection 
 // Earlier version of the connector
-val coll = spark.sqlContext.read.DocumentDB(readConfig2)
+// val coll = spark.sqlContext.read.DocumentDB(readConfig2)
 
 // Current version of the connector
 val coll = spark.sqlContext.read.cosmosDB(readConfig2)
