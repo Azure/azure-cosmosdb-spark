@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.config
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBDefaults, CosmosDBSpark, RequiresCosmosDB}
 import com.microsoft.azure.documentdb.ConnectionPolicy
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
-import com.microsoft.azure.cosmosdb.spark.spark._
+import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRelation
 
 class ConfigSpec extends RequiresCosmosDB {

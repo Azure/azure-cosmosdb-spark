@@ -24,7 +24,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.sql.{Date, Timestamp}
 
-import com.microsoft.azure.cosmosdb.spark.spark._
+import com.microsoft.azure.cosmosdb.spark._
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
