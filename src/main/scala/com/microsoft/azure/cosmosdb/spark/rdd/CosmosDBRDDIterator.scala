@@ -22,8 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
+import java.io.File
+import java.nio.file.Paths
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -39,8 +42,7 @@ object CosmosDBRDDIterator {
   var lastFeedOptions: FeedOptions = _
 
   // Map of change feed query name -> collection Rid -> partition range ID -> continuation token
-  var changeFeedContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] =
-    new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] {}
+  var changeFeedContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] = _
 
 }
 
@@ -90,11 +92,48 @@ class CosmosDBRDDIterator(
 
       conn.queryDocuments(queryString, feedOpts)
     } else {
+      // Initialize change feed continuation tokens
+      var changeFeedCheckpoint: Boolean = false
+      var checkPointPath: String = null
+      val objectMapper: ObjectMapper = new ObjectMapper()
+
+      if (CosmosDBRDDIterator.changeFeedContinuationTokens == null) {
+
+        CosmosDBRDDIterator.synchronized {
+
+          if (CosmosDBRDDIterator.changeFeedContinuationTokens == null) {
+
+            val changeFeedCheckpointLocation: String = config
+              .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
+              .getOrElse(StringUtils.EMPTY)
+            val emptyChangeFeedContinuationTokens =
+              new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]]
+
+            if (!StringUtils.isEmpty(changeFeedCheckpointLocation)) {
+              changeFeedCheckpoint = true
+              checkPointPath = Paths.get(changeFeedCheckpointLocation, "changeFeedCheckPoint").toString
+              val checkPointFile = new File(checkPointPath)
+              if (checkPointFile.exists()) {
+                CosmosDBRDDIterator.changeFeedContinuationTokens =
+                  objectMapper.readValue(checkPointFile, emptyChangeFeedContinuationTokens.getClass)
+                logInfo(s"Read change feed continuation tokens from $checkPointPath")
+              } else {
+                logInfo(s"Using new change feed checkpoint file $checkPointPath")
+              }
+            }
+            if (CosmosDBRDDIterator.changeFeedContinuationTokens == null) {
+              CosmosDBRDDIterator.changeFeedContinuationTokens = emptyChangeFeedContinuationTokens
+            }
+          }
+        }
+      }
+
       val changeFeedQueryName = config
         .get[String](CosmosDBConfig.ChangeFeedQueryName).get
       CosmosDBRDDIterator.changeFeedContinuationTokens.putIfAbsent(changeFeedQueryName,
         new ConcurrentHashMap[String, ConcurrentMap[String, String]]())
-      val currentContinuationTokens = CosmosDBRDDIterator.changeFeedContinuationTokens.get(changeFeedQueryName)
+      val currentContinuationTokens: ConcurrentMap[String, ConcurrentMap[String, String]] =
+        CosmosDBRDDIterator.changeFeedContinuationTokens.get(changeFeedQueryName)
 
       val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
       changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
@@ -112,6 +151,12 @@ class CosmosDBRDDIterator(
 
       if (changeFeedContinuation == null || rollingChangeFeed) {
         collectionContinuationMap.put(partition.partitionKeyRangeId.toString, response._2)
+
+        if (changeFeedCheckpoint) {
+          CosmosDBRDDIterator.synchronized {
+            objectMapper.writeValue(new File(checkPointPath), CosmosDBRDDIterator.changeFeedContinuationTokens)
+          }
+        }
       }
 
       logInfo(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $changeFeedContinuation, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")

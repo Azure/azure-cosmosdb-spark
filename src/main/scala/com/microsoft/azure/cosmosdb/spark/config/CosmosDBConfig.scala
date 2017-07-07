@@ -48,6 +48,7 @@ object CosmosDBConfig {
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
+  val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
 
   // Mandatory
   val required = List(

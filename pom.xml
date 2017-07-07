@@ -89,6 +89,11 @@ limitations under the License.
       <artifactId>tinkergraph-gremlin</artifactId>
       <version>${tinkerpop.version}</version>
     </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-scala_2.10</artifactId>
+      <version>2.8.9</version>
+    </dependency>
   </dependencies>
   <build>
     <testResources>
