@@ -30,7 +30,7 @@ limitations under the License.
     <spark.version>2.0.2</spark.version>
     <slf4j.version>1.7.6</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
-    <tinkerpop.version>3.2.4</tinkerpop.version>
+    <tinkerpop.version>3.3.0-SNAPSHOT</tinkerpop.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <dependencies>
@@ -88,6 +88,11 @@ limitations under the License.
       <groupId>org.apache.tinkerpop</groupId>
       <artifactId>tinkergraph-gremlin</artifactId>
       <version>${tinkerpop.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-scala_2.10</artifactId>
+      <version>2.8.9</version>
     </dependency>
   </dependencies>
   <build>

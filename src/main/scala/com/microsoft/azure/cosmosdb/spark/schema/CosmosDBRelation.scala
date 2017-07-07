@@ -49,10 +49,14 @@ class CosmosDBRelation(private val config: Config,
       .getOrElse(CosmosDBConfig.DefaultSamplingRatio.toString)
       .toDouble
 
+    // For verification purpose
     CosmosDBRelation.lastSampleSize = sampleSize
     CosmosDBRelation.lastSamplingRatio = samplingRatio
 
-    CosmosDBSchema(new CosmosDBRDD(sparkSession, config, Some(sampleSize)), samplingRatio).schema()
+    // Reset read change feed setting when reading for schema
+    val sampleConfig = Config(config.asOptions.-(CosmosDBConfig.ReadChangeFeed))
+
+    CosmosDBSchema(new CosmosDBRDD(sparkSession, sampleConfig, Some(sampleSize)), samplingRatio).schema()
   }
 
   override lazy val schema: StructType = schemaProvided.getOrElse(lazySchema)

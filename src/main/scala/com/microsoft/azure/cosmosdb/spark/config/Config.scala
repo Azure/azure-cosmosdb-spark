@@ -23,6 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark.config
 
 import com.microsoft.azure.cosmosdb.spark.config.Config.Property
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -81,6 +82,14 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
         reqProperties.diff(
           properties.keys.toList.intersect(requiredProperties))
       }")
+
+    if (get(CosmosDBConfig.ReadChangeFeed).getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString).toBoolean ||
+      get(CosmosDBConfig.IncrementalView).getOrElse(CosmosDBConfig.DefaultIncrementalView.toString).toBoolean) {
+      require(
+        List(CosmosDBConfig.ChangeFeedQueryName).forall(properties.isDefinedAt),
+        s"${CosmosDBConfig.ChangeFeedQueryName} property is required when reading change feed"
+      )
+    }
 
     /**
       * Compare if two Configs have the same properties.

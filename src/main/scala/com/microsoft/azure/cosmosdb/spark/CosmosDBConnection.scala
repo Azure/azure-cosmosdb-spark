@@ -45,7 +45,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
-  private val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
+  val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
 
   @transient private var client: DocumentClient = _
 
@@ -157,6 +157,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
         feedOpts : FeedOptions) : Iterator [Document] = {
 
     documentClient().queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts).getQueryIterable.iterator()
+  }
+
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions): Tuple2[Iterator[Document], String] = {
+    val feedResponse = documentClient().queryDocumentChangeFeed(collectionLink, changeFeedOptions)
+    Tuple2.apply(feedResponse.getQueryIterable.iterator(), feedResponse.getResponseContinuation)
   }
 
   def upsertDocument(document: Document,

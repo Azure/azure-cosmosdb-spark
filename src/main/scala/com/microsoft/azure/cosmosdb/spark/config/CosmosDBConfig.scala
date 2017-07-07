@@ -42,6 +42,13 @@ object CosmosDBConfig {
   val Upsert = "upsert"
   val ConnectionMode = "connectionmode"
   val ConsistencyLevel = "consistencylevel"
+  val ReadChangeFeed = "readchangefeed"
+  val RollingChangeFeed = "rollingchangefeed"
+  val IncrementalView = "incrementalview"
+  val CachingModeParam = "cachingmode"
+  val ChangeFeedQueryName = "changefeedqueryname"
+  val ChangeFeedNewQuery = "changefeednewquery"
+  val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
 
   // Mandatory
   val required = List(
@@ -57,8 +64,27 @@ object CosmosDBConfig {
   val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
   val DefaultUpsert = false
+  val DefaultReadChangeFeed = false
+  val DefaultRollingChangeFeed = false
+  val DefaultIncrementalView = false
+  val DefaultCacheMode = CachingMode.NONE
+  val DefaultChangeFeedNewQuery = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
   }
+}
+
+/**
+  * Represents caching behavior, used internally in incremental view mode.
+  *
+  * None: data is not cached
+  * Cache: data is cached by invoking rdd.cache()
+  * RefreshCache: discard current cache data and read the latest data into cache
+  */
+object CachingMode extends Enumeration {
+  type CachingMode = Value
+  val NONE = Value("None")
+  val CACHE = Value("Cache")
+  val REFRESH_CACHE = Value("RefreshCache")
 }
