@@ -32,9 +32,11 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
                                     configMap: Map[String, String])
   extends Source with LoggingTrait {
-  val streamConfig = Config(configMap
-    .-(CosmosDBConfig.RollingChangeFeed)
-    .+((CosmosDBConfig.RollingChangeFeed, String.valueOf(true))))
+  val streamConfig = Config(configMap.
+    -(CosmosDBConfig.ReadChangeFeed).
+    +((CosmosDBConfig.ReadChangeFeed, String.valueOf(true))).
+    -(CosmosDBConfig.RollingChangeFeed).
+    +((CosmosDBConfig.RollingChangeFeed, String.valueOf(true))))
   val changeFeedDf: DataFrame = sqlContext.read.cosmosDB(streamConfig)
 
   override def schema: StructType = changeFeedDf.schema

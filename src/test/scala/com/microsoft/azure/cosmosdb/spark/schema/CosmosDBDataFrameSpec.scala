@@ -552,56 +552,74 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val key = CosmosDBDefaults().EMULATOR_MASTERKEY
     val databaseName = CosmosDBDefaults().DATABASE_NAME
     val sinkCollection = "cosmosdbsink"
-    val STREAMING_TIME_MS = 10 * 1000
-    val STREAMING_TIME_GAP_MS = 5 * 1000
-    val NEW_DOCUMENT_INTERVAL_MS = 1000
-    val INSERTING_ITERATION: Int = (STREAMING_TIME_GAP_MS * 2 + STREAMING_TIME_MS) / NEW_DOCUMENT_INTERVAL_MS
+    val streamingTimeMs = TimeUnit.SECONDS.toMillis(10)
+    val streamingGapMs = TimeUnit.SECONDS.toMillis(10)
+    val insertIntervalMs = TimeUnit.SECONDS.toMillis(1) / 2
+    // There is a delay from starting the writing to the stream to the first data being written
+    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(5)
+    val insertIterations: Int = ((streamingGapMs * 2 + streamingTimeMs) / insertIntervalMs).toInt
 
     var configMap = Config(spark.sparkContext.getConf).asOptions
 
-    // Create the sink collection
-    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val databaseLink = s"dbs/$databaseName"
     val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
+
+    // Create the sink collection
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
     val documentCollection = new DocumentCollection()
     documentCollection.setId(sinkCollection)
     documentClient.createCollection(databaseLink, documentCollection, null)
 
     // Start the thread to add new documents
-    new Thread(new Runnable() {
+    val insertingThread = new Thread(new Runnable() {
       override def run(): Unit = {
-        (1 to INSERTING_ITERATION).foreach(i => {
+        (1 to insertIterations).foreach(i => {
           val newDoc = new Document()
           newDoc.setId(s"$i")
+          newDoc.set(cosmosDBDefaults.PartitionKeyName, i)
           newDoc.set("content", s"sample content for document with ID $i")
           documentClient.createDocument(sourceCollectionLink, newDoc, null, true)
-          TimeUnit.MILLISECONDS.sleep(NEW_DOCUMENT_INTERVAL_MS)
+          TimeUnit.MILLISECONDS.sleep(insertIntervalMs)
         })
       }
-    }).start()
+    })
+    insertingThread.start()
 
+    val sourceConfigMap = configMap.
+      +((CosmosDBConfig.ChangeFeedQueryName, "Structured Stream unit test"))
+
+    // Start to read the stream
     val streamData = spark.readStream
       .format(classOf[CosmosDBSourceProvider].getName)
-      .options(configMap)
+      .options(sourceConfigMap)
       .load()
 
-    val stringData = streamData
+    // Run inserting documents for a few seconds before starting to write to the sink stream
+    TimeUnit.MILLISECONDS.sleep(streamingGapMs - insertIntervalMs)
 
-    val sinkConfigMap = configMap.-(CosmosDBConfig.Collection).+((CosmosDBConfig.Collection, sinkCollection))
+    val sinkConfigMap = configMap.
+      -(CosmosDBConfig.Collection).
+      +((CosmosDBConfig.Collection, sinkCollection))
 
-    val query = stringData.writeStream
+    val streamingQuery = streamData.writeStream
       .format(classOf[CosmosDBSinkProvider].getName)
       .outputMode("append")
       .options(sinkConfigMap)
       .option("checkpointLocation", "./checkpoint")
       .start()
 
-    query.awaitTermination(STREAMING_TIME_MS)
+    TimeUnit.MILLISECONDS.sleep(streamingTimeMs)
+
+    streamingQuery.stop()
+
+    insertingThread.join(streamingGapMs)
 
     // Verify the documents has streamed to the new collection
     val df = spark.read.cosmosDB(Config(sinkConfigMap))
+    val streamedIdCheckRangeStart = (streamingGapMs + streamingSinkDelayMs) / insertIntervalMs
+    val streamedIdCheckRangeEnd = streamedIdCheckRangeStart + streamingTimeMs / 2 / insertIntervalMs
     df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect() should
-      contain atLeastOneElementOf (1 to INSERTING_ITERATION).toList
+      contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
   }
 }

@@ -145,6 +145,7 @@ object CosmosDBSpark extends LoggingTrait {
       var createDocumentObs: Observable[ResourceResponse[Document]] = null
       var batchSize = 0
       iter.foreach(item => {
+        val document: Document = item.asInstanceOf[Document]
         if (upsert)
           createDocumentObs = connection.upsertDocument(item.asInstanceOf[Document], null)
         else
