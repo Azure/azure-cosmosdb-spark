@@ -22,15 +22,10 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.util.HashMap
-
+import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal._
-import com.microsoft.azure.documentdb.internal.query.PartitionedQueryExecutionInfo
-import com.microsoft.azure.documentdb.internal.routing.RoutingMapProviderHelper
-import com.microsoft.azure.cosmosdb.spark.config._
 
-import scala.collection.{JavaConversions, mutable}
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 
@@ -92,65 +87,15 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     documentClient
   }
 
-  def getAllPartitions: Array [PartitionKeyRange] = {
-    var ranges = documentClient().readPartitionKeyRanges(collectionLink, null)
+  def getAllPartitions: Array[PartitionKeyRange] = {
+    var ranges = documentClient().readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
     ranges.getQueryIterator.toArray
   }
 
   def getAllPartitions(query: String): Array[PartitionKeyRange] = {
-    val querySpec = new SqlQuerySpec(query, new SqlParameterCollection)
-    val options = new FeedOptions
-    options.setEnableCrossPartitionQuery(true)
-    options.setMaxDegreeOfParallelism(Integer.MAX_VALUE)
-
-    var headers: HashMap[String, String] = new HashMap[String, String]
-    headers.put(HttpConstants.HttpHeaders.ENABLE_CROSS_PARTITION_QUERY, String.valueOf(true))
-    headers.put(HttpConstants.HttpHeaders.PARALLELIZE_CROSS_PARTITION_QUERY, String.valueOf(true))
-    headers.put(HttpConstants.HttpHeaders.PAGE_SIZE, String.valueOf(1))
-    var path: String = null
-    var partitionKeyRanges: Array[PartitionKeyRange] = Array()
-    if (Utils.isDatabaseLink(collectionLink))
-      path = collectionLink
-    else
-      path = Utils.joinPath(collectionLink, Paths.DOCUMENTS_PATH_SEGMENT)
-    var gwClient = accquireClient(ConnectionMode.Gateway)
-    try {
-      val request = DocumentServiceRequest.create(
-        ResourceType.Document,
-        path,
-        querySpec,
-        QueryCompatibilityMode.Default,
-        JavaConversions.mapAsJavaMap(headers))
-      val response = BridgeInternal.getDocumentClientDoQuery(gwClient)(request)
-
-      val sessionToken = response.getResponseHeaders.get(HttpConstants.HttpHeaders.SESSION_TOKEN)
-      if (!sessionToken.isEmpty) {
-        val parts = sessionToken.split(":")
-        if (parts.size == 2) {
-          val singleRange = new PartitionKeyRange()
-          singleRange.setId(parts(0))
-          partitionKeyRanges = Array(singleRange)
-        }
-      }
-
-      if (partitionKeyRanges.length == 0) {
-        // Partition key ranges information not returned from Gateway
-        partitionKeyRanges = getAllPartitions
-      }
-    } catch {
-      case dce: DocumentClientException =>
-        if (dce.getError == null) {
-          // This exception is unexpected, it's likely an issue with the query
-          throw dce
-        }
-        val partitionedQueryExecutionInfo = new PartitionedQueryExecutionInfo(dce.getError.getPartitionedQueryExecutionInfo)
-        partitionKeyRanges = RoutingMapProviderHelper.getOverlappingRanges(
-          BridgeInternal.getDocumentClientPartitionKeyRangeCache(documentClient()),
-          path,
-          partitionedQueryExecutionInfo.getQueryRanges).toArray[PartitionKeyRange](partitionKeyRanges)
-    }
-
-    partitionKeyRanges
+    var ranges: java.util.Collection[PartitionKeyRange] =
+      documentClient().readPartitionKeyRanges(collectionLink, query)
+    ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
   }
 
   def queryDocuments (queryString : String,

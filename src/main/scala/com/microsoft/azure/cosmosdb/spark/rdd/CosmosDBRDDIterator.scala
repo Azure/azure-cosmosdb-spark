@@ -81,7 +81,7 @@ class CosmosDBRDDIterator(
         .toInt
       feedOpts.setPageSize(pageSize)
       // Set target partition ID_PROPERTY
-      BridgeInternal.setFeedOptionPartitionKeyRangeId(feedOpts, partition.partitionKeyRangeId.toString)
+      feedOpts.setPartitionKeyRangeIdInternal(partition.partitionKeyRangeId.toString)
       feedOpts.setEnableCrossPartitionQuery(true)
       CosmosDBRDDIterator.lastFeedOptions = feedOpts
 
