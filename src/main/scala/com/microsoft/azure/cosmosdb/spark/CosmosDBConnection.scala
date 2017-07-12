@@ -94,7 +94,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def getAllPartitions(query: String): Array[PartitionKeyRange] = {
     var ranges: java.util.Collection[PartitionKeyRange] =
-      documentClient().readPartitionKeyRanges(collectionLink, query)
+      accquireClient(ConnectionMode.Gateway).readPartitionKeyRanges(collectionLink, query)
     ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
   }
 
