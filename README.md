@@ -82,6 +82,28 @@ df = spark.createDataFrame(elements)
 
 The `azure-cosmosdb-spark` connector connects Apache Spark to Cosmos DB using the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java).  Here's a small code snippet that queries for flight data from the DoctorWho Azure Cosmos DB database; the results are in the `df` DataFrame.
 
+### Python
+```python
+# Base Configuration
+flightsConfig = {
+"Endpoint" : "https://doctorwho.documents.azure.com:443/",
+"Masterkey" : "le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==",
+"Database" : "DepartureDelays",
+"preferredRegions" : "Central US;East US2",
+"Collection" : "flights_pcoll", 
+"SamplingRatio" : "1.0",
+"schema_samplesize" : "1000",
+"query_pagesize" : "2147483647",
+"query_custom" : "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c"
+}
+
+# Connect via Spark connector to create Spark DataFrame
+flights = spark.read.format("com.microsoft.azure.cosmosdb.spark").options(**flightsConfig).load()
+flights.count()
+```
+
+
+### Scala
 ```scala
 // Import Necessary Libraries
 import org.joda.time._
