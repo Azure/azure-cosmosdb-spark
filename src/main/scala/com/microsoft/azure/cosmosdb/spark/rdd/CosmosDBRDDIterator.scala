@@ -80,6 +80,31 @@ class CosmosDBRDDIterator(
         .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
         .toInt
       feedOpts.setPageSize(pageSize)
+      val maxDegreeOfParallelism = config
+        .get[String](CosmosDBConfig.QueryMaxDegreeOfParallelism)
+        .getOrElse(CosmosDBConfig.DefaultQueryMaxDegreeOfParallelism.toString)
+        .toInt
+      feedOpts.setMaxDegreeOfParallelism(maxDegreeOfParallelism)
+      val bufferedItemCount = config
+        .get[String](CosmosDBConfig.QueryMaxBufferedItemCount)
+        .getOrElse(CosmosDBConfig.DefaultQueryMaxBufferedItemCount.toString)
+        .toInt
+      feedOpts.setMaxBufferedItemCount(bufferedItemCount)
+      val enableScanInQuery = config
+        .get[String](CosmosDBConfig.QueryEnableScan)
+      if (enableScanInQuery.isDefined) {
+        feedOpts.setEnableScanInQuery(enableScanInQuery.get.toBoolean)
+      }
+      val disableRUPerMinuteUsage = config
+        .get[String](CosmosDBConfig.QueryDisableRUPerMinuteUsage)
+      if (disableRUPerMinuteUsage.isDefined) {
+        feedOpts.setDisableRUPerMinuteUsage(disableRUPerMinuteUsage.get.toBoolean)
+      }
+      val emitVerboseTraces = config
+        .get[String](CosmosDBConfig.QueryEmitVerboseTraces)
+      if (emitVerboseTraces.isDefined) {
+        feedOpts.setEmitVerboseTracesInQuery(emitVerboseTraces.get.toBoolean)
+      }
       // Set target partition ID_PROPERTY
       feedOpts.setPartitionKeyRangeIdInternal(partition.partitionKeyRangeId.toString)
       feedOpts.setEnableCrossPartitionQuery(true)

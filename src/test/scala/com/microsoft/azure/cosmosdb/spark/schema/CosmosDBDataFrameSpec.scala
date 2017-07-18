@@ -111,6 +111,59 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     logDebug(s"df.query() took ${durationSeconds}s")
   }
 
+  it should "read with query parameters" in withSparkSession() { sparkSession: SparkSession =>
+    val count = 2000
+    val testDocuments: IndexedSeq[SimpleDocument] = (1 to count)
+      .map(x => SimpleDocument(x.toString, x, (count - x + 1).toString))
+
+    import sparkSession.implicits._
+
+    sparkSession.sparkContext.parallelize(testDocuments).toDF().write.cosmosDB()
+
+    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
+    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
+    val dbName = CosmosDBDefaults().DATABASE_NAME
+    val collName = collectionName
+
+    val configMap = Map("Endpoint" -> host,
+      "Masterkey" -> key,
+      "Database" -> dbName,
+      "Collection" -> collName,
+      "SamplingRatio" -> "1.0")
+
+    val readConfig = Config(configMap)
+
+    var df = sparkSession.read.cosmosDB(readConfig)
+    df.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+      contain theSameElementsAs (1 to count).toList
+
+    val serialReadConfig = Config(configMap.
+      +((CosmosDBConfig.QueryPageSize, "-1")).
+      +((CosmosDBConfig.QueryMaxDegreeOfParallelism, "1")))
+
+    df = sparkSession.read.cosmosDB(serialReadConfig)
+    df.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+      contain theSameElementsAs (1 to count).toList
+
+    val parallelReadConfig = Config(configMap.
+      +((CosmosDBConfig.QueryPageSize, "100")).
+      +((CosmosDBConfig.QueryMaxDegreeOfParallelism, Integer.MAX_VALUE.toString)).
+      +((CosmosDBConfig.QueryMaxBufferedItemCount, Integer.MAX_VALUE.toString)))
+
+    df = sparkSession.read.cosmosDB(parallelReadConfig)
+    df.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+      contain theSameElementsAs (1 to count).toList
+
+    val dynamicReadConfig = Config(configMap.
+      +((CosmosDBConfig.QueryPageSize, "-1")).
+      +((CosmosDBConfig.QueryMaxDegreeOfParallelism, "-1")).
+      +((CosmosDBConfig.QueryMaxBufferedItemCount, "-1")))
+
+    df = sparkSession.read.cosmosDB(dynamicReadConfig)
+    df.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect() should
+      contain theSameElementsAs (1 to count).toList
+  }
+
   it should "read documents change feed" in withSparkSession() { spark =>
     verifyReadChangeFeed(rollingChangeFeed = false, spark)
   }

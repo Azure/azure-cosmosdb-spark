@@ -72,6 +72,11 @@ class ConfigSpec extends RequiresCosmosDB {
       "query_pagesize" -> "300",
       "query_maxretryattemptsonthrottledrequests" -> "15",
       "query_maxretrywaittimeinseconds" -> "3",
+      "query_maxdegreeofparallelism" -> "100",
+      "query_maxbuffereditemcount" -> "500",
+      "query_enablescan" -> "true",
+      "query_disableruperminuteusage" -> "true",
+      "query_emitverbosetraces" -> "true",
       "preferredregions" -> "West US; West US 2")
     )
 
@@ -91,6 +96,11 @@ class ConfigSpec extends RequiresCosmosDB {
 
     val feedOptions = CosmosDBRDDIterator.lastFeedOptions
     feedOptions.getPageSize.toString should equal(readConfig.properties("query_pagesize"))
+    feedOptions.getMaxDegreeOfParallelism.toString should equal(readConfig.properties("query_maxdegreeofparallelism"))
+    feedOptions.getMaxBufferedItemCount.toString should equal(readConfig.properties("query_maxbuffereditemcount"))
+    feedOptions.getEnableScanInQuery.toString should equal(readConfig.properties("query_enablescan"))
+    feedOptions.getDisableRUPerMinuteUsage.toString should equal(readConfig.properties("query_disableruperminuteusage"))
+    feedOptions.getEmitVerboseTracesInQuery.toString should equal(readConfig.properties("query_emitverbosetraces"))
 
     CosmosDBRelation.lastSamplingRatio.toString should equal(readConfig.properties("schema_samplingratio"))
     CosmosDBRelation.lastSampleSize.toString should equal(readConfig.properties("schema_samplesize"))

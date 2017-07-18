@@ -57,11 +57,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
-    val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.MaxRetryOnThrottled)
+    val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
     if (maxRetryAttemptsOnThrottled.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
     }
-    val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.MaxRetryWaitTimeSecs)
+    val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs)
     if (maxRetryWaitTimeSecs.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
     }
@@ -94,7 +94,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def getAllPartitions(query: String): Array[PartitionKeyRange] = {
     var ranges: java.util.Collection[PartitionKeyRange] =
-      accquireClient(ConnectionMode.Gateway).readPartitionKeyRanges(collectionLink, query)
+      documentClient().readPartitionKeyRanges(collectionLink, query)
     ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
   }
 
