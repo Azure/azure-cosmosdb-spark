@@ -36,7 +36,7 @@ limitations under the License.
     <scala.binary.version>2.11</scala.binary.version>
     <sonar.projectBaseDir>azure-cosmosdb-spark</sonar.projectBaseDir>
     <scala.test.version>3.0.1</scala.test.version>
-    <spark.version>2.1.0</spark.version>
+    <spark.version>2.2.0</spark.version>
     <slf4j.version>1.7.6</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
     <tinkerpop.version>3.2.5</tinkerpop.version>
