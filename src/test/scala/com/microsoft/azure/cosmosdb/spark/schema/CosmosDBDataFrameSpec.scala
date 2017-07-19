@@ -165,14 +165,22 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   }
 
   it should "read documents change feed" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = false, spark)
+    verifyReadChangeFeed(rollingChangeFeed = false, startFromTheBeginning = true, spark)
   }
 
   it should "read documents rolling change feed" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = true, spark)
+    verifyReadChangeFeed(rollingChangeFeed = true, startFromTheBeginning = true, spark)
   }
 
-  def verifyReadChangeFeed(rollingChangeFeed: Boolean, spark: SparkSession): Unit = {
+  it should "read documents change feed not starting from the beginning" in withSparkSession() { spark =>
+    verifyReadChangeFeed(rollingChangeFeed = false, startFromTheBeginning = false, spark)
+  }
+
+  it should "read documents rolling change feed not starting from the beginning" in withSparkSession() { spark =>
+    verifyReadChangeFeed(rollingChangeFeed = true, startFromTheBeginning = false, spark)
+  }
+
+  def verifyReadChangeFeed(rollingChangeFeed: Boolean, startFromTheBeginning: Boolean, spark: SparkSession): Unit = {
     spark.sparkContext.parallelize((1 to documentCount).
       map(x => new Document(s"{ id: '$x', ${CosmosDBDefaults().PartitionKeyName}: '$x' }"))).
       saveToCosmosDB()
@@ -187,22 +195,28 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       "Database" -> dbName,
       "Collection" -> collName,
       "ReadChangeFeed" -> "true",
-      "ChangeFeedQueryName" -> s"read change feed with RollingChangeFeed=$rollingChangeFeed",
+      "ChangeFeedQueryName" -> s"read change feed with RollingChangeFeed=$rollingChangeFeed and StartFromTheBeginning=$startFromTheBeginning",
+      "ChangeFeedStartFromTheBeginning" -> startFromTheBeginning.toString,
       "RollingChangeFeed" -> rollingChangeFeed.toString,
       "SamplingRatio" -> "1.0"))
 
     val coll = spark.sqlContext.read.cosmosDB(readConfig)
 
-    coll.count() should equal(0)
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
+    val collectionLink = s"dbs/$dbName/colls/$collName"
+
+    if (startFromTheBeginning) {
+      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
+        contain theSameElementsAs (1 to documentCount).toList
+    } else {
+      coll.count() should equal(0)
+    }
 
     Thread.sleep(3000)
 
     coll.count() should equal(0)
 
-    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
-    val collectionLink = s"dbs/$dbName/colls/$collName"
-
-    val ReadChangeFeedIterations = 3
+    val ReadChangeFeedIterations = 4
 
     (1 to ReadChangeFeedIterations).foreach(b => {
       // Create documents
@@ -225,9 +239,11 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         documentClient.replaceDocument(documentLink, readDocument, requestOptions)
       })
 
+      val startIndex = (if (rollingChangeFeed) b * documentCount else documentCount) - documentCount / 2 + 1
+      val endIndex = b * documentCount + documentCount
+
       coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
-        contain theSameElementsAs
-        (((if (rollingChangeFeed) b * documentCount else documentCount) - documentCount / 2 + 1) to (b * documentCount + documentCount)).toList
+        contain theSameElementsAs (startIndex to endIndex).toList
     })
   }
 

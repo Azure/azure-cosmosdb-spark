@@ -163,6 +163,12 @@ class CosmosDBRDDIterator(
       val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
       changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
 
+      val changeFeedStartFromTheBeginning: Boolean = config
+        .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
+        .getOrElse(CosmosDBConfig.DefaultChangeFeedStartFromTheBeginning.toString)
+        .toBoolean
+      changeFeedOptions.setStartFromBeginning(changeFeedStartFromTheBeginning)
+
       val collectionLink = conn.collectionLink
       currentContinuationTokens.putIfAbsent(collectionLink, new ConcurrentHashMap[String, String]())
 
