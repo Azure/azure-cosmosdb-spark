@@ -54,6 +54,7 @@ object CosmosDBConfig {
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+  val WritingBatchSize = "writingbatchsize"
 
   // Mandatory
   val required = List(
@@ -76,6 +77,7 @@ object CosmosDBConfig {
   val DefaultChangeFeedNewQuery = false
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
+  val DefaultWritingBatchSize = 500
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

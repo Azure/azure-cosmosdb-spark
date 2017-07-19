@@ -22,9 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.util.concurrent._
-import java.util.function.Consumer
-
+import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -36,7 +34,6 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
@@ -45,7 +42,7 @@ import scala.reflect.runtime.universe._
   *
   * @since 1.0
   */
-object CosmosDBSpark {
+object CosmosDBSpark extends LoggingTrait {
 
   /**
    * The default source string for creating DataFrames from CosmosDB
@@ -56,6 +53,7 @@ object CosmosDBSpark {
     * For verfication purpose
     */
   var lastUpsertSetting: Option[Boolean] = _
+  var lastWritingBatchSize: Option[Int] = _
 
   /**
     * Create a builder for configuring the [[CosmosDBSpark]]
@@ -135,16 +133,37 @@ object CosmosDBSpark {
     val upsert: Boolean = writeConfig
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
+    val writingBatchSize = writeConfig
+      .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize))
+      .toInt
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
+    CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
     rdd.foreachPartition(iter => if (iter.nonEmpty) {
+      var merged: Observable[ResourceResponse[Document]] = null
+      var observable: Observable[ResourceResponse[Document]] = null
+      var batchSize = 0
       iter.foreach(item => {
         if (upsert)
-          connection.upsertDocument(item.asInstanceOf[Document], null)
+          observable = connection.upsertDocument(item.asInstanceOf[Document], null)
         else
-          connection.createDocument(item.asInstanceOf[Document], null)
+          observable = connection.createDocument(item.asInstanceOf[Document], null)
+        if (merged == null) {
+          merged = observable
+        } else {
+          merged = Observable.merge(merged, observable)
+        }
+        batchSize = batchSize + 1
+        if (batchSize % writingBatchSize == 0) {
+          merged.toBlocking.last()
+          merged = null
+          batchSize = 0
+        }
       })
+      if (merged != null) {
+        merged.toBlocking.last()
+      }
     })
   }
 
