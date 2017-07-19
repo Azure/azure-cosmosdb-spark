@@ -109,7 +109,8 @@ case class CosmosDBSchema[T <: RDD[Document]](
     * @return Compatible type for both t1 and t2
     */
   private def compatibleType(t1: DataType, t2: DataType): DataType = {
-    TypeCoercion.findTightestCommonTypeOfTwo(t1, t2) match {
+    //TypeCoercion.findTightestCommonTypeOfTwo(t1, t2) match {
+    TypeCoercion.findTightestCommonType(t1, t2) match {
       case Some(commonType) => commonType
 
       case None =>
