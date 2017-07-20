@@ -18,10 +18,19 @@ limitations under the License.
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>azure-cosmosdb-spark</artifactId>
-  <packaging>jar</packaging>
   <groupId>com.microsoft.azure</groupId>
-  <version>0.0.3-SNAPSHOT</version>
+  <artifactId>azure-cosmosdb-spark_2.0.2_2.11</artifactId>
+  <packaging>jar</packaging>
+  <version>0.0.3</version>
+  <name>${project.groupId}:${project.artifactId}</name>
+  <description>Spark Connector for Microsoft Azure CosmosDB</description>
+  <url>http://azure.microsoft.com/en-us/services/documentdb/</url>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>http://www.opensource.org/licenses/mit-license.php</url>
+    </license>
+  </licenses>
   <properties>
     <scala.version>2.11.8</scala.version>
     <scala.binary.version>2.11</scala.binary.version>
@@ -224,4 +233,17 @@ limitations under the License.
       </plugin>
     </plugins>
   </build>
+  <developers>
+    <developer>
+      <name>CosmosDB Programmability Devs</name>
+      <email>askcosmosdb@microsoft.com</email>
+      <organization>Microsoft</organization>
+      <organizationUrl>http://www.microsoft.com/</organizationUrl>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:git@github.com:Azure/azure-cosmosdb-spark.git</connection>
+    <developerConnection>scm:git:git@github.com:Azure/azure-cosmosdb-spark.git</developerConnection>
+    <url>git@github.com:Azure/azure-cosmosdb-spark.git</url>
+  </scm>
 </project>
