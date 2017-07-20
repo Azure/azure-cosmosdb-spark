@@ -19,7 +19,7 @@ limitations under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.microsoft.azure</groupId>
-  <artifactId>azure-cosmosdb-spark_2.1.0_2.11</artifactId>
+  <artifactId>azure-cosmosdb-spark_2.2.0_2.11</artifactId>
   <packaging>jar</packaging>
   <version>0.0.5-SNAPSHOT</version>
   <name>${project.groupId}:${project.artifactId}</name>
