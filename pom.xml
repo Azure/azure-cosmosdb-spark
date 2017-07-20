@@ -27,7 +27,7 @@ limitations under the License.
     <scala.binary.version>2.11</scala.binary.version>
     <sonar.projectBaseDir>azure-cosmosdb-spark</sonar.projectBaseDir>
     <scala.test.version>3.0.1</scala.test.version>
-    <spark.version>2.0.2</spark.version>
+    <spark.version>2.2.0</spark.version>
     <slf4j.version>1.7.6</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
     <tinkerpop.version>3.2.5</tinkerpop.version>
@@ -100,9 +100,9 @@ limitations under the License.
       <version>${tinkerpop.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.fasterxml.jackson.module</groupId>
-      <artifactId>jackson-module-scala_2.10</artifactId>
-      <version>2.8.9</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.6.5</version>
     </dependency>
   </dependencies>
   <build>

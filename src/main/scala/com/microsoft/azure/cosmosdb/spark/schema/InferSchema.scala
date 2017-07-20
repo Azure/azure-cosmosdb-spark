@@ -123,7 +123,8 @@ object InferSchema {
     * @return the DataType that matches on the input DataTypes
     */
   private def compatibleType(t1: DataType, t2: DataType): DataType = {
-    TypeCoercion.findTightestCommonTypeOfTwo(t1, t2).getOrElse {
+    TypeCoercion.findTightestCommonType(t1, t2).getOrElse {
+    //TypeCoercion.findTightestCommonTypeOfTwo(t1, t2).getOrElse {
       // t1 or t2 is a StructType, ArrayType, or an unexpected type.
       (t1, t2) match {
         case (StructType(fields1), StructType(fields2)) =>
