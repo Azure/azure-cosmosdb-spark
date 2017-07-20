@@ -165,22 +165,59 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   }
 
   it should "read documents change feed" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = false, startFromTheBeginning = true, spark)
+    verifyReadChangeFeed(
+      rollingChangeFeed = false,
+      startFromTheBeginning = true,
+      useNextToken = false,
+      spark)
   }
 
   it should "read documents rolling change feed" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = true, startFromTheBeginning = true, spark)
+    verifyReadChangeFeed(
+      rollingChangeFeed = true,
+      startFromTheBeginning = true,
+      useNextToken = false,
+      spark)
   }
 
   it should "read documents change feed not starting from the beginning" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = false, startFromTheBeginning = false, spark)
+    verifyReadChangeFeed(
+      rollingChangeFeed = false,
+      startFromTheBeginning = false,
+      useNextToken = false,
+      spark)
   }
 
   it should "read documents rolling change feed not starting from the beginning" in withSparkSession() { spark =>
-    verifyReadChangeFeed(rollingChangeFeed = true, startFromTheBeginning = false, spark)
+    verifyReadChangeFeed(
+      rollingChangeFeed = true,
+      startFromTheBeginning = false,
+      useNextToken = false,
+      spark)
   }
 
-  def verifyReadChangeFeed(rollingChangeFeed: Boolean, startFromTheBeginning: Boolean, spark: SparkSession): Unit = {
+  it should "read documents change feed using next continuation token" in withSparkSession() { spark =>
+    verifyReadChangeFeed(
+      rollingChangeFeed = false,
+      startFromTheBeginning = true,
+      useNextToken = true,
+      spark)
+  }
+
+  it should "read documents change feed not starting from the beginning and using next continuation token" in
+    withSparkSession() { spark =>
+      verifyReadChangeFeed(
+        rollingChangeFeed = false,
+        startFromTheBeginning = false,
+        useNextToken = true,
+        spark)
+  }
+
+  def verifyReadChangeFeed(rollingChangeFeed: Boolean,
+                           startFromTheBeginning: Boolean,
+                           useNextToken: Boolean,
+                           spark: SparkSession): Unit = {
+
     spark.sparkContext.parallelize((1 to documentCount).
       map(x => new Document(s"{ id: '$x', ${CosmosDBDefaults().PartitionKeyName}: '$x' }"))).
       saveToCosmosDB()
@@ -190,21 +227,26 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val dbName = CosmosDBDefaults().DATABASE_NAME
     val collName = collectionName
 
-    val readConfig = Config(Map("Endpoint" -> host,
+    val configMap = Map("Endpoint" -> host,
       "Masterkey" -> key,
       "Database" -> dbName,
       "Collection" -> collName,
       "ReadChangeFeed" -> "true",
-      "ChangeFeedQueryName" -> s"read change feed with RollingChangeFeed=$rollingChangeFeed and StartFromTheBeginning=$startFromTheBeginning",
+      "ChangeFeedQueryName" -> s"$rollingChangeFeed $startFromTheBeginning $useNextToken",
       "ChangeFeedStartFromTheBeginning" -> startFromTheBeginning.toString,
+      "ChangeFeedUseNextToken" -> useNextToken.toString,
       "RollingChangeFeed" -> rollingChangeFeed.toString,
-      "SamplingRatio" -> "1.0"))
+      "SamplingRatio" -> "1.0")
+
+    val readConfig = Config(configMap)
+    val readConfigUseNextToken = Config(configMap.+((CosmosDBConfig.ChangeFeedUseNextToken, true.toString)))
 
     val coll = spark.sqlContext.read.cosmosDB(readConfig)
 
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val collectionLink = s"dbs/$dbName/colls/$collName"
 
+    // Verify in case of getting change feed from the beginning
     if (startFromTheBeginning) {
       coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
         contain theSameElementsAs (1 to documentCount).toList
@@ -217,19 +259,21 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     coll.count() should equal(0)
 
     val ReadChangeFeedIterations = 4
+    // The number of iterations to use next tokens, must be <= ReadChangeFeedIterations
+    val UseNextTokenIterations = 3
 
-    (1 to ReadChangeFeedIterations).foreach(b => {
+    (1 to ReadChangeFeedIterations).foreach(iteration => {
       // Create documents
       (1 to documentCount).foreach(i => {
         val document = new Document()
-        document.setId((b * documentCount + i).toString)
+        document.setId((iteration * documentCount + i).toString)
         document.set(CosmosDBDefaults().PartitionKeyName, document.getId)
         documentClient.createDocument(collectionLink, document, null, false)
       })
 
       // Update documents
       (0 until documentCount / 2).foreach(i => {
-        val documentId: String = (b * documentCount - i).toString
+        val documentId: String = (iteration * documentCount - i).toString
         val documentLink = s"dbs/$dbName/colls/$collName/docs/$documentId"
 
         val requestOptions = new RequestOptions()
@@ -239,10 +283,19 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         documentClient.replaceDocument(documentLink, readDocument, requestOptions)
       })
 
-      val startIndex = (if (rollingChangeFeed) b * documentCount else documentCount) - documentCount / 2 + 1
-      val endIndex = b * documentCount + documentCount
+      // Determine if the result should include changes from the first query or from the last query
+      val shouldUseNextToken = useNextToken && iteration > ReadChangeFeedIterations - UseNextTokenIterations
+      val gettingFromLastChange = rollingChangeFeed || shouldUseNextToken
 
-      coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
+      val startIndex = (if (gettingFromLastChange) iteration * documentCount else documentCount) - documentCount / 2 + 1
+      val endIndex = iteration * documentCount + documentCount
+
+      val changes = if (shouldUseNextToken)
+        spark.sqlContext.read.cosmosDB(readConfigUseNextToken)
+      else
+        coll
+
+      changes.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
         contain theSameElementsAs (startIndex to endIndex).toList
     })
   }
