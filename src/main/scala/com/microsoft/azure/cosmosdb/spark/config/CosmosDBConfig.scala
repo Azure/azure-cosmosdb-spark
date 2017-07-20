@@ -49,6 +49,8 @@ object CosmosDBConfig {
   val ConsistencyLevel = "consistencylevel"
   val ReadChangeFeed = "readchangefeed"
   val RollingChangeFeed = "rollingchangefeed"
+  val ChangeFeedStartFromTheBeginning = "changefeedstartfromthebeginning"
+  val ChangeFeedUseNextToken = "changefeedusenexttoken"
   val IncrementalView = "incrementalview"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
@@ -72,6 +74,8 @@ object CosmosDBConfig {
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
   val DefaultRollingChangeFeed = false
+  val DefaultChangeFeedStartFromTheBeginning = false
+  val DefaultChangeFeedUseNextToken = false
   val DefaultIncrementalView = false
   val DefaultCacheMode = CachingMode.NONE
   val DefaultChangeFeedNewQuery = false
