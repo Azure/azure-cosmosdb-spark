@@ -35,8 +35,13 @@ object CosmosDBConfig {
   val SamplingRatio = "schema_samplingratio"
   val SampleSize = "schema_samplesize"
   val QueryPageSize = "query_pagesize"
-  val MaxRetryOnThrottled = "query_maxretryattemptsonthrottledrequests"
-  val MaxRetryWaitTimeSecs = "query_maxretrywaittimeinseconds"
+  val QueryMaxRetryOnThrottled = "query_maxretryattemptsonthrottledrequests"
+  val QueryMaxRetryWaitTimeSecs = "query_maxretrywaittimeinseconds"
+  val QueryMaxDegreeOfParallelism = "query_maxdegreeofparallelism"
+  val QueryMaxBufferedItemCount =  "query_maxbuffereditemcount"
+  val QueryEnableScan = "query_enablescan"
+  val QueryDisableRUPerMinuteUsage = "query_disableruperminuteusage"
+  val QueryEmitVerboseTraces = "query_emitverbosetraces"
   val QueryCustom = "query_custom"
   val PreferredRegionsList = "preferredregions"
   val Upsert = "upsert"
@@ -49,6 +54,7 @@ object CosmosDBConfig {
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+  val WritingBatchSize = "writingbatchsize"
 
   // Mandatory
   val required = List(
@@ -59,7 +65,7 @@ object CosmosDBConfig {
   )
 
   val DefaultSamplingRatio = 1.0
-  val DefaultPageSize = 300
+  val DefaultPageSize = 1000
   val DefaultSampleSize = DefaultPageSize
   val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
@@ -69,6 +75,9 @@ object CosmosDBConfig {
   val DefaultIncrementalView = false
   val DefaultCacheMode = CachingMode.NONE
   val DefaultChangeFeedNewQuery = false
+  val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
+  val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
+  val DefaultWritingBatchSize = 500
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

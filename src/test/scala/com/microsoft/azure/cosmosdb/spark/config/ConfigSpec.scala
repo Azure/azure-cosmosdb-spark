@@ -57,6 +57,7 @@ class ConfigSpec extends RequiresCosmosDB {
       CosmosDBRelation.lastSampleSize should equal(CosmosDBConfig.DefaultSampleSize)
 
       CosmosDBSpark.lastUpsertSetting.get should equal(CosmosDBConfig.DefaultUpsert)
+      CosmosDBSpark.lastWritingBatchSize.get should equal(CosmosDBConfig.DefaultWritingBatchSize)
     }
 
   it should "be able to override the defaults" in withSparkSession() { ss =>
@@ -70,8 +71,14 @@ class ConfigSpec extends RequiresCosmosDB {
       "schema_samplingratio" -> "0.5",
       "schema_samplesize" -> "200",
       "query_pagesize" -> "300",
+      "writIngbatchSize" -> "100",
       "query_maxretryattemptsonthrottledrequests" -> "15",
       "query_maxretrywaittimeinseconds" -> "3",
+      "query_maxdegreeofparallelism" -> "100",
+      "query_maxbuffereditemcount" -> "500",
+      "query_enablescan" -> "true",
+      "query_disableruperminuteusage" -> "true",
+      "query_emitverbosetraces" -> "true",
       "preferredregions" -> "West US; West US 2")
     )
 
@@ -79,22 +86,29 @@ class ConfigSpec extends RequiresCosmosDB {
     df.collect()
     df.write.cosmosDB(readConfig)
 
-    CosmosDBConnection.lastConsistencyLevel.get.toString should equal(readConfig.properties("consistencylevel").toString)
+    CosmosDBConnection.lastConsistencyLevel.get.toString should
+      equal(readConfig.properties(CosmosDBConfig.ConsistencyLevel).toString)
 
     val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
-    connectionPolicy.getConnectionMode.toString should equal(readConfig.properties("connectionmode").toString)
+    connectionPolicy.getConnectionMode.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionMode).toString)
     connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests.toString should
-      equal(readConfig.properties("query_maxretryattemptsonthrottledrequests"))
+      equal(readConfig.properties(CosmosDBConfig.QueryMaxRetryOnThrottled))
     connectionPolicy.getRetryOptions.getMaxRetryWaitTimeInSeconds.toString should
-      equal(readConfig.properties("query_maxretrywaittimeinseconds"))
+      equal(readConfig.properties(CosmosDBConfig.QueryMaxRetryWaitTimeSecs))
     connectionPolicy.getPreferredLocations.size() should equal(2)
 
     val feedOptions = CosmosDBRDDIterator.lastFeedOptions
-    feedOptions.getPageSize.toString should equal(readConfig.properties("query_pagesize"))
+    feedOptions.getPageSize.toString should equal(readConfig.properties(CosmosDBConfig.QueryPageSize))
+    feedOptions.getMaxDegreeOfParallelism.toString should equal(readConfig.properties(CosmosDBConfig.QueryMaxDegreeOfParallelism))
+    feedOptions.getMaxBufferedItemCount.toString should equal(readConfig.properties(CosmosDBConfig.QueryMaxBufferedItemCount))
+    feedOptions.getEnableScanInQuery.toString should equal(readConfig.properties(CosmosDBConfig.QueryEnableScan))
+    feedOptions.getDisableRUPerMinuteUsage.toString should equal(readConfig.properties(CosmosDBConfig.QueryDisableRUPerMinuteUsage))
+    feedOptions.getEmitVerboseTracesInQuery.toString should equal(readConfig.properties(CosmosDBConfig.QueryEmitVerboseTraces))
 
-    CosmosDBRelation.lastSamplingRatio.toString should equal(readConfig.properties("schema_samplingratio"))
-    CosmosDBRelation.lastSampleSize.toString should equal(readConfig.properties("schema_samplesize"))
+    CosmosDBRelation.lastSamplingRatio.toString should equal(readConfig.properties(CosmosDBConfig.SamplingRatio))
+    CosmosDBRelation.lastSampleSize.toString should equal(readConfig.properties(CosmosDBConfig.SampleSize))
 
-    CosmosDBSpark.lastUpsertSetting.get.toString should equal(readConfig.properties("upsert"))
+    CosmosDBSpark.lastUpsertSetting.get.toString should equal(readConfig.properties(CosmosDBConfig.Upsert))
+    CosmosDBSpark.lastWritingBatchSize.get.toString should equal(readConfig.properties(CosmosDBConfig.WritingBatchSize))
   }
 }
