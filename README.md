@@ -151,7 +151,27 @@ Currently, this connector project uses `maven` so to build without dependencies,
 mvn clean package
 ```
 
-You can also download the latest versions of the jar within the *releases* folder.
+## Download the connector
+You can also download the latest versions of the jar within the [releases](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases) folder.
+
+The current version of the Spark connector is [azure-cosmosdb-spark_0.0.3_2.0.2_2.11](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases/azure-cosmosdb-spark-0.0.3_2.0.2_2.11):
+* `azure-cosmosdb-spark` version: 0.0.3
+* Apache Spark version: 2.0.2
+* Scala version: 2.11
+
+## Download from Maven
+You can also download the JARs from maven:
+* [azure-cosmosdb-spark_0.0.3-2.2.0_2.11](https://repo1.maven.org/maven2/com/microsoft/azure/azure-cosmosdb-spark_2.2.0_2.11/0.0.3/)
+  * `azure-cosmosdb-spark` version: 0.0.3
+  * Apache Spark version: 2.2.0
+  * Scala version: 2.11
+* [azure-cosmosdb-spark_0.0.3-2.0.2_2.11](https://repo1.maven.org/maven2/com/microsoft/azure/azure-cosmosdb-spark_2.0.2_2.11/0.0.3/)
+  * `azure-cosmosdb-spark` version: 0.0.3
+  * Apache Spark version: 2.0.2
+  * Scala version: 2.11
+ 
+
+
 
 
 
