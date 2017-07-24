@@ -71,7 +71,7 @@ object InferSchema {
     * @return the schema for the collection
     */
   def apply(rdd: CosmosDBRDD): StructType = {
-    val sampleData = rdd.sparkContext.parallelize(rdd.takeSample(withReplacement = false, CosmosDBConfig.DefaultSampleSize))
+    val sampleData = rdd.sparkContext.parallelize(rdd.takeSample(withReplacement = false, CosmosDBConfig.DefaultSampleSize, System.currentTimeMillis()))
     val samplingRatio = rdd.sparkContext.getConf.getDouble(CosmosDBConfig.SamplingRatio, CosmosDBConfig.DefaultSamplingRatio)
 
     CosmosDBSchema(sampleData, samplingRatio).schema()
