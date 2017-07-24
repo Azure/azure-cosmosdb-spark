@@ -169,7 +169,14 @@ You can also download the JARs from maven:
   * `azure-cosmosdb-spark` version: 0.0.3
   * Apache Spark version: 2.0.2
   * Scala version: 2.11
- 
+* [azure-cosmosdb-spark_0.0.3-2.2.0_2.10](https://repo1.maven.org/maven2/com/microsoft/azure/azure-cosmosdb-spark_2.2.0_2.10/0.0.3/)
+  * `azure-cosmosdb-spark` version: 0.0.3
+  * Apache Spark version: 2.2.0
+  * Scala version: 2.10
+* [azure-cosmosdb-spark_0.0.3-2.0.2_2.10](https://repo1.maven.org/maven2/com/microsoft/azure/azure-cosmosdb-spark_2.0.2_2.10/0.0.3/)
+  * `azure-cosmosdb-spark` version: 0.0.3
+  * Apache Spark version: 2.0.2
+  * Scala version: 2.10
 
 
 
