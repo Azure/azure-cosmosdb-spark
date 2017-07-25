@@ -6,7 +6,7 @@
 //
 // Executing spark-shell example
 //
-// spark-shell --master yarn --jars /home/sshuser/jars/azure-cosmosdb-spark-0.0.3-SNAPSHOT.jar,/home/sshuser/jars/azure-documentdb-1.10.0-SNAPSHOT.jar
+// spark-shell --master yarn --jars /home/sshuser/jars/azure-cosmosdb-spark-0.0.3-SNAPSHOT.jar,/home/sshuser/jars/azure-documentdb-1.12.0-SNAPSHOT.jar
 //
 
 
