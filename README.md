@@ -50,7 +50,7 @@ connectionPolicy.EnableEndpointDiscovery
 connectionPolicy.PreferredLocations = ["Central US", "East US 2", "Southeast Asia", "Western Europe","Canada Central"]
 
 # Set keys to connect to Cosmos DB 
-masterKey = 'le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==' 
+masterKey = 'SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==' 
 host = 'https://doctorwho.documents.azure.com:443/'
 client = document_client.DocumentClient(host, {'masterKey': masterKey}, connectionPolicy)
 
@@ -87,7 +87,7 @@ The `azure-cosmosdb-spark` connector connects Apache Spark to Cosmos DB using th
 # Base Configuration
 flightsConfig = {
 "Endpoint" : "https://doctorwho.documents.azure.com:443/",
-"Masterkey" : "le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==",
+"Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
 "Database" : "DepartureDelays",
 "preferredRegions" : "Central US;East US2",
 "Collection" : "flights_pcoll", 
@@ -121,7 +121,7 @@ import com.microsoft.azure.cosmosdb.spark.config.Config
 
 // Configure connection to your collection
 val readConfig2 = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.com:443/",
-"Masterkey" -> "le1n99i1w5l7uvokJs3RT5ZAH8dc3ql7lx2CG0h0kK4lVWPkQnwpRLyAN0nwS1z4Cyd1lJgvGUfMWR3v8vkXKA==",
+"Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
 "Database" -> "DepartureDelays",
 "preferredRegions" -> "Central US;East US2;",
 "Collection" -> "flights_pcoll", 
@@ -177,9 +177,3 @@ You can also download the JARs from maven:
   * `azure-cosmosdb-spark` version: 0.0.3
   * Apache Spark version: 2.0.2
   * Scala version: 2.10
-
-
-
-
-
-
