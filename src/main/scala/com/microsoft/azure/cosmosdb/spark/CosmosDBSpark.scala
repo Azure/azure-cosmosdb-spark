@@ -22,10 +22,10 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
+import rx.Observable
 import com.microsoft.azure.documentdb._
 import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
@@ -141,28 +141,24 @@ object CosmosDBSpark extends LoggingTrait {
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
     rdd.foreachPartition(iter => if (iter.nonEmpty) {
-      var merged: Observable[ResourceResponse[Document]] = null
-      var observable: Observable[ResourceResponse[Document]] = null
+      var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
+      var createDocumentObs: Observable[ResourceResponse[Document]] = null
       var batchSize = 0
       iter.foreach(item => {
         if (upsert)
-          observable = connection.upsertDocument(item.asInstanceOf[Document], null)
+          createDocumentObs = connection.upsertDocument(item.asInstanceOf[Document], null)
         else
-          observable = connection.createDocument(item.asInstanceOf[Document], null)
-        if (merged == null) {
-          merged = observable
-        } else {
-          merged = Observable.merge(merged, observable)
-        }
+          createDocumentObs = connection.createDocument(item.asInstanceOf[Document], null)
+        observables.add(createDocumentObs)
         batchSize = batchSize + 1
         if (batchSize % writingBatchSize == 0) {
-          merged.toBlocking.last()
-          merged = null
+          Observable.merge(observables).toBlocking.last()
+          observables.clear()
           batchSize = 0
         }
       })
-      if (merged != null) {
-        merged.toBlocking.last()
+      if (!observables.isEmpty) {
+        Observable.merge(observables).toBlocking.last()
       }
     })
   }
