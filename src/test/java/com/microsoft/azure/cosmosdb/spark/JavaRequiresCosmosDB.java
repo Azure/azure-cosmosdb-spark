@@ -67,7 +67,7 @@ public abstract class JavaRequiresCosmosDB implements Serializable {
     }
 
     public String getDatabaseName() {
-        return COSMOS_DB_DEFAULTS.DATABASE_NAME();
+        return COSMOS_DB_DEFAULTS.DatabaseName();
     }
 
     public String getCollectionName() {

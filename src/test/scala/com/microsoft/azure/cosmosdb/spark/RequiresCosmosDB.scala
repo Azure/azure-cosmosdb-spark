@@ -29,26 +29,13 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 
-trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with LoggingTrait {
+trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with LoggingTrait {
 
   val cosmosDBDefaults: CosmosDBDefaults = CosmosDBDefaults()
-  private var _currentTestName: Option[String] = None
 
-  private def sparkContext: SparkContext = _sparkContext
+  private var sparkContext: SparkContext = _
 
-  private lazy val _sparkContext: SparkContext = {
-    _currentTestName = Some(suiteName)
-    new SparkContext(sparkConf)
-  }
-
-  private val collName: String = _currentTestName.getOrElse(suiteName).filter(_.isLetterOrDigit)
-
-  /**
-    * The collection name to use for this test
-    */
-  def collectionName: String = collName
-
-  def sparkConf: SparkConf = sparkConf(collectionName)
+  def sparkConfa: SparkConf = sparkConf(getTestCollectionName)
 
   def sparkConf(collectionName: String): SparkConf = cosmosDBDefaults.getSparkConf(collectionName)
 
@@ -59,7 +46,7 @@ trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll wit
     */
   def withSparkContext()(testCode: SparkContext => Any) {
     try {
-      logInfo(s"Running Test: '${_currentTestName.getOrElse(suiteName)}'")
+      logInfo(s"Running Test: '$suiteName.$getTestCollectionName'")
       testCode(sparkContext)
     } finally {
     }
@@ -72,7 +59,7 @@ trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll wit
     */
   def withSparkSession()(testCode: SparkSession => Any) {
     try {
-      logInfo(s"Running Test: '${_currentTestName.getOrElse(suiteName)}'")
+      logInfo(s"Running Test: '$suiteName.$getTestCollectionName'")
       testCode(createOrGetDefaultSparkSession(sparkContext)) // "loan" the fixture to the test
     } finally {
     }
@@ -82,24 +69,19 @@ trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll wit
     // if running against localhost emulator
     HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true
 
-    val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(CosmosDBConfig.Database).get
-    cosmosDBDefaults.deleteDatabase(databaseName)
-    cosmosDBDefaults.createDatabase(databaseName)
+    cosmosDBDefaults.createDatabase(cosmosDBDefaults.DatabaseName)
   }
 
   override def beforeEach(): Unit = {
-    val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(CosmosDBConfig.Database).get
-    val collectionName: String = config.get(CosmosDBConfig.Collection).get
-    cosmosDBDefaults.createCollection(databaseName, collectionName)
+    // this is run first
+    // most of the initializations needed are moved to withFixture to use the test name
   }
 
   override def afterEach(): Unit = {
-    val config: Config = Config(sparkConf)
-    val databaseName: String = config.get(CosmosDBConfig.Database).get
-    val collectionName: String = config.get(CosmosDBConfig.Collection).get
-    cosmosDBDefaults.deleteCollection(databaseName, collectionName)
+    cosmosDBDefaults.deleteCollection(cosmosDBDefaults.DatabaseName, getTestCollectionName)
+
+    sparkContext.stop()
+    sparkContext = null
   }
 
   def createOrGetDefaultSparkSession(sc: SparkContext): SparkSession = {
@@ -110,5 +92,28 @@ trait RequiresCosmosDB extends FlatSpec with Matchers with BeforeAndAfterAll wit
       builder.config("spark.sql.warehouse.dir", s"file:///${System.getProperty("user.dir")}")
     }
     builder.getOrCreate()
+  }
+
+  var testName = "UndefinedTestName"
+  override def withFixture(test: NoArgTest): Outcome= {
+    val testDescription = test.name.replaceAll("[^0-9a-zA-Z]", StringUtils.EMPTY)
+    val maxDescriptionLength = 50
+    testName = String.format("%s-%s-%s",
+      suiteName,
+      testDescription.substring(0, Math.min(maxDescriptionLength, testDescription.length)),
+      System.currentTimeMillis().toString)
+
+    // beforeEach test
+    cosmosDBDefaults.createCollection(cosmosDBDefaults.DatabaseName, getTestCollectionName)
+    sparkContext = new SparkContext(sparkConf(getTestCollectionName))
+
+    super.withFixture(test)
+  }
+
+  /**
+    * The collection name that is used for this test
+    */
+  def getTestCollectionName: String = {
+    testName
   }
 }

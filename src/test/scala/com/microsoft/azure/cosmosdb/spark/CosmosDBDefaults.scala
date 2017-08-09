@@ -35,10 +35,9 @@ object CosmosDBDefaults {
 
 class CosmosDBDefaults extends LoggingTrait {
 
-  // local emulator
-  val EMULATOR_ENDPOINT: String = "https://localhost:443/"
-  val EMULATOR_MASTERKEY: String = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-  val DATABASE_NAME = "cosmosdb-spark-connector-test"
+  val CosmosDBEndpoint: String = System.getProperty("CosmosDBEndpoint")
+  val CosmosDBKey: String = System.getProperty("CosmosDBKey")
+  val DatabaseName = "cosmosdb-spark-connector-test"
   val PartitionKeyName = "pkey"
 
   var collectionName: String = _
@@ -48,7 +47,7 @@ class CosmosDBDefaults extends LoggingTrait {
   connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
 
   lazy val documentDBClient = {
-    var client = new DocumentClient(EMULATOR_ENDPOINT, EMULATOR_MASTERKEY,
+    var client = new DocumentClient(CosmosDBEndpoint, CosmosDBKey,
       connectionPolicy,
       ConsistencyLevel.Session)
     client
@@ -64,9 +63,9 @@ class CosmosDBDefaults extends LoggingTrait {
       .set("spark.driver.allowMultipleContexts", "false")
       .set("spark.sql.allowMultipleContexts", "false")
       .set("spark.app.id", "CosmosDBSparkConnector")
-      .set("spark.cosmosdb.endpoint", EMULATOR_ENDPOINT)
-      .set("spark.cosmosdb.database", DATABASE_NAME)
-      .set("spark.cosmosdb.masterkey", EMULATOR_MASTERKEY)
+      .set("spark.cosmosdb.endpoint", CosmosDBEndpoint)
+      .set("spark.cosmosdb.database", DatabaseName)
+      .set("spark.cosmosdb.masterkey", CosmosDBKey)
       .set("spark.cosmosdb.collection", collectionName)
   }
 
@@ -75,8 +74,12 @@ class CosmosDBDefaults extends LoggingTrait {
   def createDatabase(databaseName: String): Unit = {
     var database: Database = new Database()
     database.setId(databaseName)
-    documentDBClient.createDatabase(database, null)
-    logInfo(s"Created collection with Id ${database.getId}")
+    try {
+      documentDBClient.createDatabase(database, null)
+      logInfo(s"Created collection with Id ${database.getId}")
+    } catch {
+      case NonFatal(e) => logError(s"Failed to create database '$databaseName'", e)
+    }
   }
 
   def deleteDatabase(databaseName: String): Unit = {

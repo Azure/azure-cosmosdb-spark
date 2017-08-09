@@ -73,7 +73,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     val config: Config = Config(sc)
     val databaseName: String = config.get(CosmosDBConfig.Database).get
-    val collectionName: String = "NewCollection"
+    val collectionName: String = String.format("NewCollection-%s", System.currentTimeMillis().toString)
     cosmosDBDefaults.createCollection(databaseName, collectionName)
     var configMap: collection.Map[String, String] = config.asOptions
     configMap = configMap.updated(CosmosDBConfig.Collection, collectionName)
@@ -123,10 +123,10 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     sparkSession.sparkContext.parallelize(testDocuments).toDF().write.cosmosDB()
 
-    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
-    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
-    val dbName = CosmosDBDefaults().DATABASE_NAME
-    val collName = collectionName
+    val host = CosmosDBDefaults().CosmosDBEndpoint
+    val key = CosmosDBDefaults().CosmosDBKey
+    val dbName = CosmosDBDefaults().DatabaseName
+    val collName = getTestCollectionName
 
     val configMap = Map("Endpoint" -> host,
       "Masterkey" -> key,
@@ -234,10 +234,10 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       map(x => new Document(s"{ id: '$x', ${CosmosDBDefaults().PartitionKeyName}: '$x' }"))).
       saveToCosmosDB()
 
-    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
-    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
-    val dbName = CosmosDBDefaults().DATABASE_NAME
-    val collName = collectionName
+    val host = CosmosDBDefaults().CosmosDBEndpoint
+    val key = CosmosDBDefaults().CosmosDBKey
+    val dbName = CosmosDBDefaults().DatabaseName
+    val collName = getTestCollectionName
 
     val checkpointPath = "./changefeedcheckpoint"
 
@@ -320,10 +320,10 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   it should "support simple incremental view" in withSparkSession() { spark =>
     spark.sparkContext.parallelize((1 to documentCount).map(x => new Document(s"{ id: '$x' }"))).saveToCosmosDB()
 
-    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
-    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
-    val dbName = CosmosDBDefaults().DATABASE_NAME
-    val collName = collectionName
+    val host = CosmosDBDefaults().CosmosDBEndpoint
+    val key = CosmosDBDefaults().CosmosDBKey
+    val dbName = CosmosDBDefaults().DatabaseName
+    val collName = getTestCollectionName
 
     val checkpointPath = "./changefeedcheckpoint"
 
@@ -422,7 +422,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
     }
 
-    df.schema should equal(expectedSchema)
+    df.schema.fields should contain theSameElementsAs expectedSchema.fields
+    expectedSchema.fields should contain theSameElementsAs df.schema.fields
     df.count() should equal(documentCount)
     df.filter(s"pkey = ${documentCount / 2}").map(x => x.getInt(x.fieldIndex("pkey"))).collect() should equal(Array(documentCount / 2))
     df.filter(s"pkey > ${documentCount / 2}").count() should equal(documentCount / 2)
@@ -473,7 +474,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val df = sparkSession.read.cosmosDB[SimpleDocument]()
     val reflectedSchema: StructType = ScalaReflection.schemaFor[SimpleDocument].dataType.asInstanceOf[StructType]
 
-    df.schema should equal(reflectedSchema)
+    df.schema.fields should contain theSameElementsAs reflectedSchema.fields
+    reflectedSchema.fields should contain theSameElementsAs df.schema.fields
     df.count() should equal(documentCount)
     df.filter(s"pkey > ${documentCount / 2}").count() should equal(documentCount / 2)
   }
@@ -563,15 +565,16 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     }
 
     val df = sparkSession.read.cosmosDB()
-    df.schema should equal(expectedSchema)
+    df.schema.fields should contain theSameElementsAs expectedSchema.fields
+    expectedSchema.fields should contain theSameElementsAs df.schema.fields
     df.collect().length should equal(documentCount)
   }
 
   // Structured stream
   "Structured Stream" should "be able to stream change feed from source collection to sink collection" in withSparkSession() { spark =>
-    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
-    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
-    val databaseName = CosmosDBDefaults().DATABASE_NAME
+    val host = CosmosDBDefaults().CosmosDBEndpoint
+    val key = CosmosDBDefaults().CosmosDBKey
+    val databaseName = CosmosDBDefaults().DatabaseName
     val sinkCollection = String.format("CosmosDBSink-%s", System.currentTimeMillis().toString)
     val streamingTimeMs = TimeUnit.SECONDS.toMillis(10)
     val streamingGapMs = TimeUnit.SECONDS.toMillis(10)
@@ -588,7 +591,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
     val databaseLink = s"dbs/$databaseName"
-    val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
+    val sourceCollectionLink = s"$databaseLink/colls/$getTestCollectionName"
 
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
@@ -759,9 +762,9 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   }
 
   it should "work with a slow source" in withSparkSession() { spark =>
-    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
-    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
-    val databaseName = CosmosDBDefaults().DATABASE_NAME
+    val host = CosmosDBDefaults().CosmosDBEndpoint
+    val key = CosmosDBDefaults().CosmosDBKey
+    val databaseName = CosmosDBDefaults().DatabaseName
     val partitionKey = cosmosDBDefaults.PartitionKeyName
     val sinkCollection = String.format("CosmosDBSink-%s", System.currentTimeMillis().toString)
 
@@ -773,7 +776,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
     val databaseLink = s"dbs/$databaseName"
-    val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
+    val sourceCollectionLink = s"$databaseLink/colls/$getTestCollectionName"
 
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
