@@ -22,6 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.schema
 
+import java.io.File
 import java.sql.{Date, Timestamp}
 import java.util.concurrent.TimeUnit
 
@@ -30,6 +31,7 @@ import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
 import com.microsoft.azure.cosmosdb.spark.streaming.{CosmosDBSinkProvider, CosmosDBSourceProvider}
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.documentdb._
+import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
@@ -602,11 +604,15 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       -(CosmosDBConfig.Collection).
       +((CosmosDBConfig.Collection, sinkCollection))
 
+    val checkpointPath = "./checkpoint"
+
+    FileUtils.deleteDirectory(new File(checkpointPath))
+
     val streamingQuery = streamData.writeStream
       .format(classOf[CosmosDBSinkProvider].getName)
       .outputMode("append")
       .options(sinkConfigMap)
-      .option("checkpointLocation", "./checkpoint")
+      .option("checkpointLocation", checkpointPath)
       .start()
 
     TimeUnit.MILLISECONDS.sleep(streamingTimeMs)
