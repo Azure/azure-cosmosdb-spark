@@ -102,9 +102,7 @@ class CosmosDBRDDIterator(
       if (emitVerboseTraces.isDefined) {
         feedOpts.setEmitVerboseTracesInQuery(emitVerboseTraces.get.toBoolean)
       }
-      // Set target partition ID_PROPERTY
       feedOpts.setPartitionKeyRangeIdInternal(partition.partitionKeyRangeId.toString)
-      feedOpts.setEnableCrossPartitionQuery(true)
       CosmosDBRDDIterator.lastFeedOptions = feedOpts
 
       val queryString = config
