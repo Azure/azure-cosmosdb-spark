@@ -45,6 +45,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     val df = sqlContext.read.cosmosDB(Config(streamConfigMap
       .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
       .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
+    df.count()
     df.schema
   }
 
