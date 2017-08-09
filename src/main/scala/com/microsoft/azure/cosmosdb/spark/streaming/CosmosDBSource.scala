@@ -24,26 +24,55 @@ package com.microsoft.azure.cosmosdb.spark.streaming
 
 import com.microsoft.azure.cosmosdb.spark.LoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
+import com.microsoft.azure.cosmosdb.spark.schema._
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
-import com.microsoft.azure.cosmosdb.spark.schema._
 
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
                                     configMap: Map[String, String])
   extends Source with LoggingTrait {
-  val streamConfig = Config(configMap.
+
+  val streamConfigMap: Map[String, String] = configMap.
     -(CosmosDBConfig.ReadChangeFeed).
     +((CosmosDBConfig.ReadChangeFeed, String.valueOf(true))).
     -(CosmosDBConfig.RollingChangeFeed).
-    +((CosmosDBConfig.RollingChangeFeed, String.valueOf(true))))
-  val changeFeedDf: DataFrame = sqlContext.read.cosmosDB(streamConfig)
+    +((CosmosDBConfig.RollingChangeFeed, String.valueOf(false)))
 
-  override def schema: StructType = changeFeedDf.schema
+  override def schema: StructType = {
+    logInfo(s"CosmosDBSource.schema is called")
+    val df = sqlContext.read.cosmosDB(Config(streamConfigMap
+      .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
+      .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
+    df.schema
+  }
 
-  override def getOffset: Option[Offset] = Some(new CosmosDBOffset())
+  override def getOffset: Option[Offset] = {
+    logInfo(s"getOffset called")
+    val currentTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
+    var offset = CosmosDBOffset(currentTokens)
+    logInfo(s"getOffset offset: $offset")
+    Some(offset)
+  }
 
-  override def getBatch(start: Option[Offset], end: Offset): DataFrame = changeFeedDf
+  override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
+    logInfo(s"getBatch with offset: $start $end")
+    // Only continue if the provided end offset is the current offset
+    if (end.json.equals(getOffset.get.json)) {
+      sqlContext.read.cosmosDB(Config(
+        streamConfigMap
+          .-(CosmosDBConfig.ChangeFeedContinuationToken)
+          .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json))))
+    } else {
+      sqlContext.emptyDataFrame
+    }
+  }
+
+  override def commit(end: Offset): Unit = {
+    logInfo(s"committed offset: $end")
+    // no op
+  }
 
   override def stop(): Unit = {
     // no op

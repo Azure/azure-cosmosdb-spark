@@ -51,6 +51,7 @@ object CosmosDBConfig {
   val RollingChangeFeed = "rollingchangefeed"
   val ChangeFeedStartFromTheBeginning = "changefeedstartfromthebeginning"
   val ChangeFeedUseNextToken = "changefeedusenexttoken"
+  val ChangeFeedContinuationToken = "changefeedcontinuationtoken"
   val IncrementalView = "incrementalview"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"

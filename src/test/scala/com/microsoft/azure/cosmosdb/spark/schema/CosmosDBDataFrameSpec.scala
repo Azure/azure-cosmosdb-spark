@@ -556,7 +556,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val streamingGapMs = TimeUnit.SECONDS.toMillis(10)
     val insertIntervalMs = TimeUnit.SECONDS.toMillis(1) / 2
     // There is a delay from starting the writing to the stream to the first data being written
-    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(5)
+    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(7)
     val insertIterations: Int = ((streamingGapMs * 2 + streamingTimeMs) / insertIntervalMs).toInt
 
     var configMap = Config(spark.sparkContext.getConf).asOptions
@@ -611,15 +611,15 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     TimeUnit.MILLISECONDS.sleep(streamingTimeMs)
 
-    streamingQuery.stop()
-
     insertingThread.join(streamingGapMs)
+
+    streamingQuery.stop()
 
     // Verify the documents has streamed to the new collection
     val df = spark.read.cosmosDB(Config(sinkConfigMap))
     val streamedIdCheckRangeStart = (streamingGapMs + streamingSinkDelayMs) / insertIntervalMs
     val streamedIdCheckRangeEnd = streamedIdCheckRangeStart + streamingTimeMs / 2 / insertIntervalMs
-    df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect() should
+    df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
       contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
   }
 }
