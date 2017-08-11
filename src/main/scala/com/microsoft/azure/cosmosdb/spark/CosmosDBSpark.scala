@@ -129,7 +129,7 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D the type of the data in the RDD
     */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
-    var connection = CosmosDBConnection(writeConfig)
+    var connection = new CosmosDBConnection(writeConfig)
     val upsert: Boolean = writeConfig
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean

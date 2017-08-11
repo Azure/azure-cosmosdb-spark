@@ -40,13 +40,20 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     -(CosmosDBConfig.RollingChangeFeed).
     +((CosmosDBConfig.RollingChangeFeed, String.valueOf(false)))
 
+  var currentSchema: StructType = _
+
   override def schema: StructType = {
     logInfo(s"CosmosDBSource.schema is called")
-    val df = sqlContext.read.cosmosDB(Config(streamConfigMap
-      .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
-      .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
-    df.count()
-    df.schema
+    // Try to read a non-empty schema
+    if (currentSchema == null || currentSchema.fields.length == 0) {
+      val df = sqlContext.read.cosmosDB(Config(streamConfigMap
+        .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
+        .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
+      // Trigger a count to update the continuation token to current
+      df.count()
+      currentSchema = df.schema
+    }
+    currentSchema
   }
 
   override def getOffset: Option[Offset] = {
@@ -61,12 +68,13 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     logInfo(s"getBatch with offset: $start $end")
     // Only continue if the provided end offset is the current offset
     if (end.json.equals(getOffset.get.json)) {
-      sqlContext.read.cosmosDB(Config(
+      val readConfig = Config(
         streamConfigMap
           .-(CosmosDBConfig.ChangeFeedContinuationToken)
-          .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json))))
+          .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
+      sqlContext.read.cosmosDB(schema, readConfig)
     } else {
-      sqlContext.emptyDataFrame
+      sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema)
     }
   }
 

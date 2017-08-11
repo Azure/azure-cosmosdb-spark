@@ -54,7 +54,8 @@ object CosmosDBRDDIterator {
     * @return       the corresponding global continuation token
     */
   def getCollectionTokens(config: Config): String = {
-    val collectionLink = new CosmosDBConnection(config).collectionLink
+    val connection = new CosmosDBConnection(config)
+    val collectionLink = connection.collectionLink
     val queryName = config
       .get[String](CosmosDBConfig.ChangeFeedQueryName).get
     var tokenString: String = null
@@ -63,8 +64,7 @@ object CosmosDBRDDIterator {
       !changeFeedNextTokens.containsKey(queryName) ||
       !changeFeedNextTokens.get(queryName).containsKey(collectionLink)) {
       val tokenMap = new ConcurrentHashMap[String, String]
-      val conn = new CosmosDBConnection(config)
-      val ranges = conn.getAllPartitions
+      val ranges = connection.getAllPartitions
       var rangeIndex = 0
       ranges.foreach(r => {
         tokenMap.put(rangeIndex.toString, 0.toString)
@@ -76,6 +76,14 @@ object CosmosDBRDDIterator {
     }
 
     tokenString
+  }
+
+  /**
+    * Used for verification purpose only. Clear the next continuation tokens cache to simulate a fresh start.
+    */
+  def resetCollectionContinuationTokens(): Any = {
+    changeFeedTokens = null
+    changeFeedNextTokens = null
   }
 }
 

@@ -69,6 +69,7 @@ class DefaultSource extends RelationProvider
         CosmosDBSpark.save(data, config)
       case Overwrite =>
         var upsertConfig: collection.Map[String, String] = config.asOptions
+        upsertConfig -= CosmosDBConfig.Upsert
         upsertConfig += CosmosDBConfig.Upsert -> String.valueOf(true)
         CosmosDBSpark.save(data, Config(upsertConfig))
       case ErrorIfExists  =>
