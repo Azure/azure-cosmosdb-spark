@@ -129,7 +129,7 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D the type of the data in the RDD
     */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
-    var connection = CosmosDBConnection(writeConfig)
+    var connection = new CosmosDBConnection(writeConfig)
     val upsert: Boolean = writeConfig
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
@@ -145,6 +145,7 @@ object CosmosDBSpark extends LoggingTrait {
       var createDocumentObs: Observable[ResourceResponse[Document]] = null
       var batchSize = 0
       iter.foreach(item => {
+        val document: Document = item.asInstanceOf[Document]
         if (upsert)
           createDocumentObs = connection.upsertDocument(item.asInstanceOf[Document], null)
         else

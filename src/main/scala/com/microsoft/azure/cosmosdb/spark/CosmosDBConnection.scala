@@ -54,7 +54,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   @transient private var asyncClient: AsyncDocumentClient = _
 
-  private def documentClient(): DocumentClient = {
+  private lazy val documentClient: DocumentClient = {
     if (client == null) {
       client = accquireClient(connectionMode)
 
@@ -63,7 +63,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     client
   }
 
-  private def asyncDocumentClient(): AsyncDocumentClient = {
+  private lazy val asyncDocumentClient: AsyncDocumentClient = {
     if (asyncClient == null) {
       this.synchronized {
         if (asyncClient == null) {
@@ -129,45 +129,45 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   }
 
   def getAllPartitions: Array[PartitionKeyRange] = {
-    var ranges = documentClient().readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
+    var ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
     ranges.getQueryIterator.toArray
   }
 
   def getAllPartitions(query: String): Array[PartitionKeyRange] = {
     var ranges: java.util.Collection[PartitionKeyRange] =
-      documentClient().readPartitionKeyRanges(collectionLink, query)
+      documentClient.readPartitionKeyRanges(collectionLink, query)
     ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
   }
 
   def queryDocuments (queryString : String,
         feedOpts : FeedOptions) : Iterator [Document] = {
 
-    documentClient().queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts).getQueryIterable.iterator()
+    documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts).getQueryIterable.iterator()
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions): Tuple2[Iterator[Document], String] = {
-    val feedResponse = documentClient().queryDocumentChangeFeed(collectionLink, changeFeedOptions)
+    val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
     Tuple2.apply(feedResponse.getQueryIterable.iterator(), feedResponse.getResponseContinuation)
   }
 
   def upsertDocument(document: Document,
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
     logTrace(s"Upserting document $document")
-    asyncDocumentClient()
-      .upsertDocument(collectionLink, document, requestOptions, false)
+    asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
 
   def createDocument(document: Document,
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
     logTrace(s"Creating document $document")
-    asyncDocumentClient()
-      .createDocument(collectionLink, document, requestOptions, false)
+    asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
   }
 
   def isDocumentCollectionEmpty: Boolean = {
     logDebug(s"Reading collection $collectionLink")
-    var feedOptions: FeedOptions = new FeedOptions
-    feedOptions.setPageSize(1)
-    if (documentClient().readDocuments(collectionLink, feedOptions).getQueryIterator.hasNext) false else true
+    var requestOptions = new RequestOptions
+    requestOptions.setPopulateQuotaInfo(true)
+    val response = documentClient.readCollection(collectionLink, requestOptions)
+    response.getDocumentCountUsage == 0
   }
 }
+
