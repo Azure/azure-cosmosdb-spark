@@ -26,6 +26,8 @@ import com.microsoft.azure.cosmosdb.spark.LoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -49,8 +51,14 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       val df = sqlContext.read.cosmosDB(Config(streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
-      // Trigger a count to update the continuation token to current
-      df.count()
+      CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
+        sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
+      val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
+      if (StringUtils.isEmpty(tokens)) {
+        // Empty tokens means it is a new streaming query
+        // Trigger the count to update the current continuation token
+        df.count()
+      }
       currentSchema = df.schema
     }
     currentSchema

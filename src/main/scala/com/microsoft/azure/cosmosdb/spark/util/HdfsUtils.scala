@@ -1,5 +1,28 @@
+/**
+  * The MIT License (MIT)
+  * Copyright (c) 2016 Microsoft Corporation
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a copy
+  * of this software and associated documentation files (the "Software"), to deal
+  * in the Software without restriction, including without limitation the rights
+  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  * copies of the Software, and to permit persons to whom the Software is
+  * furnished to do so, subject to the following conditions:
+  *
+  * The above copyright notice and this permission notice shall be included in all
+  * copies or substantial portions of the Software.
+  *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  * SOFTWARE.
+  */
 package com.microsoft.azure.cosmosdb.spark.util
 
+import java.io.FileNotFoundException
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.LoggingTrait
@@ -10,7 +33,6 @@ import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path, RemoteIterator
 import scala.collection.mutable
 
 case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
-  private val fsDefaultFs = "fs.defaultFS"
   private val fsConfig: Configuration = {
     val config = new Configuration()
     configMap.foreach(e => config.set(e._1, e._2))
@@ -45,7 +67,11 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
 
   def listFiles(base: String, filePath: String): RemoteIterator[LocatedFileStatus] = {
     val path = new Path(base + "/" + filePath)
-    fs.listFiles(path, false)
+    try {
+      fs.listFiles(path, false)
+    } catch {
+      case e:FileNotFoundException => null
+    }
   }
 
   def writeChangeFeedTokenPartition(location: String,
@@ -79,15 +105,36 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
     val path = s"$queryNameAlphaNum/$collectionRid"
     val files = listFiles(location, path)
     var tokens = new util.HashMap[String, String]()
-    while (files.hasNext) {
-      val file = files.next()
-      val token = read(file.getPath)
-      tokens.put(file.getPath.getName, token)
+    if (files != null) {
+      while (files.hasNext) {
+        val file = files.next()
+        val token = read(file.getPath)
+        tokens.put(file.getPath.getName, token)
+      }
     }
     tokens
   }
 
   private def filterQueryName(queryName: String): String = {
     queryName.replaceAll("[^0-9a-zA-Z]", StringUtils.EMPTY)
+  }
+}
+
+object HdfsUtils {
+
+  /**
+    * Get a map from Hadoop Configuration to use in persisting and reading from Hdfs file system
+    * The Hadoop Configuration is not serializable
+    * @param hadoopConfiguration  the hadoop configuration
+    * @return                     a map of configuration values
+    */
+  def getConfigurationMap(hadoopConfiguration: Configuration): mutable.Map[String, String] = {
+    val configMap = mutable.Map[String, String]()
+    val iterator = hadoopConfiguration.iterator()
+    while (iterator.hasNext) {
+      val entry = iterator.next()
+      configMap += (entry.getKey -> entry.getValue)
+    }
+    configMap
   }
 }

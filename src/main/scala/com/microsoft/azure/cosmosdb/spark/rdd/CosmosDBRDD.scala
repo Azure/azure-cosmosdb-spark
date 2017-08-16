@@ -30,6 +30,7 @@ import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.cosmosdb.spark.config.Config
 import com.microsoft.azure.cosmosdb.spark.partitioner.{CosmosDBPartition, CosmosDBPartitioner}
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
@@ -49,15 +50,9 @@ class CosmosDBRDD(
                      filters: Array[Filter] = Array())
   extends RDD[Document](spark.sparkContext, deps = Nil) {
 
-  private val hadoopConfig: mutable.Map[String, String] = {
-    val configMap = mutable.Map[String, String]()
-    val iterator = spark.sparkContext.hadoopConfiguration.iterator()
-    while (iterator.hasNext) {
-      val entry = iterator.next()
-      configMap += (entry.getKey -> entry.getValue)
-    }
-    configMap
-  }
+  // Keep a copy of hadoop config for hdfs file handling
+  // It's a Map because Configuration is not serializable
+  private val hadoopConfig: mutable.Map[String, String] = HdfsUtils.getConfigurationMap(sparkContext.hadoopConfiguration)
 
   private def cosmosDBSpark = {
     CosmosDBSpark(spark, config)

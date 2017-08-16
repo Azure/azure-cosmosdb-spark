@@ -663,10 +663,12 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     insertingThread.join()
 
+    TimeUnit.MILLISECONDS.sleep(streamingGapMs)
+
     // Verify the documents have streamed to the new collection
     val df = spark.read.cosmosDB(Config(sinkConfigMap))
-    var streamedIdCheckRangeStart = (streamingGapMs + streamingSinkDelayMs) / insertIntervalMs
-    var streamedIdCheckRangeEnd = streamedIdCheckRangeStart + streamingTimeMs / 2 / insertIntervalMs
+    var streamedIdCheckRangeStart = streamingSinkDelayMs / insertIntervalMs
+    var streamedIdCheckRangeEnd = insertIterations
     df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
       contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
 
@@ -701,58 +703,58 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     // Wait for the inserting thread to complete
     insertingThread.join()
 
+    TimeUnit.MILLISECONDS.sleep(streamingGapMs)
+
     // Verify that the documents have streamed to the new collection
-    streamedIdCheckRangeEnd = streamedIdCheckRangeEnd * 2 - streamingGapMs / insertIntervalMs
+    streamedIdCheckRangeEnd = insertIterations * 2
     df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
       contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
 
     streamingQuery.stop()
     CosmosDBRDDIterator.resetCollectionContinuationTokens()
 
-    // to be enabled
-    def scenario3(): Any = {
+    /*
+     * SCENARIO 3: NEW STREAM READER AND NEW STREAM WRITER
+     *
+     * Similar to scenario 1, except we create a new StreamReader and a new StreamWriter to simulate node failures.
+     *
+     * Another batch of changes will be written with ID from insertIterations * 2 + 1 -> insertIterations * 3
+     *
+     * Verify that the sink collection receives all changes from the first batch without missing any documents in between.
+      */
 
-      /*
-       * SCENARIO 3: NEW STREAM READER AND NEW STREAM WRITER
-       *
-       * Similar to scenario 1, except we create a new StreamReader and a new StreamWriter to simulate node failures.
-       *
-       * Another batch of changes will be written with ID from insertIterations * 2 + 1 -> insertIterations * 3
-       *
-       * Verify that the sink collection receives all changes from the first batch without missing any documents in between.
-        */
+    logInfo("Starting scenario of new stream reader and new stream writer")
 
-      logInfo("Starting scenario of new stream reader and new stream writer")
+    // Start to insert more data
+    insertingThread = new Thread(insertingRunnable)
+    insertingThread.start()
+    TimeUnit.MILLISECONDS.sleep(streamingGapMs)
 
-      // Start to insert more data
-      insertingThread = new Thread(insertingRunnable)
-      insertingThread.start()
-      TimeUnit.MILLISECONDS.sleep(streamingGapMs)
+    // Start to read change feed stream again
+    streamData = spark.readStream
+      .format(classOf[CosmosDBSourceProvider].getName)
+      .options(sourceConfigMap)
+      .load()
 
-      // Start to read change feed stream again
-      streamData = spark.readStream
-        .format(classOf[CosmosDBSourceProvider].getName)
-        .options(sourceConfigMap)
-        .load()
+    // Start to write to the stream again
+    streamingQuery = streamData.writeStream
+      .format(classOf[CosmosDBSinkProvider].getName)
+      .outputMode("append")
+      .options(sinkConfigMap)
+      .option("checkpointLocation", checkpointPath)
+      .start()
 
-      // Start to write to the stream again
-      streamingQuery = streamData.writeStream
-        .format(classOf[CosmosDBSinkProvider].getName)
-        .outputMode("append")
-        .options(sinkConfigMap)
-        .option("checkpointLocation", checkpointPath)
-        .start()
+    // Wait for the inserting thread to complete
+    insertingThread.join()
 
-      // Wait for the inserting thread to complete
-      insertingThread.join()
+    TimeUnit.MILLISECONDS.sleep(streamingGapMs)
 
-      // Verify that the documents have streamed to the new collection
-      streamedIdCheckRangeEnd = streamedIdCheckRangeEnd * 3 - streamingGapMs / insertIntervalMs
-      df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
-        contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
+    // Verify that the documents have streamed to the new collection
+    streamedIdCheckRangeEnd = insertIterations * 3
+    df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
+      contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
 
-      streamingQuery.stop()
-      CosmosDBRDDIterator.resetCollectionContinuationTokens()
-    }
+    streamingQuery.stop()
+    CosmosDBRDDIterator.resetCollectionContinuationTokens()
   }
 }

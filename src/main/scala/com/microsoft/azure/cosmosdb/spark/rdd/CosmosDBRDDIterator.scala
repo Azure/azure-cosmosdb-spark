@@ -88,16 +88,7 @@ object CosmosDBRDDIterator {
         collectionLink)
     }
 
-    if (nextTokenMap == null || nextTokenMap.isEmpty) {
-      val tokenMap = new util.HashMap[String, String]
-      val ranges = connection.getAllPartitions
-      var rangeIndex = 0
-      ranges.foreach(r => {
-        tokenMap.put(rangeIndex.toString, 0.toString)
-        rangeIndex = rangeIndex + 1
-      })
-      tokenString = new ObjectMapper().writeValueAsString(tokenMap)
-    } else {
+    if (nextTokenMap != null && !nextTokenMap.isEmpty) {
       tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
     }
 
@@ -121,6 +112,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
                           filters: Array[Filter])
   extends Iterator[Document]
     with LoggingTrait {
+
+  CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap)
 
   // The continuation token for the target CosmosDB partition
   private var cfCurrentToken: String = _
@@ -193,7 +186,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       // For tokens checkpointing
       var checkPointPath: String = null
       val objectMapper: ObjectMapper = new ObjectMapper()
-      CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap)
 
       val changeFeedCheckpointLocation: String = config
         .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
