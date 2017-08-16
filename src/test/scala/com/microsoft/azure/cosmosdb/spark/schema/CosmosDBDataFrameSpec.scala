@@ -216,11 +216,20 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         spark)
   }
 
+  /**
+    * Run tests to verify correctness of CosmosDB change feed scenarios
+    *
+    * @param rollingChangeFeed      indicates with this is rolling change feed (auto-update continuation token)
+    * @param startFromTheBeginning  indicates whether change feed should be from the beginning
+    * @param useNextToken           indicates that some of the time the next continuation token will be used
+    * @param spark                  the sparkSession
+    */
   def verifyReadChangeFeed(rollingChangeFeed: Boolean,
                            startFromTheBeginning: Boolean,
                            useNextToken: Boolean,
                            spark: SparkSession): Unit = {
 
+    // INSERT some documents
     spark.sparkContext.parallelize((1 to documentCount).
       map(x => new Document(s"{ id: '$x', ${CosmosDBDefaults().PartitionKeyName}: '$x' }"))).
       saveToCosmosDB()
@@ -230,7 +239,11 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val dbName = CosmosDBDefaults().DATABASE_NAME
     val collName = collectionName
 
-    val configMap = Map("Endpoint" -> host,
+    val checkpointPath = "./changefeedcheckpoint"
+
+    FileUtils.deleteDirectory(new File(checkpointPath))
+
+    var configMap = Map("Endpoint" -> host,
       "Masterkey" -> key,
       "Database" -> dbName,
       "Collection" -> collName,
@@ -239,6 +252,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       "ChangeFeedStartFromTheBeginning" -> startFromTheBeginning.toString,
       "ChangeFeedUseNextToken" -> useNextToken.toString,
       "RollingChangeFeed" -> rollingChangeFeed.toString,
+      CosmosDBConfig.ChangeFeedCheckpointLocation -> checkpointPath,
       "SamplingRatio" -> "1.0")
 
     val readConfig = Config(configMap)
@@ -249,7 +263,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val collectionLink = s"dbs/$dbName/colls/$collName"
 
-    // Verify in case of getting change feed from the beginning
+    // VERIFY change feed starting from the beginning
     if (startFromTheBeginning) {
       coll.rdd.map(x => x.getString(x.fieldIndex("id")).toInt).collect().sortBy(x => x) should
         contain theSameElementsAs (1 to documentCount).toList
@@ -257,8 +271,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       coll.count() should equal(0)
     }
 
+    // VERIFY the next change feed batch if nothing happens
     Thread.sleep(3000)
-
     coll.count() should equal(0)
 
     val ReadChangeFeedIterations = 4
@@ -266,7 +280,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val UseNextTokenIterations = 3
 
     (1 to ReadChangeFeedIterations).foreach(iteration => {
-      // Create documents
+      // Create documents with ID ranging from (iteration * documentCount + 1) -> (iteration * documentCount + documentCount)
       (1 to documentCount).foreach(i => {
         val document = new Document()
         document.setId((iteration * documentCount + i).toString)
@@ -274,7 +288,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         documentClient.createDocument(collectionLink, document, null, false)
       })
 
-      // Update documents
+      // Update documents with ID ranging from (iteration * document - documentCount / 2) -> iteration * documentCount
       (0 until documentCount / 2).foreach(i => {
         val documentId: String = (iteration * documentCount - i).toString
         val documentLink = s"dbs/$dbName/colls/$collName/docs/$documentId"
@@ -311,13 +325,18 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val dbName = CosmosDBDefaults().DATABASE_NAME
     val collName = collectionName
 
+    val checkpointPath = "./changefeedcheckpoint"
+
+    FileUtils.deleteDirectory(new File(checkpointPath))
+
     val readConfig = Config(Map("Endpoint" -> host,
       "Masterkey" -> key,
       "Database" -> dbName,
       "Collection" -> collName,
       "IncrementalView" -> "true",
       "ChangeFeedQueryName" -> "incremental view",
-      "SamplingRatio" -> "1.0"))
+      "SamplingRatio" -> "1.0",
+      CosmosDBConfig.ChangeFeedCheckpointLocation -> checkpointPath))
 
     var coll = spark.sqlContext.read.cosmosDB(readConfig)
 
@@ -561,7 +580,12 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(7)
     val insertIterations: Int = ((streamingGapMs * 2 + streamingTimeMs) / insertIntervalMs).toInt
 
-    var configMap = Config(spark.sparkContext.getConf).asOptions
+    val cfCheckpointPath = "./changefeedcheckpoint"
+    FileUtils.deleteDirectory(new File(cfCheckpointPath))
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
     val databaseLink = s"dbs/$databaseName"
     val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
@@ -624,7 +648,6 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       +((CosmosDBConfig.Collection, sinkCollection))
 
     val checkpointPath = "./checkpoint"
-
     FileUtils.deleteDirectory(new File(checkpointPath))
 
     // Start to write the stream
@@ -638,7 +661,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     TimeUnit.MILLISECONDS.sleep(streamingTimeMs)
 
-    insertingThread.join(streamingGapMs)
+    insertingThread.join()
 
     // Verify the documents have streamed to the new collection
     val df = spark.read.cosmosDB(Config(sinkConfigMap))
