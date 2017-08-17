@@ -1,6 +1,6 @@
-azure-cosmosdb-spark-samples
+azure-cosmosdb-spark-samples-scala
 ============================
-Examples of Cosmos DB on Spark that can serve as starting points for Cosmos DB-based Spark projects.
+Examples of Cosmos DB on Spark that can serve as starting points for Scala-based Cosmos DB Spark projects.
 
 Setup
 -----
