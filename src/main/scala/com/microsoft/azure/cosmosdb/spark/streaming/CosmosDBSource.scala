@@ -45,14 +45,14 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   var currentSchema: StructType = _
 
   override def schema: StructType = {
-    logInfo(s"CosmosDBSource.schema is called")
-    // Try to read a non-empty schema
-    if (currentSchema == null || currentSchema.fields.length == 0) {
-      val df = sqlContext.read.cosmosDB(Config(streamConfigMap
-        .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
-        .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
+    if (currentSchema == null) {
       CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
         sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
+      logDebug(s"Reading data to derive the schema")
+      val helperDfConfig: Map[String, String] = streamConfigMap
+        .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
+        .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
+      val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
       val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
       if (StringUtils.isEmpty(tokens)) {
         // Empty tokens means it is a new streaming query
@@ -65,15 +65,14 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   }
 
   override def getOffset: Option[Offset] = {
-    logInfo(s"getOffset called")
-    val currentTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
-    var offset = CosmosDBOffset(currentTokens)
-    logInfo(s"getOffset offset: $offset")
+    var nextTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
+    var offset = CosmosDBOffset(nextTokens)
+    logDebug(s"getOffset: $offset")
     Some(offset)
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
-    logInfo(s"getBatch with offset: $start $end")
+    logDebug(s"getBatch with offset: $start $end")
     // Only continue if the provided end offset is the current offset
     if (end.json.equals(getOffset.get.json)) {
       val readConfig = Config(
@@ -87,7 +86,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   }
 
   override def commit(end: Offset): Unit = {
-    logInfo(s"committed offset: $end")
+    logDebug(s"Committed offset: $end")
     // no op
   }
 

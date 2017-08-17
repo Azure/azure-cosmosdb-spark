@@ -757,4 +757,91 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     streamingQuery.stop()
     CosmosDBRDDIterator.resetCollectionContinuationTokens()
   }
+
+  it should "work with a slow source" in withSparkSession() { spark =>
+    val host = CosmosDBDefaults().EMULATOR_ENDPOINT
+    val key = CosmosDBDefaults().EMULATOR_MASTERKEY
+    val databaseName = CosmosDBDefaults().DATABASE_NAME
+    val partitionKey = cosmosDBDefaults.PartitionKeyName
+    val sinkCollection = String.format("CosmosDBSink-%s", System.currentTimeMillis().toString)
+
+    val cfCheckpointPath = "./changefeedcheckpoint"
+    FileUtils.deleteDirectory(new File(cfCheckpointPath))
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
+
+    val databaseLink = s"dbs/$databaseName"
+    val sourceCollectionLink = s"$databaseLink/colls/$collectionName"
+
+    // Create the sink collection
+    val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
+    val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
+    val documentCollection = new DocumentCollection()
+    documentCollection.setId(sinkCollection)
+    documentClient.createCollection(databaseLink, documentCollection, null)
+
+    // Create some documents in the collection
+    // These existing documents are needed to derive the starting schema
+    (1 to 100).foreach(i => {
+      val doc = new Document()
+      doc.setId(i.toString)
+      doc.set(partitionKey, s"partitionkey$i")
+      documentClient.createDocument(sourceCollectionLink, doc, null, true)
+    })
+
+    val sourceConfigMap = configMap.
+      +((CosmosDBConfig.ChangeFeedQueryName, "Structured Stream unit test"))
+
+    // Start to read the stream
+    var streamData = spark.readStream
+      .format(classOf[CosmosDBSourceProvider].getName)
+      .options(sourceConfigMap)
+      .load()
+
+    val checkpointPath = "./checkpoint"
+    FileUtils.deleteDirectory(new File(checkpointPath))
+
+    val sinkConfigMap = configMap.
+      -(CosmosDBConfig.Collection).
+      +((CosmosDBConfig.Collection, sinkCollection))
+
+    // Start to write the stream
+    val streamingQueryWriter = streamData.writeStream
+      .format(classOf[CosmosDBSinkProvider].getName)
+      .outputMode("append")
+      .options(sinkConfigMap)
+      .option("checkpointLocation", checkpointPath)
+
+    var streamingQuery = streamingQueryWriter.start()
+
+    // Let streams ready
+    TimeUnit.SECONDS.sleep(20)
+
+    // Create 1 document
+    val doc1 = new Document()
+    doc1.setId("doc1")
+    doc1.set(partitionKey, "partitionkey1")
+    documentClient.createDocument(sourceCollectionLink, doc1, null, true)
+
+    // Let the sink idle
+    TimeUnit.SECONDS.sleep(20)
+
+    // Create 1 document again
+    val doc2 = new Document()
+    doc2.setId("doc2")
+    doc2.set(partitionKey, "partitionkey2")
+    documentClient.createDocument(sourceCollectionLink, doc2, null, true)
+
+    // Wait sometime for the streaming of the second document
+    TimeUnit.SECONDS.sleep(20)
+
+    // Verify that all documents make to the sink collection
+    val df = spark.read.cosmosDB(Config(sinkConfigMap))
+    df.rdd.map(row => row.getString(row.fieldIndex("id"))).collect().sortBy(x => x) should
+      contain allElementsOf List(doc1.getId, doc2.getId)
+
+    streamingQuery.stop()
+  }
 }

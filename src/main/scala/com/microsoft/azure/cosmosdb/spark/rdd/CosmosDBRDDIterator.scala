@@ -89,6 +89,11 @@ object CosmosDBRDDIterator {
     }
 
     if (nextTokenMap != null && !nextTokenMap.isEmpty) {
+      // Add timestamp entry in order to trigger the query for slow source scenario
+      nextTokenMap.put(
+        CosmosDBConfig.StreamingTimestampToken,
+        (System.currentTimeMillis() / CosmosDBConfig.DefaultStreamingSlowSourceDelayMs).toString)
+
       tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
     }
 
@@ -289,7 +294,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       updateTokens(currentToken, nextToken, partitionId)
 
-      logInfo(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+      logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
 
       iteratorDocument
     }

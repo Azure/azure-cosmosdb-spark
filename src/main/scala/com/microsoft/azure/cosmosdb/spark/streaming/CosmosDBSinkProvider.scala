@@ -28,7 +28,7 @@ import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
 import org.apache.spark.sql.streaming.OutputMode
 
-private[spark] class CosmosDBSinkProvider extends DataSourceRegister
+class CosmosDBSinkProvider extends DataSourceRegister
   with StreamSinkProvider with LoggingTrait {
 
   override def shortName(): String = "CosmosDBSinkProvider"
