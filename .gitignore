@@ -2,3 +2,7 @@
 *.iml
 target/
 *.DS_Store
+
+project/project/
+project/target/
+

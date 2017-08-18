@@ -69,8 +69,6 @@ public abstract class AbstractGremlinSparkTest {
         HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true; // needed to run on localhost
 
         Spark.close();
-        HadoopPools.close();
-        KryoShimServiceLoader.close();
         logger.info("SparkContext has been closed for " + this.getClass().getCanonicalName() + "-setupTest");
     }
 
