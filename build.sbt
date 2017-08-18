@@ -31,20 +31,16 @@ libraryDependencies ++= Seq(
 
   "org.slf4j" % "slf4j-api" % slf4jVersion,
 
-  "org.apache.tinkerpop" % "spark-gremlin" % tinkerpopVersion intransitive(),
+  "org.apache.tinkerpop" % "spark-gremlin" % tinkerpopVersion excludeAll(
+//    ExclusionRule(organization = "com.fasterxml.jackson.core"),
+//    ExclusionRule(organization = "com.thoughtworks.paranamer"),
+//    ExclusionRule(organization = "commons-lang"),
+    ExclusionRule(organization = "org.apache.spark"),
+    ExclusionRule(organization = "org.scala-lang")
+  ),
   "org.apache.tinkerpop" % "tinkergraph-gremlin" % tinkerpopVersion,
 
   "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.5"
-).map(_ % "compile")
-
-// The following dependencies are from spark-gremlin, which had to be included with intransitive() because of scala
-// version 2.10 vs 2.11 conflicts.
-libraryDependencies ++= Seq(
-  "com.thoughtworks.paranamer" % "paranamer" % "2.6",
-  "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
-  "org.apache.tinkerpop" % "gremlin-groovy" % tinkerpopVersion,
-  "org.apache.tinkerpop" % "hadoop-gremlin" % tinkerpopVersion,
-  "org.xerial.snappy" % "snappy-java" % "1.1.1.7"
 ).map(_ % "compile")
 
 libraryDependencies ++= Seq(
