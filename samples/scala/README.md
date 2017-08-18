@@ -8,7 +8,7 @@ Before running any of the samples, you will need
 
 1. A working version of SBT (or higher recommended).
 
-2. The following enviroment variable set:
+2. The following enviroment variables set:
 
 ```
 export COSMOS_DB_ENDPOINT=
@@ -22,20 +22,9 @@ az cosmosdb database create --db-name samples --url-connection $COSMOS_DB_ENDPOI
 az cosmosdb collection create --collection-name airports --db-name samples --throughput 5000 --url-connection $COSMOS_DB_ENDPOINT --key $COSMOS_DB_MASTER_KEY
 ```
 
-4. Build the connector and copy the jars into lib/
-
-```
-cd ../../
-mvn clean package
-
-cd samples/scala
-mkdir lib/
-cp ../../releases/azure-cosmosdb-spark-0.0.3_2.0.2_2.11/*.* lib/
-```
-
 Running Samples
 ---------------
-The easiest way to run the samples is to build a super jar and submit it to spark like so (replace `com.microsoft.partnercatalyst.cosmosdb.samples.CSVToCosmos` with your prefered sample):
+The easiest way to run the samples is to build a uber jar and submit it to spark like so (replace `com.microsoft.partnercatalyst.cosmosdb.samples.CSVToCosmos` with your prefered sample):
 
 ```
 sbt assembly
