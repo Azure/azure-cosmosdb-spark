@@ -26,6 +26,8 @@ import com.microsoft.azure.cosmosdb.spark.LoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -43,43 +45,63 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   var currentSchema: StructType = _
 
   override def schema: StructType = {
-    logInfo(s"CosmosDBSource.schema is called")
-    // Try to read a non-empty schema
-    if (currentSchema == null || currentSchema.fields.length == 0) {
-      val df = sqlContext.read.cosmosDB(Config(streamConfigMap
+    if (currentSchema == null) {
+      CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
+        sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
+      logDebug(s"Reading data to derive the schema")
+      val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
-        .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))))
-      // Trigger a count to update the continuation token to current
-      df.count()
+        .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
+      val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
+      val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
+      if (StringUtils.isEmpty(tokens)) {
+        // Empty tokens means it is a new streaming query
+        // Trigger the count to update the current continuation token
+        df.count()
+      }
       currentSchema = df.schema
     }
     currentSchema
   }
 
   override def getOffset: Option[Offset] = {
-    logInfo(s"getOffset called")
-    val currentTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
-    var offset = CosmosDBOffset(currentTokens)
-    logInfo(s"getOffset offset: $offset")
+    var nextTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
+    var offset = CosmosDBOffset(nextTokens)
+    logDebug(s"getOffset: $offset")
     Some(offset)
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
-    logInfo(s"getBatch with offset: $start $end")
-    // Only continue if the provided end offset is the current offset
-    if (end.json.equals(getOffset.get.json)) {
+    def getOffsetJsonForProgress(offsetJson: String): String = {
+      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\""
+      offsetJson.replaceAll(tsTokenRegex, StringUtils.EMPTY)
+    }
+    logDebug(s"getBatch with offset: $start $end")
+    val endJson = getOffsetJsonForProgress(end.json)
+    val nextTokens = getOffsetJsonForProgress(CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap)))
+    val currentTokens = getOffsetJsonForProgress(
+      CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap),
+      shouldGetCurrentToken = true))
+    // Only getting the data in the following cases:
+    // - The provided end offset is the current offset (next tokens), the stream is progressing to the batch
+    // - The provided end offset is the current tokens. This means the stream didn't get to commit the to end offset yet
+    // in the previous batch. It could be due to node failures or processing failures.
+    if (endJson.equals(nextTokens) || endJson.equals(currentTokens)) {
+      logDebug(s"Getting data for end offset")
       val readConfig = Config(
         streamConfigMap
           .-(CosmosDBConfig.ChangeFeedContinuationToken)
           .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
       sqlContext.read.cosmosDB(schema, readConfig)
+
     } else {
+      logDebug(s"Skipping this batch")
       sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema)
     }
   }
 
   override def commit(end: Offset): Unit = {
-    logInfo(s"committed offset: $end")
+    logDebug(s"Committed offset: $end")
     // no op
   }
 

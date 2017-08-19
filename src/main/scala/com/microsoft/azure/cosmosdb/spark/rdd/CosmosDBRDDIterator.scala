@@ -22,57 +22,85 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
-import java.io.File
-import java.nio.file.Paths
 import java.util
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
+import scala.collection.mutable
+
 object CosmosDBRDDIterator {
 
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
 
-  // Map of change feed query name -> collection Rid -> partition range ID -> continuation token
-  var changeFeedTokens: ConcurrentMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] = _
+  private var hdfsUtils: HdfsUtils = _
 
-  // Map of change feed candidate token for the next batch
-  var changeFeedNextTokens: ConcurrentMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]] = _
+  def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
+    if (hdfsUtils == null) {
+      this.synchronized {
+        if (hdfsUtils == null) {
+          hdfsUtils = HdfsUtils(hadoopConfig)
+        }
+      }
+    }
+  }
+
+  /**
+    * Get the path to the next continuation token
+    * @param queryName name of the query
+    * @return
+    */
+  def getNextTokenPath(queryName: String): String = {
+    queryName + queryName.hashCode + queryName.hashCode.hashCode()
+  }
 
   /**
     * Get the next global continuation token for the collection in the provided config
     * @param config a structured stream configuration with connection details, a query name and a collection name
     * @return       the corresponding global continuation token
     */
-  def getCollectionTokens(config: Config): String = {
+  def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
     val connection = new CosmosDBConnection(config)
     val collectionLink = connection.collectionLink
     val queryName = config
       .get[String](CosmosDBConfig.ChangeFeedQueryName).get
     var tokenString: String = null
 
-    if (changeFeedNextTokens == null ||
-      !changeFeedNextTokens.containsKey(queryName) ||
-      !changeFeedNextTokens.get(queryName).containsKey(collectionLink)) {
-      val tokenMap = new ConcurrentHashMap[String, String]
-      val ranges = connection.getAllPartitions
-      var rangeIndex = 0
-      ranges.foreach(r => {
-        tokenMap.put(rangeIndex.toString, 0.toString)
-        rangeIndex = rangeIndex + 1
-      })
-      tokenString = new ObjectMapper().writeValueAsString(tokenMap)
-    } else {
-      tokenString = new ObjectMapper().writeValueAsString(changeFeedNextTokens.get(queryName).get(collectionLink))
+    // Construct a map of continuation tokens for the collection Rid
+    val changeFeedCheckpointLocation: String = config
+      .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
+      .getOrElse(StringUtils.EMPTY)
+    var nextTokenMap: util.HashMap[String, String] = null
+    if (!changeFeedCheckpointLocation.isEmpty) {
+      nextTokenMap = CosmosDBRDDIterator.hdfsUtils.readChangeFeedToken(
+        changeFeedCheckpointLocation,
+        if (shouldGetCurrentToken) queryName else getNextTokenPath(queryName),
+        collectionLink)
+    }
+
+    val streamingSlowSourceDelayMs: Int = config
+      .get[String](CosmosDBConfig.StreamingSlowSourceDelayMs)
+      .getOrElse(CosmosDBConfig.DefaultStreamingSlowSourceDelayMs.toString)
+      .toInt
+
+    if (nextTokenMap != null && !nextTokenMap.isEmpty) {
+      // Add a timestamp entry in order to trigger the query for slow source scenario
+      // This time token entry is not used to determine whether change feed data should be fetched in CosmosDBSource.getBatch
+      nextTokenMap.put(
+        CosmosDBConfig.StreamingTimestampToken,
+        (System.currentTimeMillis() / streamingSlowSourceDelayMs).toString)
+
+      tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
     }
 
     tokenString
@@ -82,20 +110,25 @@ object CosmosDBRDDIterator {
     * Used for verification purpose only. Clear the next continuation tokens cache to simulate a fresh start.
     */
   def resetCollectionContinuationTokens(): Any = {
-    changeFeedTokens = null
-    changeFeedNextTokens = null
+    // no op
   }
 }
 
-class CosmosDBRDDIterator(
-                             taskContext: TaskContext,
-                             partition: CosmosDBPartition,
-                             config: Config,
-                             maxItems: Option[Long],
-                             requiredColumns: Array[String],
-                             filters: Array[Filter])
+class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
+                          taskContext: TaskContext,
+                          partition: CosmosDBPartition,
+                          config: Config,
+                          maxItems: Option[Long],
+                          requiredColumns: Array[String],
+                          filters: Array[Filter])
   extends Iterator[Document]
     with LoggingTrait {
+
+  CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap)
+
+  // The continuation token for the target CosmosDB partition
+  private var cfCurrentToken: String = _
+  private var cfNextToken: String = _
 
   private var closed = false
   private var initialized = false
@@ -110,12 +143,16 @@ class CosmosDBRDDIterator(
       .getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString)
       .toBoolean
 
+    val pageSize: Int = config
+      .get[String](CosmosDBConfig.QueryPageSize)
+      .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
+      .toInt
+
+    /**
+      * Query documents from CosmosDB
+      */
     def queryDocuments: Iterator[Document] = {
       val feedOpts = new FeedOptions()
-      val pageSize: Int = config
-        .get[String](CosmosDBConfig.QueryPageSize)
-        .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
-        .toInt
       feedOpts.setPageSize(pageSize)
       val maxDegreeOfParallelism = config
         .get[String](CosmosDBConfig.QueryMaxDegreeOfParallelism)
@@ -153,125 +190,97 @@ class CosmosDBRDDIterator(
       connection.queryDocuments(queryString, feedOpts)
     }
 
+    /**
+      * Read documents change feed
+      */
     def readChangeFeed: Iterator[Document] = {
 
       // For tokens checkpointing
-      var changeFeedCheckpoint: Boolean = false
       var checkPointPath: String = null
       val objectMapper: ObjectMapper = new ObjectMapper()
 
-      var collectionTokenMap: ConcurrentMap[String, String] = null
-      var collectionNextTokenMap: ConcurrentMap[String, String] = null
+      val changeFeedCheckpointLocation: String = config
+        .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
+        .getOrElse(StringUtils.EMPTY)
+      var changeFeedCheckpoint: Boolean = !changeFeedCheckpointLocation.isEmpty
+      val queryName: String = config
+        .get[String](CosmosDBConfig.ChangeFeedQueryName)
+        .get
+      val partitionId = partition.partitionKeyRangeId.toString
+      val collectionLink = connection.collectionLink
 
       // Initialize the static tokens cache or read it from checkpoint
-      def initializeTokenMaps() = {
-        if (CosmosDBRDDIterator.changeFeedTokens == null) {
-          CosmosDBRDDIterator.synchronized {
-            if (CosmosDBRDDIterator.changeFeedTokens == null) {
-              val emptyChangeFeedContinuationTokens =
-                new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]]
-
-              // Read continuation tokens from checkpoint location
-              val changeFeedCheckpointLocation: String = config
-                .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
-                .getOrElse(StringUtils.EMPTY)
-              if (!StringUtils.isEmpty(changeFeedCheckpointLocation)) {
-                changeFeedCheckpoint = true
-                checkPointPath = Paths.get(changeFeedCheckpointLocation, "changeFeedCheckPoint").toString
-                val checkPointFile = new File(checkPointPath)
-                if (checkPointFile.exists()) {
-                  CosmosDBRDDIterator.changeFeedTokens =
-                    objectMapper.readValue(checkPointFile, emptyChangeFeedContinuationTokens.getClass)
-                  logInfo(s"Read change feed continuation tokens from $checkPointPath")
-                } else {
-                  logInfo(s"Using new change feed checkpoint file $checkPointPath")
-                }
-              }
-
-              if (CosmosDBRDDIterator.changeFeedTokens == null) {
-                CosmosDBRDDIterator.changeFeedTokens =
-                  new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]]
-                CosmosDBRDDIterator.changeFeedNextTokens =
-                  new ConcurrentHashMap[String, ConcurrentMap[String, ConcurrentMap[String, String]]]
-              }
-            }
-          }
-        }
+      def initializeToken(): Unit = {
+        cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+          changeFeedCheckpointLocation,
+          queryName,
+          collectionLink,
+          partitionId)
+        cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+          changeFeedCheckpointLocation,
+          CosmosDBRDDIterator.getNextTokenPath(queryName),
+          collectionLink,
+          partitionId)
       }
 
       // Get continuation token for the partition with provided partitionId
       def getContinuationToken(partitionId: String): String = {
-        val collectionLink = connection.collectionLink
-        val queryName = config
-          .get[String](CosmosDBConfig.ChangeFeedQueryName).get
-
-        CosmosDBRDDIterator.changeFeedTokens.putIfAbsent(
-          queryName,
-          new ConcurrentHashMap[String, ConcurrentMap[String, String]]())
-        CosmosDBRDDIterator.changeFeedNextTokens.putIfAbsent(
-          queryName,
-          new ConcurrentHashMap[String, ConcurrentMap[String, String]]())
-
-        val currentTokens = CosmosDBRDDIterator.changeFeedTokens.get(queryName)
-        val nextTokens = CosmosDBRDDIterator.changeFeedNextTokens.get(queryName)
-
-        currentTokens.putIfAbsent(collectionLink, new ConcurrentHashMap[String, String]())
-        nextTokens.putIfAbsent(collectionLink, new ConcurrentHashMap[String, String]())
-
         val continuationToken = config.get[String](CosmosDBConfig.ChangeFeedContinuationToken)
         if (continuationToken.isDefined) {
           // Continuaton token is overriden
           val emptyTokenMap = new ConcurrentHashMap[String, String]()
-          collectionTokenMap = objectMapper.readValue(continuationToken.get, emptyTokenMap.getClass)
-          collectionNextTokenMap = nextTokens.get(collectionLink)
+          val collectionTokenMap = objectMapper.readValue(continuationToken.get, emptyTokenMap.getClass)
+          cfCurrentToken = collectionTokenMap.get(partitionId)
         } else {
-          collectionTokenMap = currentTokens.get(collectionLink)
-          collectionNextTokenMap = nextTokens.get(collectionLink)
-
           // Set the current token to next token for the target collection
           val useNextToken: Boolean = config
             .get[String](CosmosDBConfig.ChangeFeedUseNextToken)
             .getOrElse(CosmosDBConfig.DefaultChangeFeedUseNextToken.toString)
             .toBoolean
           if (useNextToken) {
-            val nextToken = collectionNextTokenMap.get(partitionId)
-            if (nextToken != null) {
-              collectionTokenMap.put(partitionId, nextToken)
-            }
+            cfCurrentToken = cfNextToken
           }
         }
 
-        val changeFeedContinuation = collectionTokenMap.get(partitionId)
-        changeFeedContinuation
+        cfCurrentToken
       }
 
       // Update the tokens cache as appropriate
       def updateTokens(currentToken: String,
                        nextToken: String,
-                       partitionId: String,
-                       collectionTokenMap: ConcurrentMap[String, String],
-                       collectionNextTokenMap: ConcurrentMap[String, String]) = {
+                       partitionId: String): Unit = {
         val rollingChangeFeed: Boolean = config
           .get[String](CosmosDBConfig.RollingChangeFeed)
           .getOrElse(CosmosDBConfig.DefaultRollingChangeFeed.toString)
           .toBoolean
 
-      if (currentToken == null || rollingChangeFeed) {
-          collectionTokenMap.put(partitionId, nextToken)
-
-          if (changeFeedCheckpoint) {
-            CosmosDBRDDIterator.synchronized {
-              objectMapper.writeValue(new File(checkPointPath), CosmosDBRDDIterator.changeFeedTokens)
-            }
-          }
+        if (cfCurrentToken == null || cfCurrentToken.isEmpty || rollingChangeFeed) {
+          cfCurrentToken = nextToken
         }
-        // Always update the next continuation token map
-        collectionNextTokenMap.put(partitionId, nextToken)
+
+        if (!changeFeedCheckpointLocation.isEmpty) {
+          CosmosDBRDDIterator.hdfsUtils.writeChangeFeedTokenPartition(
+            changeFeedCheckpointLocation,
+            queryName,
+            collectionLink,
+            partitionId,
+            cfCurrentToken
+          )
+        }
+
+        // Always update the next continuation
+        cfNextToken = nextToken
+        CosmosDBRDDIterator.hdfsUtils.writeChangeFeedTokenPartition(
+          changeFeedCheckpointLocation,
+          CosmosDBRDDIterator.getNextTokenPath(queryName),
+          collectionLink,
+          partitionId,
+          cfNextToken
+        )
       }
 
-      initializeTokenMaps()
+      initializeToken()
 
-      val partitionId = partition.partitionKeyRangeId.toString
       val startFromTheBeginning: Boolean = config
         .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .getOrElse(CosmosDBConfig.DefaultChangeFeedStartFromTheBeginning.toString)
@@ -281,16 +290,17 @@ class CosmosDBRDDIterator(
       val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
       changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
       changeFeedOptions.setStartFromBeginning(startFromTheBeginning)
-      if (currentToken != null) {
+      if (currentToken != null && !currentToken.isEmpty) {
         changeFeedOptions.setRequestContinuation(currentToken)
       }
+      changeFeedOptions.setPageSize(pageSize)
 
       // Query for change feed
       val response = connection.readChangeFeed(changeFeedOptions)
       val iteratorDocument = response._1
       val nextToken = response._2
 
-      updateTokens(currentToken, nextToken, partitionId, collectionTokenMap, collectionNextTokenMap)
+      updateTokens(currentToken, nextToken, partitionId)
 
       logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
 

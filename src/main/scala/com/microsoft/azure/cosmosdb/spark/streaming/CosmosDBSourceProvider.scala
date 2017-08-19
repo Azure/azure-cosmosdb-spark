@@ -28,7 +28,7 @@ import org.apache.spark.sql.execution.streaming.Source
 import org.apache.spark.sql.sources.{DataSourceRegister, StreamSourceProvider}
 import org.apache.spark.sql.types.StructType
 
-private[spark] class CosmosDBSourceProvider extends DataSourceRegister
+class CosmosDBSourceProvider extends DataSourceRegister
   with StreamSourceProvider with LoggingTrait {
 
   var cosmosDBSource: CosmosDBSource = _
