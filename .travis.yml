@@ -1,0 +1,13 @@
+language:
+  scala
+
+scala:
+  - 2.11.7
+
+env:
+  - TARGET=packageBin
+  - TARGET=packageDoc
+  - TARGET=packageSrc
+
+script:
+  - sbt ++$TRAVIS_SCALA_VERSION $TARGET
