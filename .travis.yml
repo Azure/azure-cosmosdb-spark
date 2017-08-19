@@ -5,7 +5,6 @@ scala:
   - 2.11.7
 
 env:
-  - TARGET=test
   - TARGET=packageBin
   - TARGET=packageDoc
   - TARGET=packageSrc
