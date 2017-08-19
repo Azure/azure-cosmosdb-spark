@@ -29,6 +29,7 @@ import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.rx._
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
 object CosmosDBConnection {
@@ -142,12 +143,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   def queryDocuments (queryString : String,
         feedOpts : FeedOptions) : Iterator [Document] = {
 
-    documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts).getQueryIterable.iterator()
+    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    feedResponse.getQueryIterable.iterator()
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions): Tuple2[Iterator[Document], String] = {
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
-    Tuple2.apply(feedResponse.getQueryIterable.iterator(), feedResponse.getResponseContinuation)
+    // The change feed need to be materialized in order to get the information of the continuation token
+    val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
+    while (feedResponse.getQueryIterator.hasNext) {
+      cfDocuments.addAll(feedResponse.getQueryIterable.fetchNextBlock())
+    }
+    Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
   }
 
   def upsertDocument(document: Document,

@@ -72,15 +72,30 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
+    def getOffsetJsonForProgress(offsetJson: String): String = {
+      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\""
+      offsetJson.replaceAll(tsTokenRegex, StringUtils.EMPTY)
+    }
     logDebug(s"getBatch with offset: $start $end")
-    // Only continue if the provided end offset is the current offset
-    if (end.json.equals(getOffset.get.json)) {
+    val endJson = getOffsetJsonForProgress(end.json)
+    val nextTokens = getOffsetJsonForProgress(CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap)))
+    val currentTokens = getOffsetJsonForProgress(
+      CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap),
+      shouldGetCurrentToken = true))
+    // Only getting the data in the following cases:
+    // - The provided end offset is the current offset (next tokens), the stream is progressing to the batch
+    // - The provided end offset is the current tokens. This means the stream didn't get to commit the to end offset yet
+    // in the previous batch. It could be due to node failures or processing failures.
+    if (endJson.equals(nextTokens) || endJson.equals(currentTokens)) {
+      logDebug(s"Getting data for end offset")
       val readConfig = Config(
         streamConfigMap
           .-(CosmosDBConfig.ChangeFeedContinuationToken)
           .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
       sqlContext.read.cosmosDB(schema, readConfig)
+
     } else {
+      logDebug(s"Skipping this batch")
       sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema)
     }
   }

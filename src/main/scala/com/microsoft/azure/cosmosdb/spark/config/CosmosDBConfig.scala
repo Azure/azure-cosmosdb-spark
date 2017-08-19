@@ -60,6 +60,11 @@ object CosmosDBConfig {
   val WritingBatchSize = "writingbatchsize"
   val StreamingTimestampToken = "tsToken"
 
+  // When the streaming source is slow, there will be times when getting data from a specific continuation token
+  // returns no results and therefore no information on the next continuation token set is available.
+  // In those cases, the connector gives a delay and then trigger the next batch.
+  val StreamingSlowSourceDelayMs = "streamingslowsourcedelayms"
+
   // Mandatory
   val required = List(
     Endpoint,
@@ -84,7 +89,7 @@ object CosmosDBConfig {
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
   val DefaultWritingBatchSize = 500
-  val DefaultStreamingSlowSourceDelayMs = 3000
+  val DefaultStreamingSlowSourceDelayMs = 1
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

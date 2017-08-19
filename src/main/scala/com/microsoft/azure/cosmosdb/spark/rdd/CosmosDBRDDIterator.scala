@@ -69,7 +69,7 @@ object CosmosDBRDDIterator {
     * @param config a structured stream configuration with connection details, a query name and a collection name
     * @return       the corresponding global continuation token
     */
-  def getCollectionTokens(config: Config): String = {
+  def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
     val connection = new CosmosDBConnection(config)
     val collectionLink = connection.collectionLink
     val queryName = config
@@ -84,15 +84,21 @@ object CosmosDBRDDIterator {
     if (!changeFeedCheckpointLocation.isEmpty) {
       nextTokenMap = CosmosDBRDDIterator.hdfsUtils.readChangeFeedToken(
         changeFeedCheckpointLocation,
-        getNextTokenPath(queryName),
+        if (shouldGetCurrentToken) queryName else getNextTokenPath(queryName),
         collectionLink)
     }
 
+    val streamingSlowSourceDelayMs: Int = config
+      .get[String](CosmosDBConfig.StreamingSlowSourceDelayMs)
+      .getOrElse(CosmosDBConfig.DefaultStreamingSlowSourceDelayMs.toString)
+      .toInt
+
     if (nextTokenMap != null && !nextTokenMap.isEmpty) {
-      // Add timestamp entry in order to trigger the query for slow source scenario
+      // Add a timestamp entry in order to trigger the query for slow source scenario
+      // This time token entry is not used to determine whether change feed data should be fetched in CosmosDBSource.getBatch
       nextTokenMap.put(
         CosmosDBConfig.StreamingTimestampToken,
-        (System.currentTimeMillis() / CosmosDBConfig.DefaultStreamingSlowSourceDelayMs).toString)
+        (System.currentTimeMillis() / streamingSlowSourceDelayMs).toString)
 
       tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
     }
@@ -137,15 +143,16 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       .getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString)
       .toBoolean
 
+    val pageSize: Int = config
+      .get[String](CosmosDBConfig.QueryPageSize)
+      .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
+      .toInt
+
     /**
       * Query documents from CosmosDB
       */
     def queryDocuments: Iterator[Document] = {
       val feedOpts = new FeedOptions()
-      val pageSize: Int = config
-        .get[String](CosmosDBConfig.QueryPageSize)
-        .getOrElse(CosmosDBConfig.DefaultPageSize.toString)
-        .toInt
       feedOpts.setPageSize(pageSize)
       val maxDegreeOfParallelism = config
         .get[String](CosmosDBConfig.QueryMaxDegreeOfParallelism)
@@ -286,6 +293,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       if (currentToken != null && !currentToken.isEmpty) {
         changeFeedOptions.setRequestContinuation(currentToken)
       }
+      changeFeedOptions.setPageSize(pageSize)
 
       // Query for change feed
       val response = connection.readChangeFeed(changeFeedOptions)
