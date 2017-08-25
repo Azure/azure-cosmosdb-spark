@@ -70,16 +70,26 @@ class CosmosDBRDDSpec extends RequiresCosmosDB {
   }
 
   it should "be easy to save to all CosmosDB partitions" in withSparkContext() { sc =>
-    sc.parallelize(simpleDocuments).saveToCosmosDB()
+    val count = 2000
+    val documents: IndexedSeq[SimpleRDDDocument] = (1 to count)
+      .map(x => {
+        var newDocument = new SimpleRDDDocument()
+        newDocument.id_=(x.toString)
+        newDocument.pkey_=(x)
+        newDocument.intString_=((count - x + 1).toString)
+        newDocument
+      })
+
+    sc.parallelize(documents).saveToCosmosDB()
 
     val cosmosDBRDD: CosmosDBRDD = CosmosDBSpark.builder().sparkContext(sc).build().toRDD
     val partitionCount = cosmosDBRDD.getNumPartitions
 
     // verify the documents distribute among the partitions withint a margin of distributionMargin percent
-    val distributionMargin = 10.0 / 100
-    val idealDocsPerPartition = documentCount / partitionCount
+    val distributionMargin = 20.0 / 100
+    val idealDocsPerPartition = count / partitionCount
     var docsDistribution = cosmosDBRDD.mapPartitions(iter => Array(iter.size).iterator).collect()
-    docsDistribution.foreach(count => assert(Math.abs(count * 1.0 / idealDocsPerPartition - 1) <= distributionMargin))
+    docsDistribution.foreach(count => assert(Math.abs(count * 1.0 / idealDocsPerPartition - 1) < distributionMargin))
   }
 
   it should "be able to handle empty collections" in withSparkContext() { sc =>

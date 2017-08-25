@@ -77,8 +77,8 @@ public abstract class AbstractGremlinSparkTest {
     @BeforeClass
     public static void setUpCosmosDB() throws DocumentClientException {
         CosmosDBDefaults cosmosDBDefaults = CosmosDBDefaults.apply();
-        documentClient = new DocumentClient(cosmosDBDefaults.EMULATOR_ENDPOINT(),
-                cosmosDBDefaults.EMULATOR_MASTERKEY(),
+        documentClient = new DocumentClient(cosmosDBDefaults.CosmosDBEndpoint(),
+                cosmosDBDefaults.CosmosDBKey(),
                 new ConnectionPolicy(),
                 ConsistencyLevel.Session);
 
@@ -153,8 +153,8 @@ public abstract class AbstractGremlinSparkTest {
 
     Configuration populateCosmosDBConfiguration(Configuration configuration) {
         CosmosDBDefaults cosmosDBDefaults = CosmosDBDefaults.apply();
-        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, cosmosDBDefaults.EMULATOR_ENDPOINT());
-        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, cosmosDBDefaults.EMULATOR_MASTERKEY());
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_ENDPOINT, cosmosDBDefaults.CosmosDBEndpoint());
+        configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_MASTERKEY, cosmosDBDefaults.CosmosDBKey());
         configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_DATABASE, DATABASE_NAME);
         configuration.setProperty(CosmosDBInputRDD.Constants.SPARK_DOCUMENTDB_COLLECTION, COLLECTION_NAME);
         return configuration;

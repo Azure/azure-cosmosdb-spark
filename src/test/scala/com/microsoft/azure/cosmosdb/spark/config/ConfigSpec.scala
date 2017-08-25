@@ -30,10 +30,10 @@ import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRelation
 
 class ConfigSpec extends RequiresCosmosDB {
     "Config" should "have the expected defaults" in withSparkSession() { ss =>
-      val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().EMULATOR_ENDPOINT,
-        "Masterkey" -> CosmosDBDefaults().EMULATOR_MASTERKEY,
-        "Database" -> CosmosDBDefaults().DATABASE_NAME,
-        "Collection" -> collectionName))
+      val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().CosmosDBEndpoint,
+        "Masterkey" -> CosmosDBDefaults().CosmosDBKey,
+        "Database" -> CosmosDBDefaults().DatabaseName,
+        "Collection" -> getTestCollectionName))
 
       val df = ss.sqlContext.read.cosmosDB(readConfig)
       df.collect()
@@ -61,11 +61,11 @@ class ConfigSpec extends RequiresCosmosDB {
     }
 
   it should "be able to override the defaults" in withSparkSession() { ss =>
-    val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().EMULATOR_ENDPOINT,
-      "Masterkey" -> CosmosDBDefaults().EMULATOR_MASTERKEY,
-      "Database" -> CosmosDBDefaults().DATABASE_NAME,
-      "Collection" -> collectionName,
-      "ConsistencyLevel" -> "Strong",
+    val readConfig = Config(Map("Endpoint" -> CosmosDBDefaults().CosmosDBEndpoint,
+      "Masterkey" -> CosmosDBDefaults().CosmosDBKey,
+      "Database" -> CosmosDBDefaults().DatabaseName,
+      "Collection" -> getTestCollectionName,
+      "ConsistencyLevel" -> "Eventual",
       "conNeCtIoNMODE" -> "Gateway",
       "upsert" -> "true",
       "schema_samplingratio" -> "0.5",
