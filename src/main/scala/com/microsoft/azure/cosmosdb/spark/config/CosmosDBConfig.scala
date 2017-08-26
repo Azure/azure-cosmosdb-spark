@@ -46,6 +46,8 @@ object CosmosDBConfig {
   val PreferredRegionsList = "preferredregions"
   val Upsert = "upsert"
   val ConnectionMode = "connectionmode"
+  val ConnectionMaxPoolSize = "connectionmaxpoolsize"
+  val ConnectionIdleTimeout = "connectionidletimeout"
   val ConsistencyLevel = "consistencylevel"
   val ReadChangeFeed = "readchangefeed"
   val RollingChangeFeed = "rollingchangefeed"

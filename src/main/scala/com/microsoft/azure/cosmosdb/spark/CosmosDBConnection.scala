@@ -88,6 +88,14 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    val maxPoolSize = config.get[String](CosmosDBConfig.ConnectionMaxPoolSize)
+    if (maxPoolSize.isDefined) {
+      connectionPolicy.setMaxPoolSize(maxPoolSize.get.toInt)
+    }
+    val connectionIdleTimeout = config.get[String](CosmosDBConfig.ConnectionIdleTimeout)
+    if (connectionIdleTimeout.isDefined) {
+      connectionPolicy.setIdleConnectionTimeout(connectionIdleTimeout.get.toInt)
+    }
     val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
     if (maxRetryAttemptsOnThrottled.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
