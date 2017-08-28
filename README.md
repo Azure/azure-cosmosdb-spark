@@ -1,6 +1,5 @@
-[![Build Status](https://travis-ci.org/Azure/azure-cosmosdb-spark.svg?branch=master)](https://travis-ci.org/Azure/azure-cosmosdb-spark)
+# Azure CosmosDB Spark Connector [![Build Status](https://travis-ci.org/Azure/azure-cosmosdb-spark.svg?branch=master)](https://travis-ci.org/Azure/azure-cosmosdb-spark)
 
-# azure-cosmosdb-spark
 Preview connector for [Azure CosmosDB](http://cosmosdb.com) and [Apache Spark](http://spark.apache.org). 
 
 > Note, we've updated this repo to reflect the update to Cosmos DB from DocumentDB
