@@ -67,6 +67,8 @@ class ConfigSpec extends RequiresCosmosDB {
       "Collection" -> getTestCollectionName,
       "ConsistencyLevel" -> "Eventual",
       "conNeCtIoNMODE" -> "Gateway",
+      "connectionmaxpoolsize" -> "1000",
+      "connectionidletimeout" -> "120",
       "upsert" -> "true",
       "schema_samplingratio" -> "0.5",
       "schema_samplesize" -> "200",
@@ -91,6 +93,8 @@ class ConfigSpec extends RequiresCosmosDB {
 
     val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
     connectionPolicy.getConnectionMode.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionMode).toString)
+    connectionPolicy.getMaxPoolSize.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionMaxPoolSize))
+    connectionPolicy.getIdleConnectionTimeout.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionIdleTimeout))
     connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests.toString should
       equal(readConfig.properties(CosmosDBConfig.QueryMaxRetryOnThrottled))
     connectionPolicy.getRetryOptions.getMaxRetryWaitTimeInSeconds.toString should
