@@ -1,5 +1,5 @@
 language: java
-sudo: false # faster builds
+sudo: required
 
 env:
   global:
