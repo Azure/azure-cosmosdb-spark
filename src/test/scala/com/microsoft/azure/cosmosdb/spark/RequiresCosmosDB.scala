@@ -72,6 +72,10 @@ trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll
     cosmosDBDefaults.createDatabase(cosmosDBDefaults.DatabaseName)
   }
 
+  override def afterAll(): Unit = {
+    cosmosDBDefaults.deleteDatabase(cosmosDBDefaults.DatabaseName)
+  }
+
   override def beforeEach(): Unit = {
     // this is run first
     // most of the initializations needed are moved to withFixture to use the test name

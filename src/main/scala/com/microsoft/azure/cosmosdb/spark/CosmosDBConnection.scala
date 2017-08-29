@@ -164,7 +164,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       cfDocuments.addAll(feedResponse.getQueryIterable.fetchNextBlock())
     }
     val objectMapper = new ObjectMapper()
-    logInfo(s"change feed (partition=${changeFeedOptions.getPartitionKeyRangeId}, token=${changeFeedOptions.getRequestContinuation}): documents with id: ${objectMapper.writeValueAsString(cfDocuments.map(x => x.getId).toArray)}")
+    logDebug(s"change feed (partition=${changeFeedOptions.getPartitionKeyRangeId}, token=${changeFeedOptions.getRequestContinuation}): documents with id: ${objectMapper.writeValueAsString(cfDocuments.map(x => x.getId).toArray)}")
     Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
   }
 

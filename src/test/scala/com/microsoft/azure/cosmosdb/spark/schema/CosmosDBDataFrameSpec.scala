@@ -623,7 +623,6 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
           newDoc.set(cosmosDBDefaults.PartitionKeyName, i)
           newDoc.set("content", s"sample content for document with ID $i")
           documentClient.createDocument(sourceCollectionLink, newDoc, null, true)
-          logInfo(s"Created document with ID $i")
           TimeUnit.MILLISECONDS.sleep(insertIntervalMs)
         })
         docIdIndex = docIdIndex + insertIterations
@@ -759,6 +758,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     streamingQuery.stop()
     CosmosDBRDDIterator.resetCollectionContinuationTokens()
+
+    cosmosDBDefaults.deleteCollection(databaseName, sinkCollection)
   }
 
   it should "work with a slow source" in withSparkSession() { spark =>

@@ -35,8 +35,22 @@ object CosmosDBDefaults {
 
 class CosmosDBDefaults extends LoggingTrait {
 
-  val CosmosDBEndpoint: String = System.getProperty("CosmosDBEndpoint")
-  val CosmosDBKey: String = System.getProperty("CosmosDBKey")
+  val CosmosDBEndpoint: String = {
+    val cosmosDBEndpoint = "CosmosDBEndpoint"
+    val endpoint = System.getProperty(cosmosDBEndpoint)
+    if (endpoint != null)
+      endpoint
+    else
+      System.getenv(cosmosDBEndpoint)
+  }
+  val CosmosDBKey: String = {
+    val cosmosDBKey = "CosmosDBKey"
+    val key = System.getProperty(cosmosDBKey)
+    if (key != null)
+      key
+    else
+      System.getenv(cosmosDBKey)
+  }
   val DatabaseName = "cosmosdb-spark-connector-test"
   val PartitionKeyName = "pkey"
 
@@ -78,7 +92,7 @@ class CosmosDBDefaults extends LoggingTrait {
       documentDBClient.createDatabase(database, null)
       logInfo(s"Created collection with Id ${database.getId}")
     } catch {
-      case NonFatal(e) => logError(s"Failed to create database '$databaseName'", e)
+      case NonFatal(e) => logWarning(s"Failed to create database '$databaseName'", e)
     }
   }
 
@@ -88,7 +102,7 @@ class CosmosDBDefaults extends LoggingTrait {
       documentDBClient.deleteDatabase(databaseLink, null)
       logInfo(s"Deleted collection with link '$databaseLink'")
     } catch {
-      case NonFatal(e) => logError(s"Failed to delete database '$databaseLink'", e)
+      case NonFatal(e) => logWarning(s"Failed to delete database '$databaseLink'", e)
     }
   }
 
@@ -125,7 +139,7 @@ class CosmosDBDefaults extends LoggingTrait {
       documentDBClient.deleteCollection(collectionLink, null)
       logInfo(s"Deleted collection with link '$collectionLink'")
     } catch {
-      case NonFatal(e) => logError(s"Failed to delete collection '$collectionLink'", e)
+      case NonFatal(e) => logWarning(s"Failed to delete collection '$collectionLink'", e)
     }
   }
 

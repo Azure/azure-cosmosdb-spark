@@ -45,7 +45,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
     val os = fs.create(path)
     os.writeUTF(content)
     os.close()
-    logInfo(s"Write $content for $path")
+    logDebug(s"Write $content for $path")
   }
 
   def read(base: String, filePath: String): String = {
