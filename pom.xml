@@ -244,7 +244,7 @@ limitations under the License.
           <execution>
             <id>test</id>
             <goals>
-              <!--<goal>test</goal>-->
+              <goal>test</goal>
             </goals>
           </execution>
         </executions>
