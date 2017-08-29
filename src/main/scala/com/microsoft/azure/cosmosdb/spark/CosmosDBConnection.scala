@@ -27,6 +27,7 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.rx._
+import org.codehaus.jackson.map.ObjectMapper
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -162,6 +163,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     while (feedResponse.getQueryIterator.hasNext) {
       cfDocuments.addAll(feedResponse.getQueryIterable.fetchNextBlock())
     }
+    val objectMapper = new ObjectMapper()
+    logInfo(s"change feed (partition=${changeFeedOptions.getPartitionKeyRangeId}, token=${changeFeedOptions.getRequestContinuation}): documents with id: ${objectMapper.writeValueAsString(cfDocuments.map(x => x.getId).toArray)}")
     Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
   }
 
