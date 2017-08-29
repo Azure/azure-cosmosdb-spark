@@ -90,9 +90,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
+      case None => // skip
     }
     config.get[String](CosmosDBConfig.ConnectionIdleTimeout) match {
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeout(connectionIdleTimeoutStr.toInt)
+      case None => // skip
     }
     val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
     if (maxRetryAttemptsOnThrottled.isDefined) {

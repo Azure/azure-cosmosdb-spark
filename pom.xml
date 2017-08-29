@@ -376,7 +376,7 @@ limitations under the License.
                 </excludes>
               </artifactSet>
               <minimizeJar>true</minimizeJar>
-              <finalName>${project.artifactId}-${version}-uber</finalName>
+              <finalName>${project.artifactId}-${project.version}-uber</finalName>
             </configuration>
           </execution>
         </executions>
