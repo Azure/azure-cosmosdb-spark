@@ -9,7 +9,5 @@ matrix:
   include:
   - os: linux
     jdk: oraclejdk8
-  - os: osx
-    osx_image: xcode8
 script:
 - mvn clean package -DargLine="-DCosmosDBEndpoint=$CosmosDBEndpoint -DCosmosDBKey=$CosmosDBKey"
