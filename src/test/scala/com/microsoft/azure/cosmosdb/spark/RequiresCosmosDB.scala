@@ -68,8 +68,7 @@ trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll
   override def beforeAll(): Unit = {
     // if running against localhost emulator
     HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true
-
-    cosmosDBDefaults.deleteDatabase(cosmosDBDefaults.DatabaseName)
+    
     cosmosDBDefaults.createDatabase(cosmosDBDefaults.DatabaseName)
   }
 
