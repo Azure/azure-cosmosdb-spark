@@ -580,7 +580,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val streamingGapMs = TimeUnit.SECONDS.toMillis(10)
     val insertIntervalMs = TimeUnit.SECONDS.toMillis(1) / 2
     // There is a delay from starting the writing to the stream to the first data being written
-    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(7)
+    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(8)
     val insertIterations: Int = ((streamingGapMs * 2 + streamingTimeMs) / insertIntervalMs).toInt
 
     val cfCheckpointPath = "./changefeedcheckpoint"
