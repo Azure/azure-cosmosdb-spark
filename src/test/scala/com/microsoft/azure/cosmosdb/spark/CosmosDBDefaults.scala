@@ -35,8 +35,22 @@ object CosmosDBDefaults {
 
 class CosmosDBDefaults extends LoggingTrait {
 
-  val CosmosDBEndpoint: String = System.getProperty("CosmosDBEndpoint")
-  val CosmosDBKey: String = System.getProperty("CosmosDBKey")
+  val CosmosDBEndpoint: String = {
+    val cosmosDBEndpoint = "CosmosDBEndpoint"
+    val endpoint = System.getProperty(cosmosDBEndpoint)
+    if (endpoint != null)
+      endpoint
+    else
+      System.getenv(cosmosDBEndpoint)
+  }
+  val CosmosDBKey: String = {
+    val cosmosDBKey = "CosmosDBKey"
+    val key = System.getProperty(cosmosDBKey)
+    if (key != null)
+      key
+    else
+      System.getenv(cosmosDBKey)
+  }
   val DatabaseName = "cosmosdb-spark-connector-test"
   val PartitionKeyName = "pkey"
 
