@@ -527,18 +527,17 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     savedDF.collectAsList() should contain theSameElementsAs df.collect()
   }
 
-  it should "work with complex json type" in withSparkContext() { sc =>
-    val sparkSession = createOrGetDefaultSparkSession(sc)
+  it should "work with complex json type" in withSparkSession() { spark =>
     val random: Random = new Random
     val maxSchoolCount = 5
     val maxRecordCount = 10
-    sc.parallelize((1 to documentCount).map(x => {
+    spark.sparkContext.parallelize((1 to documentCount).map(i => {
       val recordJson = (1 to random.nextInt(maxRecordCount)).mkString("[", ",", "]")
       val schoolsJson = (1 to random.nextInt(maxSchoolCount))
         .map(c => s"{'sname': 'school $c', year: $c, record: $recordJson}")
         .toList
         .mkString("[", ",", "]")
-      new Document(s"{pkey: $x, name: 'name $x', schools: $schoolsJson}")
+      new Document(s"{id: '$i', pkey: $i, name: 'name $i', schools: $schoolsJson}")
     })).saveToCosmosDB()
 
     val expectedSchema: StructType = {
@@ -564,7 +563,10 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
         DataTypes.createStructField("_attachments", DataTypes.StringType, true)))
     }
 
-    val df = sparkSession.read.cosmosDB()
+    // Verify that the schema is maintained in a round trip
+    var df = spark.read.cosmosDB()
+    df.write.mode(SaveMode.Overwrite).cosmosDB()
+    df = spark.read.cosmosDB()
     df.schema.fields should contain theSameElementsAs expectedSchema.fields
     expectedSchema.fields should contain theSameElementsAs df.schema.fields
     df.collect().length should equal(documentCount)
