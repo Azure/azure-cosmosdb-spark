@@ -129,27 +129,35 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D the type of the data in the RDD
     */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
-    var connection = new CosmosDBConnection(writeConfig)
-    val upsert: Boolean = writeConfig
+    rdd.foreachPartition(iter => savePartition(iter, writeConfig))
+  }
+
+  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config): Unit = {
+    val connection = new CosmosDBConnection(config)
+    val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
-    val writingBatchSize = writeConfig
+    val writingBatchSize = config
       .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize))
       .toInt
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
-    rdd.foreachPartition(iter => if (iter.nonEmpty) {
+    if (iter.nonEmpty) {
       var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
       var createDocumentObs: Observable[ResourceResponse[Document]] = null
       var batchSize = 0
       iter.foreach(item => {
-        val document: Document = item.asInstanceOf[Document]
+        val document: Document = item match {
+          case doc: Document => doc
+          case row: Row => new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+          case any => new Document(any.toString)
+        }
         if (upsert)
-          createDocumentObs = connection.upsertDocument(item.asInstanceOf[Document], null)
+          createDocumentObs = connection.upsertDocument(document, null)
         else
-          createDocumentObs = connection.createDocument(item.asInstanceOf[Document], null)
+          createDocumentObs = connection.createDocument(document, null)
         observables.add(createDocumentObs)
         batchSize = batchSize + 1
         if (batchSize % writingBatchSize == 0) {
@@ -161,7 +169,7 @@ object CosmosDBSpark extends LoggingTrait {
       if (!observables.isEmpty) {
         Observable.merge(observables).toBlocking.last()
       }
-    })
+    }
   }
 
   /**
@@ -175,7 +183,7 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D
     * @since 1.1.0
     */
-  def save[D](dataset: Dataset[D]): Unit = save(dataset, Config(dataset.sparkSession.sparkContext.getConf))
+  def save[D: ClassTag](dataset: Dataset[D]): Unit = save(dataset, Config(dataset.sparkSession.sparkContext.getConf))
 
   /**
     * Save data to CosmosDB
@@ -187,9 +195,8 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D
     * @since 1.1.0
     */
-  def save[D](dataset: Dataset[D], writeConfig: Config): Unit = {
-    var documentRDD: RDD[Document] = dataset.toDF().rdd.map(row => CosmosDBRowConverter.rowToDocument(row))
-    CosmosDBSpark.save(documentRDD, writeConfig)
+  def save[D: ClassTag](dataset: Dataset[D], writeConfig: Config): Unit = {
+    dataset.foreachPartition(iter => savePartition(iter, writeConfig))
   }
 
   /**
