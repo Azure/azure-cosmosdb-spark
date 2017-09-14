@@ -155,6 +155,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     feedResponse.getQueryIterable.iterator()
   }
 
+  def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
+    documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
+  }
+
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions): Tuple2[Iterator[Document], String] = {
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
     // The change feed need to be materialized in order to get the information of the continuation token

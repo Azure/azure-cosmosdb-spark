@@ -187,7 +187,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
       logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
 
-      connection.queryDocuments(queryString, feedOpts)
+      if (queryString == FilterConverter.defaultQuery) {
+        // If there is no filters, read feed should be used
+        connection.readDocuments(feedOpts)
+      } else {
+        connection.queryDocuments(queryString, feedOpts)
+      }
     }
 
     /**
