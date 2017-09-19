@@ -86,7 +86,10 @@ object CosmosDBRowConverter extends RowConverter[Document]
             case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
           } orNull
       case StructField(name, dataType, _, _) =>
-        json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+        if (json != null)
+          json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+        else
+          null
     }
     new GenericRowWithSchema(values.toArray, schema)
   }
@@ -100,6 +103,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
           val jsonMap: Map[String, AnyRef] = value match {
             case doc: Document => documentToMap(doc)
             case hm: util.HashMap[_, _] => hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap
+            case _ => null
           }
           recordAsRow(jsonMap, struct)
         case (_, map: MapType) =>
