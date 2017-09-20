@@ -65,6 +65,8 @@ case class CosmosDBSchema[T <: RDD[Document]](
 
     val reduced = flatMap.reduceByKey(compatibleType)
 
+    // Group the field and derive the common type
+    // Sort the property in the schema for predictable order
     val structFields = reduced.aggregate(Seq[StructField]())({
       case (fields, (name, tpe)) =>
         val newType = tpe match {
@@ -72,7 +74,7 @@ case class CosmosDBSchema[T <: RDD[Document]](
           case other => other
         }
         fields :+ StructField(name, newType)
-    }, (oldFields, newFields) => oldFields ++ newFields)
+    }, (oldFields, newFields) => oldFields ++ newFields).sortBy(field => field.name)
 
     StructType(structFields)
   }
