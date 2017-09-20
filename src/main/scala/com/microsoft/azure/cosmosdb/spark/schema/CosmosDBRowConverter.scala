@@ -86,10 +86,11 @@ object CosmosDBRowConverter extends RowConverter[Document]
             case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
           } orNull
       case StructField(name, dataType, _, _) =>
-        if (json != null)
-          json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
-        else
-          null
+        Option(json) match
+		{
+			case Some(_) => json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+			case None => null
+		}
     }
     new GenericRowWithSchema(values.toArray, schema)
   }
