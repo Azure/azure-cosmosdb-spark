@@ -22,6 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.util.concurrent.TimeUnit
+
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -140,6 +142,11 @@ object CosmosDBSpark extends LoggingTrait {
     val writingBatchSize = config
       .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize))
       .toInt
+    val writingBatchDelayMs = config
+      .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
+      .toInt
+    val rootPropertyToSave = config
+      .get[String](CosmosDBConfig.RootPropertyToSave)
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
@@ -151,9 +158,15 @@ object CosmosDBSpark extends LoggingTrait {
       iter.foreach(item => {
         val document: Document = item match {
           case doc: Document => doc
-          case row: Row => new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+          case row: Row =>
+            if (rootPropertyToSave.isDefined) {
+              new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
+            } else {
+              new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+            }
           case any => new Document(any.toString)
         }
+        logDebug(s"Inserting document ${document}")
         if (upsert)
           createDocumentObs = connection.upsertDocument(document, null)
         else
@@ -162,6 +175,9 @@ object CosmosDBSpark extends LoggingTrait {
         batchSize = batchSize + 1
         if (batchSize % writingBatchSize == 0) {
           Observable.merge(observables).toBlocking.last()
+          if (writingBatchDelayMs > 0) {
+            TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
+          }
           observables.clear()
           batchSize = 0
         }

@@ -55,12 +55,15 @@ object CosmosDBConfig {
   val ChangeFeedUseNextToken = "changefeedusenexttoken"
   val ChangeFeedContinuationToken = "changefeedcontinuationtoken"
   val IncrementalView = "incrementalview"
+  val StructuredStreaming = "structuredstreaming"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
   val WritingBatchSize = "writingbatchsize"
+  val WritingBatchDelayMs = "writingbatchdelayms"
   val StreamingTimestampToken = "tsToken"
+  val RootPropertyToSave = "rootpropertytosave"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
@@ -82,6 +85,7 @@ object CosmosDBConfig {
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
+  val DefaultStructuredStreaming = false
   val DefaultRollingChangeFeed = false
   val DefaultChangeFeedStartFromTheBeginning = false
   val DefaultChangeFeedUseNextToken = false
@@ -91,6 +95,7 @@ object CosmosDBConfig {
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
   val DefaultWritingBatchSize = 500
+  val DefaultWritingBatchDelayMs = 0
   val DefaultStreamingSlowSourceDelayMs = 1
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {

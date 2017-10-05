@@ -159,14 +159,20 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
 
-  def readChangeFeed(changeFeedOptions: ChangeFeedOptions): Tuple2[Iterator[Document], String] = {
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean): Tuple2[Iterator[Document], String] = {
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
-    // The change feed need to be materialized in order to get the information of the continuation token
-    val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
-    while (feedResponse.getQueryIterator.hasNext) {
-      cfDocuments.addAll(feedResponse.getQueryIterable.fetchNextBlock())
+    if (isStreaming) {
+      // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
+      val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
+      while (feedResponse.getQueryIterator.hasNext) {
+        val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
+        cfDocuments.addAll(feedItems)
+        logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
+      }
+      Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
+    } else {
+      Tuple2.apply(feedResponse.getQueryIterator, feedResponse.getResponseContinuation)
     }
-    Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
   }
 
   def upsertDocument(document: Document,
