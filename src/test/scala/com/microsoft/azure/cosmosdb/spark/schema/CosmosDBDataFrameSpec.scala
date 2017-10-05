@@ -582,7 +582,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val streamingGapMs = TimeUnit.SECONDS.toMillis(10)
     val insertIntervalMs = TimeUnit.SECONDS.toMillis(1) / 2
     // There is a delay from starting the writing to the stream to the first data being written
-    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(7)
+    val streamingSinkDelayMs = TimeUnit.SECONDS.toMillis(8)
     val insertIterations: Int = ((streamingGapMs * 2 + streamingTimeMs) / insertIntervalMs).toInt
 
     val cfCheckpointPath = "./changefeedcheckpoint"
@@ -625,7 +625,6 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
           newDoc.set(cosmosDBDefaults.PartitionKeyName, i)
           newDoc.set("content", s"sample content for document with ID $i")
           documentClient.createDocument(sourceCollectionLink, newDoc, null, true)
-          logInfo(s"Created document with ID $i")
           TimeUnit.MILLISECONDS.sleep(insertIntervalMs)
         })
         docIdIndex = docIdIndex + insertIterations
@@ -761,6 +760,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     streamingQuery.stop()
     CosmosDBRDDIterator.resetCollectionContinuationTokens()
+
+    cosmosDBDefaults.deleteCollection(databaseName, sinkCollection)
   }
 
   it should "work with a slow source" in withSparkSession() { spark =>
