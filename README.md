@@ -111,7 +111,8 @@ writeConfig = {
 "Endpoint" : "https://doctorwho.documents.azure.com:443/",
 "Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
 "Database" : "DepartureDelays",
-"Collection" : "flights_fromsea"
+"Collection" : "flights_fromsea",
+"Upsert" : "true"
 }
 seaflights.write.format("com.microsoft.azure.cosmosdb.spark").options(**writeConfig).save()
 
