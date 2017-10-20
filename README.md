@@ -168,6 +168,10 @@ val writeConfig = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.co
 // Write the dataframe 
 df.write.cosmosDB(writeConfig)
 
+// Upsert the dataframe
+import org.apache.spark.sql.SaveMode
+df.write.mode(SaveMode.Overwrite).cosmosDB(writeConfig)
+
 // Alternatively, write from an RDD
 // df.rdd.saveToCosmosDB(writeConfig)
 ```
