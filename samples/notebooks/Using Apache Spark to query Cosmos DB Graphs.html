@@ -11763,11 +11763,11 @@ div#notebook {
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="o">%%</span><span class="n">configure</span>
 <span class="o">{</span> <span class="s">&quot;name&quot;</span><span class="k">:</span><span class="err">&quot;</span><span class="kt">cosmosdb-graph-spark_scala</span><span class="err">&quot;</span><span class="o">,</span> 
-  <span class="s">&quot;executorMemory&quot;</span><span class="k">:</span> <span class="err">&quot;22</span><span class="kt">G</span><span class="err">&quot;</span><span class="o">,</span> 
-  <span class="s">&quot;executorCores&quot;</span><span class="k">:</span> <span class="err">8</span><span class="o">,</span> 
-  <span class="s">&quot;numExecutors&quot;</span><span class="k">:</span> <span class="err">8</span><span class="o">,</span> 
+  <span class="s">&quot;executorMemory&quot;</span><span class="k">:</span> <span class="err">&quot;10</span><span class="kt">G</span><span class="err">&quot;</span><span class="o">,</span> 
+  <span class="s">&quot;executorCores&quot;</span><span class="k">:</span> <span class="err">2</span><span class="o">,</span> 
+  <span class="s">&quot;numExecutors&quot;</span><span class="k">:</span> <span class="err">2</span><span class="o">,</span> 
   <span class="s">&quot;driverMemory&quot;</span><span class="k">:</span> <span class="err">&quot;10</span><span class="kt">G</span><span class="err">&quot;</span><span class="o">,</span>
-  <span class="s">&quot;jars&quot;</span><span class="k">:</span> <span class="err">[&quot;</span><span class="kt">wasb:///example/jars/</span><span class="err">0</span><span class="kt">.</span><span class="err">0</span><span class="kt">.</span><span class="err">4</span><span class="kt">/azure-cosmosdb-spark_2.</span><span class="err">1</span><span class="kt">.</span><span class="err">0</span><span class="k">_</span><span class="err">2</span><span class="kt">.</span><span class="err">11</span><span class="kt">-</span><span class="err">0</span><span class="kt">.</span><span class="err">0</span><span class="kt">.</span><span class="err">4</span><span class="kt">.jar</span><span class="err">&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.4/azure-documentdb-1.13.0.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.4/azure-documentdb-rx-0.9.0-rc2.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.4/json-20140107.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.4/rxjava-1.3.0.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.4/rxnetty-0.4.20.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/sql/sqljdbc42.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/mysql/mysql-connector-java-5.1.44-bin.jar&quot;</span><span class="err">]</span><span class="o">,</span>  
+  <span class="s">&quot;jars&quot;</span><span class="k">:</span> <span class="err">[&quot;</span><span class="kt">wasb:///example/jars/</span><span class="err">0</span><span class="kt">.</span><span class="err">0</span><span class="kt">.</span><span class="err">5</span><span class="kt">/azure-cosmosdb-spark_2.</span><span class="err">1</span><span class="kt">.</span><span class="err">0</span><span class="k">_</span><span class="err">2</span><span class="kt">.</span><span class="err">11</span><span class="kt">-</span><span class="err">0</span><span class="kt">.</span><span class="err">0</span><span class="kt">.</span><span class="err">5</span><span class="kt">-SNAPSHOT.jar</span><span class="err">&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.5/azure-documentdb-1.13.0.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.5/azure-documentdb-rx-0.9.0-rc2.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.5/json-20140107.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.5/rxjava-1.3.0.jar&quot;</span><span class="o">,</span> <span class="s">&quot;wasb:///example/jars/0.0.5/rxnetty-0.4.20.jar&quot;</span><span class="err">]</span><span class="o">,</span>  
   <span class="s">&quot;conf&quot;</span><span class="k">:</span> <span class="o">{</span>
     <span class="err">&quot;</span><span class="kt">spark.jars.excludes</span><span class="err">&quot;</span><span class="kt">:</span> <span class="err">&quot;</span><span class="kt">org.scala-lang:scala-reflect</span><span class="err">&quot;</span>
    <span class="o">}</span>
@@ -11785,7 +11785,7 @@ div#notebook {
 <div class="output_area"><div class="prompt"></div>
 
 <div class="output_html rendered_html output_subarea ">
-Current session configs: <tt>{u'kind': 'spark', u'name': u'cosmosdb-graph-spark_scala', u'driverMemory': u'10G', u'numExecutors': 8, u'conf': {u'spark.jars.excludes': u'org.scala-lang:scala-reflect'}, u'executorCores': 8, u'jars': [u'wasb:///example/jars/0.0.4/azure-cosmosdb-spark_2.1.0_2.11-0.0.4.jar', u'wasb:///example/jars/0.0.4/azure-documentdb-1.13.0.jar', u'wasb:///example/jars/0.0.4/azure-documentdb-rx-0.9.0-rc2.jar', u'wasb:///example/jars/0.0.4/json-20140107.jar', u'wasb:///example/jars/0.0.4/rxjava-1.3.0.jar', u'wasb:///example/jars/0.0.4/rxnetty-0.4.20.jar', u'wasb:///example/jars/sql/sqljdbc42.jar', u'wasb:///example/jars/mysql/mysql-connector-java-5.1.44-bin.jar'], u'executorMemory': u'22G'}</tt><br>
+Current session configs: <tt>{u'kind': 'spark', u'name': u'cosmosdb-graph-spark_scala', u'driverMemory': u'10G', u'numExecutors': 2, u'conf': {u'spark.jars.excludes': u'org.scala-lang:scala-reflect'}, u'executorCores': 2, u'jars': [u'wasb:///example/jars/0.0.5/azure-cosmosdb-spark_2.1.0_2.11-0.0.5-SNAPSHOT.jar', u'wasb:///example/jars/0.0.5/azure-documentdb-1.13.0.jar', u'wasb:///example/jars/0.0.5/azure-documentdb-rx-0.9.0-rc2.jar', u'wasb:///example/jars/0.0.5/json-20140107.jar', u'wasb:///example/jars/0.0.5/rxjava-1.3.0.jar', u'wasb:///example/jars/0.0.5/rxnetty-0.4.20.jar'], u'executorMemory': u'10G'}</tt><br>
 </div>
 
 </div>
@@ -11804,7 +11804,7 @@ No active sessions.
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[2]:</div>
+<div class="prompt input_prompt">In&nbsp;[3]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="c1">// Import Necessary Libraries</span>
@@ -11816,11 +11816,11 @@ No active sessions.
 
 <span class="c1">// Maps</span>
 <span class="k">val</span> <span class="n">baseConfigMap</span> <span class="k">=</span> <span class="nc">Map</span><span class="o">(</span>
-<span class="s">&quot;Endpoint&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;https://tychostation.documents.azure.com:443/&quot;</span><span class="o">,</span>
-<span class="s">&quot;Masterkey&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;RL9Gmv9QC6kq0NowGPBiY4hXjuavivMVKUj3GNx8h8mYsY54AGZUySPEvYcGzFEgJIHz8RXwjgqeOjA4aZsp1w==&quot;</span><span class="o">,</span>
-<span class="s">&quot;Database&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;departuredelays&quot;</span><span class="o">,</span>
+<span class="s">&quot;Endpoint&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;https://sqlpass-graph.documents.azure.com:443/&quot;</span><span class="o">,</span>
+<span class="s">&quot;Masterkey&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;1TkIEGAn8wAeJXObm4Mm1FG5EEhPmoTez0mODFXghTcpucA0KS5ylsdQJRmZt3JI6If71RxdHqYNI17Skvgoew==&quot;</span><span class="o">,</span>
+<span class="s">&quot;Database&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;flights&quot;</span><span class="o">,</span>
 <span class="s">&quot;preferredRegions&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;Central US&quot;</span><span class="o">,</span>
-<span class="s">&quot;Collection&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;flights&quot;</span><span class="o">,</span> 
+<span class="s">&quot;Collection&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;delays&quot;</span><span class="o">,</span> 
 <span class="s">&quot;SamplingRatio&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;1.0&quot;</span><span class="o">,</span>
 <span class="s">&quot;schema_samplesize&quot;</span> <span class="o">-&gt;</span> <span class="s">&quot;200000&quot;</span>
 <span class="o">)</span>
@@ -11844,40 +11844,10 @@ No active sessions.
 </div>
 </div>
 
-<div class="output_wrapper">
-<div class="output">
-
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>Starting Spark application
-</pre>
-</div>
-</div>
-
-<div class="output_area"><div class="prompt"></div>
-
-<div class="output_html rendered_html output_subarea ">
-<table>
-<tr><th>ID</th><th>YARN Application ID</th><th>Kind</th><th>State</th><th>Spark UI</th><th>Driver log</th><th>Current session?</th></tr><tr><td>40</td><td>application_1505703138288_0081</td><td>spark</td><td>idle</td><td><a target="_blank" href="http://hn1-cosmos.yvai4bkj0kzuzmfqc34cswfw4h.gx.internal.cloudapp.net:8088/proxy/application_1505703138288_0081/">Link</a></td><td><a target="_blank" href="http://10.0.0.9:30060/node/containerlogs/container_1505703138288_0081_01_000001/livy">Link</a></td><td>✔</td></tr></table>
-</div>
-
-</div>
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>SparkSession available as &#39;spark&#39;.
-</pre>
-</div>
-</div>
-
-</div>
-</div>
-
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[3]:</div>
+<div class="prompt input_prompt">In&nbsp;[4]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="c1">// airport information</span>
@@ -11898,7 +11868,7 @@ No active sessions.
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[4]:</div>
+<div class="prompt input_prompt">In&nbsp;[5]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="c1">// delay information</span>
@@ -11915,7 +11885,7 @@ No active sessions.
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[5]:</div>
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="c1">// Cache data</span>
@@ -11927,32 +11897,19 @@ No active sessions.
 </div>
 </div>
 
-<div class="output_wrapper">
-<div class="output">
-
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>res21: delays.type = [tripid: string, src: string ... 4 more fields]</pre>
-</div>
-</div>
-
-</div>
-</div>
-
 </div>
 <div class="cell border-box-sizing text_cell rendered">
 <div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="Number-of-flights-departing-from-Las-Vegas">Number of flights departing from Las Vegas<a class="anchor-link" href="#Number-of-flights-departing-from-Las-Vegas">&#182;</a></h2>
+<h2 id="Number-of-flights-departing-from-Seattle">Number of flights departing from Seattle<a class="anchor-link" href="#Number-of-flights-departing-from-Seattle">&#182;</a></h2>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[6]:</div>
+<div class="prompt input_prompt">In&nbsp;[8]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="o">%%</span><span class="n">sql</span>
@@ -11960,7 +11917,7 @@ No active sessions.
   <span class="n">from</span> <span class="n">delays</span> <span class="n">f</span> 
     <span class="n">join</span> <span class="n">airports</span> <span class="n">a</span> 
       <span class="n">on</span> <span class="n">a</span><span class="o">.</span><span class="n">iata</span> <span class="k">=</span> <span class="n">f</span><span class="o">.</span><span class="n">dst</span> 
- <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;LAS</span><span class="err">&#39;</span> 
+ <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;SEA</span><span class="err">&#39;</span> 
  <span class="n">group</span> <span class="n">by</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span> 
  <span class="n">order</span> <span class="n">by</span> <span class="n">count</span><span class="o">(</span><span class="mi">1</span><span class="o">)</span>
 </pre></div>
@@ -12027,7 +11984,7 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
 <div class="output_area"><div class="prompt"></div>
 
 <div class="output_html rendered_html output_subarea ">
-<div id="6d8aa129-6496-4172-a2c8-524a55e401e9" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("6d8aa129-6496-4172-a2c8-524a55e401e9", [{"y": [105, 1097, 521, 90, 315, 266, 169, 1088, 4, 6, 90, 800, 1231, 244, 260, 90, 142, 415, 568, 13, 180, 270, 95, 270, 2408, 128, 345, 1804, 90, 82, 601, 432, 345, 798, 90, 201, 569, 116, 236, 193, 1228, 602, 90, 629, 860, 90, 617, 1698, 611, 90, 269, 90, 90, 383], "x": ["Albuquerque", "Anchorage", "Atlanta", "Austin", "Boston", "Burbank", "Charlotte", "Chicago", "Cincinnati", "Cleveland", "Colorado Springs", "Dallas", "Denver", "Detroit", "Fairbanks", "Fort Lauderdale", "Fresno", "Honolulu, Oahu", "Houston", "Jackson Hole", "Juneau", "Kahului, Maui", "Kansas City", "Ketchikan", "Las Vegas", "Lihue, Kauai", "Long Beach", "Los Angeles", "Miami", "Milwaukee", "Minneapolis", "New York", "Newark", "Oakland", "Omaha", "Ontario", "Orange County", "Orlando", "Palm Springs", "Philadelphia", "Phoenix", "Portland", "Reno", "Sacramento", "Salt Lake City", "San Antonio", "San Diego", "San Francisco", "San Jose", "Santa Barbara", "Spokane", "St. Louis", "Tucson", "Washington DC"], "type": "bar"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "city"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "flights"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
+<div id="720094bc-3272-4f00-987b-68f889d9befe" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("720094bc-3272-4f00-987b-68f889d9befe", [{"y": [28, 624, 328, 54, 191, 161, 57, 524, 4, 6, 31, 514, 515, 149, 155, 55, 36, 220, 205, 4, 108, 139, 59, 162, 552, 77, 166, 873, 59, 28, 383, 277, 165, 363, 31, 109, 336, 70, 129, 98, 519, 207, 31, 294, 488, 54, 355, 759, 309, 31, 162, 54, 54], "x": ["Albuquerque", "Anchorage", "Atlanta", "Austin", "Boston", "Burbank", "Charlotte", "Chicago", "Cincinnati", "Cleveland", "Colorado Springs", "Dallas", "Denver", "Detroit", "Fairbanks", "Fort Lauderdale", "Fresno", "Honolulu, Oahu", "Houston", "Jackson Hole", "Juneau", "Kahului, Maui", "Kansas City", "Ketchikan", "Las Vegas", "Lihue, Kauai", "Long Beach", "Los Angeles", "Miami", "Milwaukee", "Minneapolis", "New York", "Newark", "Oakland", "Omaha", "Ontario", "Orange County", "Orlando", "Palm Springs", "Philadelphia", "Phoenix", "Portland", "Reno", "Sacramento", "Salt Lake City", "San Antonio", "San Diego", "San Francisco", "San Jose", "Santa Barbara", "Spokane", "St. Louis", "Tucson"], "type": "bar"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "city"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "flights"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
 </div>
 
 </div>
@@ -12041,13 +11998,13 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="Top-5-delayed-destination-cities-departing-from-Las-Vegas">Top 5 delayed destination cities departing from Las Vegas<a class="anchor-link" href="#Top-5-delayed-destination-cities-departing-from-Las-Vegas">&#182;</a></h2>
+<h2 id="Top-5-delayed-destination-cities-departing-from-Seattle">Top 5 delayed destination cities departing from Seattle<a class="anchor-link" href="#Top-5-delayed-destination-cities-departing-from-Seattle">&#182;</a></h2>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[7]:</div>
+<div class="prompt input_prompt">In&nbsp;[9]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="o">%%</span><span class="n">sql</span>
@@ -12057,7 +12014,7 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
   <span class="n">from</span> <span class="n">delays</span> <span class="n">f</span> 
     <span class="n">join</span> <span class="n">airports</span> <span class="n">a</span> 
       <span class="n">on</span> <span class="n">a</span><span class="o">.</span><span class="n">iata</span> <span class="k">=</span> <span class="n">f</span><span class="o">.</span><span class="n">dst</span> 
- <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;LAS</span><span class="err">&#39;</span> 
+ <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;SEA</span><span class="err">&#39;</span> 
  <span class="n">group</span> <span class="n">by</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span> 
  <span class="n">order</span> <span class="n">by</span> <span class="n">sum</span><span class="o">(</span><span class="n">f</span><span class="o">.</span><span class="n">delay</span><span class="o">)</span> <span class="n">limit</span> <span class="mi">5</span>
 <span class="o">)</span> <span class="n">a</span>
@@ -12125,7 +12082,7 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
 <div class="output_area"><div class="prompt"></div>
 
 <div class="output_html rendered_html output_subarea ">
-<div id="1f62cc9a-7fe5-4ec6-ab1f-86185b33189b" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("1f62cc9a-7fe5-4ec6-ab1f-86185b33189b", [{"y": [-2, -14, -18, -165, -967], "x": ["0. Cincinnati", "1. Omaha", "2. Lihue, Kauai", "3. Burbank", "4. Orange County"], "type": "bar"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "destination"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "TotalDelays"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
+<div id="78311eec-5521-4c3a-b919-1216af4597c0" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("78311eec-5521-4c3a-b919-1216af4597c0", [{"y": [235, 113, 100, 49, 14], "x": ["0. San Antonio", "1. Milwaukee", "2. Cleveland", "3. Jackson Hole", "4. Cincinnati"], "type": "bar"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "destination"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "TotalDelays"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
 </div>
 
 </div>
@@ -12139,17 +12096,17 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="Calculate-Median-Delays-departing-from-Las-Vegas">Calculate Median Delays departing from Las Vegas<a class="anchor-link" href="#Calculate-Median-Delays-departing-from-Las-Vegas">&#182;</a></h2>
+<h2 id="Calculate-Median-Delays-departing-from-Seattle">Calculate Median Delays departing from Seattle<a class="anchor-link" href="#Calculate-Median-Delays-departing-from-Seattle">&#182;</a></h2>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[8]:</div>
+<div class="prompt input_prompt">In&nbsp;[11]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-scala"><pre><span></span><span class="o">%%</span><span class="n">sql</span>
-<span class="n">select</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span><span class="o">,</span> <span class="n">percentile_approx</span><span class="o">(</span><span class="n">f</span><span class="o">.</span><span class="n">delay</span><span class="o">,</span> <span class="mf">0.5</span><span class="o">)</span> <span class="n">as</span> <span class="n">median_delay</span> <span class="n">from</span> <span class="n">delays</span> <span class="n">f</span> <span class="n">join</span> <span class="n">airports</span> <span class="n">a</span> <span class="n">on</span> <span class="n">a</span><span class="o">.</span><span class="n">iata</span> <span class="k">=</span> <span class="n">f</span><span class="o">.</span><span class="n">dst</span> <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;LAS</span><span class="err">&#39;</span> <span class="n">and</span> <span class="n">f</span><span class="o">.</span><span class="n">delay</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="n">group</span> <span class="n">by</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span> <span class="n">order</span> <span class="n">by</span> <span class="n">median_delay</span>
+<span class="n">select</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span><span class="o">,</span> <span class="n">percentile_approx</span><span class="o">(</span><span class="n">f</span><span class="o">.</span><span class="n">delay</span><span class="o">,</span> <span class="mf">0.5</span><span class="o">)</span> <span class="n">as</span> <span class="n">median_delay</span> <span class="n">from</span> <span class="n">delays</span> <span class="n">f</span> <span class="n">join</span> <span class="n">airports</span> <span class="n">a</span> <span class="n">on</span> <span class="n">a</span><span class="o">.</span><span class="n">iata</span> <span class="k">=</span> <span class="n">f</span><span class="o">.</span><span class="n">dst</span> <span class="n">where</span> <span class="n">f</span><span class="o">.</span><span class="n">src</span> <span class="k">=</span> <span class=" -Symbol">&#39;SEA</span><span class="err">&#39;</span> <span class="n">and</span> <span class="n">f</span><span class="o">.</span><span class="n">delay</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="n">group</span> <span class="n">by</span> <span class="n">a</span><span class="o">.</span><span class="n">city</span> <span class="n">order</span> <span class="n">by</span> <span class="n">median_delay</span>
 </pre></div>
 
 </div>
@@ -12214,7 +12171,7 @@ color:o.color,colorscale:o.colorscale,cauto:o.cauto,cmax:o.cmax,cmin:o.cmin,auto
 <div class="output_area"><div class="prompt"></div>
 
 <div class="output_html rendered_html output_subarea ">
-<div id="7ebcaca4-f24b-47e1-8168-576c221e183f" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("7ebcaca4-f24b-47e1-8168-576c221e183f", [{"y": [-2.0, -3.0, -3.0, -3.0, -4.0, -5.0, -4.0, -3.0, -8.0, -2.0, -5.0, -4.0, -4.0, -3.0, -4.0, -4.0, -6.0, -4.0, -4.0, -7.0, -3.0, -5.0, -4.0, -4.0, -4.0, -4.0, -6.0, -4.0, -4.0, -3.0, -4.0, -4.0, -3.0, -4.0, -7.0, -4.0, -5.0, -3.0, -4.0, -3.0, -4.0, -6.0, -2.0, -3.0, -4.0, -3.0, -4.0, -4.0, -4.0, -6.0, -4.0, -4.0, -4.0, -5.0], "x": ["Albuquerque", "Anchorage", "Atlanta", "Austin", "Boston", "Burbank", "Charlotte", "Chicago", "Cincinnati", "Cleveland", "Colorado Springs", "Dallas", "Denver", "Detroit", "Fairbanks", "Fort Lauderdale", "Fresno", "Honolulu, Oahu", "Houston", "Jackson Hole", "Juneau", "Kahului, Maui", "Kansas City", "Ketchikan", "Las Vegas", "Lihue, Kauai", "Long Beach", "Los Angeles", "Miami", "Milwaukee", "Minneapolis", "New York", "Newark", "Oakland", "Omaha", "Ontario", "Orange County", "Orlando", "Palm Springs", "Philadelphia", "Phoenix", "Portland", "Reno", "Sacramento", "Salt Lake City", "San Antonio", "San Diego", "San Francisco", "San Jose", "Santa Barbara", "Spokane", "St. Louis", "Tucson", "Washington DC"], "type": "scatter", "fill": "tonexty"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "city"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "median_delay"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
+<div id="606165d3-bcef-4d00-a9b5-5af3be9b42d9" style="height: 525; width: 100%;" class="plotly-graph-div"></div><script type="text/javascript">require(["plotly"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("606165d3-bcef-4d00-a9b5-5af3be9b42d9", [{"y": [9.0, 4.0, 4.0, 3.0, 5.0, 5.0, 5.0, 5.0, 1.0, 12.0, 5.0, 6.0, 5.0, 4.0, 4.0, 5.0, 6.0, 4.0, 6.0, 6.0, 4.0, 5.0, 5.0, 5.0, 5.0, 4.0, 6.0, 4.0, 7.0, 3.0, 4.0, 5.0, 4.0, 6.0, 7.0, 5.0, 5.0, 3.0, 4.0, 4.0, 5.0, 7.0, 9.0, 4.0, 5.0, 4.0, 4.0, 5.0, 5.0, 8.0, 4.0, 5.0, 4.0], "x": ["Albuquerque", "Anchorage", "Atlanta", "Austin", "Boston", "Burbank", "Charlotte", "Chicago", "Cincinnati", "Cleveland", "Colorado Springs", "Dallas", "Denver", "Detroit", "Fairbanks", "Fort Lauderdale", "Fresno", "Honolulu, Oahu", "Houston", "Jackson Hole", "Juneau", "Kahului, Maui", "Kansas City", "Ketchikan", "Las Vegas", "Lihue, Kauai", "Long Beach", "Los Angeles", "Miami", "Milwaukee", "Minneapolis", "New York", "Newark", "Oakland", "Omaha", "Ontario", "Orange County", "Orlando", "Palm Springs", "Philadelphia", "Phoenix", "Portland", "Reno", "Sacramento", "Salt Lake City", "San Antonio", "San Diego", "San Francisco", "San Jose", "Santa Barbara", "Spokane", "St. Louis", "Tucson"], "type": "scatter", "fill": "tonexty"}], {"xaxis": {"rangemode": "tozero", "type": "-", "title": "city"}, "yaxis": {"rangemode": "tozero", "type": "-", "title": "median_delay"}}, {"linkText": "Export to plot.ly", "showLink": false})});</script>
 </div>
 
 </div>
