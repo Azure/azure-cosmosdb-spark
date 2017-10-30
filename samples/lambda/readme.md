@@ -9,6 +9,9 @@ The samples included are
     * The [Lambda Architecture Re-architected - Batch Layer]() notebook [ipynb]() | [html]() queries the *master dataset* set of batch views.
  3. The **serving layer** is comprised of pre-computed data resulting in batch views (e.g. aggregations, specific slicers, etc.) for fast queries.
     * The [Lambda Architecture Re-architected - Batch to Serving Layer]() notebook [ipynb]() | [html]() pushes the *batch* data to the *serving layer*; i.e. Spark will query a batch collection of tweets, process it, and store it into another collection (i.e. *computed batch*).
+ 4. The **speed layer** is comprised of Spark utilizing Cosmos DB change feed to read and act on immediately.  The data can also be saved to *computed RT* so that other systems can query the processed real-time data as opposed to running a real-time query themselves.
+    * The [Streaming Query from Cosmos DB Change Feed]() scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count.
+    * The [Streaming Tags Query from Cosmos DB Change Feed ]() scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count by tags.
   
 
 ## Requirements
