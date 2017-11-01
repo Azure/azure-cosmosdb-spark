@@ -29,6 +29,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
+import org.json.JSONObject
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable
@@ -174,6 +175,6 @@ case class CosmosDBSchema[T <: RDD[Document]](
     case obj: java.sql.Timestamp => TimestampType
     case null => NullType
     case date: java.util.Date => TimestampType
-    case _ => StringType
+    case obj => if (obj == JSONObject.NULL) NullType else StringType
   }
 }
