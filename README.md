@@ -101,6 +101,21 @@ flightsConfig = {
 # Connect via Spark connector to create Spark DataFrame
 flights = spark.read.format("com.microsoft.azure.cosmosdb.spark").options(**flightsConfig).load()
 flights.count()
+
+# Queries
+flights.createOrReplaceTempView("c")
+seaflights = spark.sql("SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'")
+
+# Write configuration
+writeConfig = {
+"Endpoint" : "https://doctorwho.documents.azure.com:443/",
+"Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+"Database" : "DepartureDelays",
+"Collection" : "flights_fromsea",
+"Upsert" : "true"
+}
+seaflights.write.format("com.microsoft.azure.cosmosdb.spark").options(**writeConfig).save()
+
 ```
 
 
@@ -124,7 +139,7 @@ import com.microsoft.azure.cosmosdb.spark.config.Config
 val readConfig2 = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.com:443/",
 "Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
 "Database" -> "DepartureDelays",
-"preferredRegions" -> "Central US;East US2;",
+"PreferredRegions" -> "Central US;East US2;",
 "Collection" -> "flights_pcoll", 
 "SamplingRatio" -> "1.0"))
 
@@ -142,6 +157,24 @@ val df = spark.sql(query)
 
 // Run DF query (count)
 df.count()
+
+// Configure connection to the sink collection
+val writeConfig = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.com:443/",
+"Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+"Database" -> "DepartureDelays",
+"PreferredRegions" -> "Central US;East US2;",
+"Collection" -> "flights_fromsea",
+"WritingBatchSize" -> "100"))
+
+// Write the dataframe 
+df.write.cosmosDB(writeConfig)
+
+// Upsert the dataframe
+import org.apache.spark.sql.SaveMode
+df.write.mode(SaveMode.Overwrite).cosmosDB(writeConfig)
+
+// Alternatively, write from an RDD
+// df.rdd.saveToCosmosDB(writeConfig)
 ```
 
 
