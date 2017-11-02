@@ -22,13 +22,13 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
-import rx.Observable
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkimport.{BulkImportResponse, DocumentBulkImporter}
 import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
@@ -152,9 +152,10 @@ object CosmosDBSpark extends LoggingTrait {
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
     if (iter.nonEmpty) {
-      var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
-      var createDocumentObs: Observable[ResourceResponse[Document]] = null
-      var batchSize = 0
+      val bulkImporterBuilder = DocumentBulkImporter.builder.from(connection.documentClient, connection.getCollection)
+      val importer: DocumentBulkImporter = bulkImporterBuilder.build()
+      val documents = new java.util.ArrayList[String](writingBatchSize)
+      var bulkImportResponse: BulkImportResponse = null
       iter.foreach(item => {
         val document: Document = item match {
           case doc: Document => doc
@@ -166,24 +167,17 @@ object CosmosDBSpark extends LoggingTrait {
             }
           case any => new Document(any.toString)
         }
-        logDebug(s"Inserting document ${document}")
-        if (upsert)
-          createDocumentObs = connection.upsertDocument(document, null)
-        else
-          createDocumentObs = connection.createDocument(document, null)
-        observables.add(createDocumentObs)
-        batchSize = batchSize + 1
-        if (batchSize % writingBatchSize == 0) {
-          Observable.merge(observables).toBlocking.last()
-          if (writingBatchDelayMs > 0) {
-            TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
-          }
-          observables.clear()
-          batchSize = 0
+        if (document.getId == null) {
+          document.setId(UUID.randomUUID().toString)
+        }
+        documents.add(document.toJson())
+        if (documents.size() >= writingBatchSize) {
+          bulkImportResponse = importer.importAll(documents, upsert)
+          documents.clear()
         }
       })
-      if (!observables.isEmpty) {
-        Observable.merge(observables).toBlocking.last()
+      if (documents.size() > 0) {
+        bulkImportResponse = importer.importAll(documents, upsert)
       }
     }
   }
