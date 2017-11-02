@@ -64,6 +64,7 @@ object CosmosDBConfig {
   val WritingBatchDelayMs = "writingbatchdelayms"
   val StreamingTimestampToken = "tsToken"
   val RootPropertyToSave = "rootpropertytosave"
+  val BulkImport = "bulkimport"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
@@ -97,6 +98,7 @@ object CosmosDBConfig {
   val DefaultWritingBatchSize = 500
   val DefaultWritingBatchDelayMs = 0
   val DefaultStreamingSlowSourceDelayMs = 1
+  val DefaultBulkImport = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

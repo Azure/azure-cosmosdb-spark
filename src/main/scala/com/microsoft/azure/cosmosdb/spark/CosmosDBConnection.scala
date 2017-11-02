@@ -22,11 +22,9 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal._
-import com.microsoft.azure.documentdb.rx._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -49,39 +47,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
+  private var collection: DocumentCollection = _
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
+
 
   @transient private var client: DocumentClient = _
 
-  @transient private var asyncClient: AsyncDocumentClient = _
-
-  private lazy val documentClient: DocumentClient = {
+  lazy val documentClient: DocumentClient = {
     if (client == null) {
       client = accquireClient(connectionMode)
 
       CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
     }
     client
-  }
-
-  private lazy val asyncDocumentClient: AsyncDocumentClient = {
-    if (asyncClient == null) {
-      this.synchronized {
-        if (asyncClient == null) {
-          val clientConfig = getClientConfiguration(config)
-
-          asyncClient = new AsyncDocumentClient
-          .Builder()
-            .withServiceEndpoint(clientConfig.host)
-            .withMasterKey(clientConfig.key)
-            .withConnectionPolicy(clientConfig.connectionPolicy)
-            .withConsistencyLevel(clientConfig.consistencyLevel)
-            .build
-        }
-      }
-    }
-
-    asyncClient
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
@@ -113,6 +91,13 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       logWarning(s"CosmosDBConnection::Input preferred region list: ${option.get}")
       val preferredLocations = option.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
+    }
+
+    val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
+      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
+      toBoolean
+    if (bulkimport) {
+      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
     }
 
     ClientConfiguration(
@@ -175,16 +160,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     }
   }
 
-  def upsertDocument(document: Document,
-                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logTrace(s"Upserting document $document")
-    asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
-  }
-
-  def createDocument(document: Document,
-                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logTrace(s"Creating document $document")
-    asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
+  def getCollection: DocumentCollection = {
+    if (collection == null) {
+      collection = documentClient.readCollection(collectionLink, null).getResource
+    }
+    collection
   }
 
   def isDocumentCollectionEmpty: Boolean = {
@@ -192,7 +172,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     var requestOptions = new RequestOptions
     requestOptions.setPopulateQuotaInfo(true)
     val response = documentClient.readCollection(collectionLink, requestOptions)
+    if (collection == null) {
+      collection = response.getResource
+    }
     response.getDocumentCountUsage == 0
   }
 }
-

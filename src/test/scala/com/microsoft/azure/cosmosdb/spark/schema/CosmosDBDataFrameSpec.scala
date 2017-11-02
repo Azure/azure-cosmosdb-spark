@@ -603,6 +603,32 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     df.filter("id101 is not null").count() should equal(1)
   }
 
+  it should "be able to convert string property to numbers" in withSparkSession() { spark =>
+    val testCount = 5
+    spark.sparkContext.parallelize((1 to testCount).map(i => {
+      val doc = new Document()
+      doc.set("intValue", i)
+      doc.set("longValue", Int.MaxValue.asInstanceOf[Long] * 2 + i)
+      doc.set("doubleValue", i * 1.2345)
+      doc.set("decimalValue", BigDecimal.valueOf(Double.MaxValue) * 2 + i)
+      doc
+    })).saveToCosmosDB()
+    var df = spark.read.cosmosDB()
+    // Appenda document with string value for number property
+    spark.sql("select 'newdoc' as id, " +
+      "'0' as intValue, " +
+      "'0' as longValue, " +
+      "'0.0' as doubleValue, " +
+      "'0.0' as decimalValue").
+      write.mode(SaveMode.Append).cosmosDB()
+    df.count() should equal(testCount + 1)
+    df.filter("intValue = 0").count() should equal(0)
+    df.filter("intValue = '0'").count() should equal(1)
+    val row = df.take(testCount + 1)(testCount)
+    row.get(row.fieldIndex("intValue")) should equal(0)
+    row.get(row.fieldIndex("doubleValue")) should equal(0.0)
+  }
+
   // Structured stream
   "Structured Stream" should "be able to stream change feed from source collection to sink collection" in withSparkSession() { spark =>
     val host = CosmosDBDefaults().CosmosDBEndpoint
@@ -629,9 +655,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
-    val documentCollection = new DocumentCollection()
-    documentCollection.setId(sinkCollection)
-    documentClient.createCollection(databaseLink, documentCollection, null)
+    cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     /*
      * SCENARIO 1: STREAM READER TO STREAM WRITER TO SINK COLLECTION
@@ -814,9 +838,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
-    val documentCollection = new DocumentCollection()
-    documentCollection.setId(sinkCollection)
-    documentClient.createCollection(databaseLink, documentCollection, null)
+    cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     // Create some documents in the collection
     // These existing documents are needed to derive the starting schema

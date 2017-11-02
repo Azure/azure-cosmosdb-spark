@@ -76,6 +76,7 @@ trait JsonSupport {
     value match {
       case value: java.lang.Integer => value.byteValue()
       case value: java.lang.Long => value.byteValue()
+      case value: java.lang.String => value.toByte
     }
   }
 
@@ -83,6 +84,7 @@ trait JsonSupport {
     value match {
       case value: java.lang.Integer => value.toShort
       case value: java.lang.Long => value.toShort
+      case value: java.lang.String => value.toShort
     }
   }
 
@@ -103,6 +105,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.asInstanceOf[Int].toLong
       case value: java.lang.Long => value.asInstanceOf[Long]
       case value: java.lang.Double => value.asInstanceOf[Double].toLong
+      case value: java.lang.String => value.toLong
     }
   }
 
@@ -111,6 +114,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.asInstanceOf[Int].toDouble
       case value: java.lang.Long => value.asInstanceOf[Long].toDouble
       case value: java.lang.Double => value.asInstanceOf[Double]
+      case value: java.lang.String => value.toDouble
     }
   }
 
@@ -121,6 +125,7 @@ trait JsonSupport {
       case value: java.lang.Double => new java.math.BigDecimal(value)
       case value: java.math.BigInteger => new java.math.BigDecimal(value)
       case value: java.math.BigDecimal => value
+      case value: java.lang.String => new java.math.BigDecimal(value)
     }
   }
 
@@ -129,6 +134,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.toFloat
       case value: java.lang.Long => value.toFloat
       case value: java.lang.Double => value.toFloat
+      case value: java.lang.String => value.toFloat
     }
   }
 
@@ -136,6 +142,7 @@ trait JsonSupport {
     value match {
       case value: java.util.Date => new Timestamp(value.getTime)
       case value: java.lang.Long => new Timestamp(value)
+      case value: java.lang.String => Timestamp.valueOf(value)
     }
   }
 
@@ -143,6 +150,7 @@ trait JsonSupport {
     value match {
       case value: java.util.Date => new Date(value.getTime)
       case value: java.lang.Long => new Date(value)
+      case value: java.lang.String => Date.valueOf(value)
     }
   }
 
