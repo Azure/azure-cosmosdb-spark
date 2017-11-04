@@ -97,7 +97,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
     if (bulkimport) {
+      // The bulk import library handles the throttling requests on its own
+      // Gateway connection mode needed to avoid potential master partition throttling
+      // as the number of tasks grow larger for collection with a lot of partitions.
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
+      connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
     }
 
     ClientConfiguration(

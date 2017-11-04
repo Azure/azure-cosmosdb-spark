@@ -348,6 +348,10 @@ limitations under the License.
                   <pattern>org.apache.http</pattern>
                   <shadedPattern>cosmosdb_connector_shaded.org.apache.http</shadedPattern>
                 </relocation>
+                <relocation>
+                  <pattern>com.google</pattern>
+                  <shadedPattern>cosmosdb_connector_shaded.com.google</shadedPattern>
+                </relocation>
               </relocations>
               <filters>
                 <filter>
