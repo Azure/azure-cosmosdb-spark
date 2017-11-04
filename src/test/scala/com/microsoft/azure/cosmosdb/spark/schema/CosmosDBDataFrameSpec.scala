@@ -614,8 +614,9 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       doc
     })).saveToCosmosDB()
     var df = spark.read.cosmosDB()
-    // Appenda document with string value for number property
-    spark.sql("select 'newdoc' as id, " +
+
+    // Verify with a document with string value for number property
+    spark.sql(s"select '${testCount + 1}' as id, " +
       "'0' as intValue, " +
       "'0' as longValue, " +
       "'0.0' as doubleValue, " +
@@ -624,9 +625,22 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     df.count() should equal(testCount + 1)
     df.filter("intValue = 0").count() should equal(0)
     df.filter("intValue = '0'").count() should equal(1)
-    val row = df.take(testCount + 1)(testCount)
+    var row = df.take(testCount + 1)(testCount)
     row.get(row.fieldIndex("intValue")) should equal(0)
     row.get(row.fieldIndex("doubleValue")) should equal(0.0)
+
+    // Verify with a document with null value for non-null property
+    spark.sql(s"select '${testCount + 2}' as id, " +
+      "null as intValue, " +
+      "null as longValue, " +
+      "null as doubleValue, " +
+      "null as decimalValue").
+      write.mode(SaveMode.Append).cosmosDB()
+    df.count() should equal(testCount + 2)
+    df.filter("intValue = 0").count() should equal(0)
+    row = df.take(testCount + 2)(testCount + 1)
+    row.get(row.fieldIndex("intValue")) shouldBe null
+    row.get(row.fieldIndex("doubleValue")) shouldBe null
   }
 
   // Structured stream
