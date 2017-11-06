@@ -23,7 +23,9 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
+import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -134,6 +136,81 @@ object CosmosDBSpark extends LoggingTrait {
     rdd.foreachPartition(iter => savePartition(iter, writeConfig))
   }
 
+  private def bulkImport[D: ClassTag](iter: Iterator[D],
+                                      connection: CosmosDBConnection,
+                                      writingBatchSize: Integer,
+                                      rootPropertyToSave: Option[String],
+                                      upsert: Boolean): Unit = {
+    val bulkImporterBuilder = DocumentBulkImporter.builder.from(connection.documentClient, connection.getCollection)
+    val importer: DocumentBulkImporter = bulkImporterBuilder.build()
+    val documents = new java.util.ArrayList[String](writingBatchSize)
+    var bulkImportResponse: BulkImportResponse = null
+    iter.foreach(item => {
+      val document: Document = item match {
+        case doc: Document => doc
+        case row: Row =>
+          if (rootPropertyToSave.isDefined) {
+            new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
+          } else {
+            new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+          }
+        case any => new Document(any.toString)
+      }
+      if (document.getId == null) {
+        document.setId(UUID.randomUUID().toString)
+      }
+      documents.add(document.toJson())
+      if (documents.size() >= writingBatchSize) {
+        bulkImportResponse = importer.importAll(documents, upsert)
+        documents.clear()
+      }
+    })
+    if (documents.size() > 0) {
+      bulkImportResponse = importer.importAll(documents, upsert)
+    }
+  }
+
+  private def importWithRxJava[D: ClassTag](iter: Iterator[D],
+                                            connection: CosmosDBConnection,
+                                            writingBatchSize: Integer,
+                                            writingBatchDelayMs: Long,
+                                            rootPropertyToSave: Option[String],
+                                            upsert: Boolean): Unit = {
+    var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
+    var createDocumentObs: Observable[ResourceResponse[Document]] = null
+    var batchSize = 0
+    iter.foreach(item => {
+      val document: Document = item match {
+        case doc: Document => doc
+        case row: Row =>
+          if (rootPropertyToSave.isDefined) {
+            new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
+          } else {
+            new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+          }
+        case any => new Document(any.toString)
+      }
+      logDebug(s"Inserting document $document")
+      if (upsert)
+        createDocumentObs = connection.upsertDocument(document, null)
+      else
+        createDocumentObs = connection.createDocument(document, null)
+      observables.add(createDocumentObs)
+      batchSize = batchSize + 1
+      if (batchSize % writingBatchSize == 0) {
+        Observable.merge(observables).toBlocking.last()
+        if (writingBatchDelayMs > 0) {
+          TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
+        }
+        observables.clear()
+        batchSize = 0
+      }
+    })
+    if (!observables.isEmpty) {
+      Observable.merge(observables).toBlocking.last()
+    }
+  }
+
   private def savePartition[D: ClassTag](iter: Iterator[D], config: Config): Unit = {
     val connection = new CosmosDBConnection(config)
     val upsert: Boolean = config
@@ -147,37 +224,18 @@ object CosmosDBSpark extends LoggingTrait {
       .toInt
     val rootPropertyToSave = config
       .get[String](CosmosDBConfig.RootPropertyToSave)
+    val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
+      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
+      toBoolean
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
     if (iter.nonEmpty) {
-      val bulkImporterBuilder = DocumentBulkImporter.builder.from(connection.documentClient, connection.getCollection)
-      val importer: DocumentBulkImporter = bulkImporterBuilder.build()
-      val documents = new java.util.ArrayList[String](writingBatchSize)
-      var bulkImportResponse: BulkImportResponse = null
-      iter.foreach(item => {
-        val document: Document = item match {
-          case doc: Document => doc
-          case row: Row =>
-            if (rootPropertyToSave.isDefined) {
-              new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
-            } else {
-              new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
-            }
-          case any => new Document(any.toString)
-        }
-        if (document.getId == null) {
-          document.setId(UUID.randomUUID().toString)
-        }
-        documents.add(document.toJson())
-        if (documents.size() >= writingBatchSize) {
-          bulkImportResponse = importer.importAll(documents, upsert)
-          documents.clear()
-        }
-      })
-      if (documents.size() > 0) {
-        bulkImportResponse = importer.importAll(documents, upsert)
+      if (bulkimport) {
+        bulkImport(iter, connection, writingBatchSize, rootPropertyToSave, upsert)
+      } else {
+        importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
       }
     }
   }

@@ -22,9 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal._
+import com.microsoft.azure.documentdb.rx._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -53,6 +55,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   @transient private var client: DocumentClient = _
 
+  @transient private var asyncClient: AsyncDocumentClient = _
+
   lazy val documentClient: DocumentClient = {
     if (client == null) {
       client = accquireClient(connectionMode)
@@ -60,6 +64,26 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
     }
     client
+  }
+
+  private lazy val asyncDocumentClient: AsyncDocumentClient = {
+    if (asyncClient == null) {
+      this.synchronized {
+        if (asyncClient == null) {
+          val clientConfig = getClientConfiguration(config)
+
+          asyncClient = new AsyncDocumentClient
+          .Builder()
+            .withServiceEndpoint(clientConfig.host)
+            .withMasterKey(clientConfig.key)
+            .withConnectionPolicy(clientConfig.connectionPolicy)
+            .withConsistencyLevel(clientConfig.consistencyLevel)
+            .build
+        }
+      }
+    }
+
+    asyncClient
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
@@ -169,6 +193,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       collection = documentClient.readCollection(collectionLink, null).getResource
     }
     collection
+  }
+
+  def upsertDocument(document: Document,
+                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
+    logTrace(s"Upserting document $document")
+    asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
+  }
+
+  def createDocument(document: Document,
+                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
+    logTrace(s"Creating document $document")
+    asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
   }
 
   def isDocumentCollectionEmpty: Boolean = {

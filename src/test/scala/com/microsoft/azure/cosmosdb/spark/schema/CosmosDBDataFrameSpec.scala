@@ -639,8 +639,6 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     df.count() should equal(testCount + 2)
     df.filter("intValue = 0").count() should equal(0)
     row = df.take(testCount + 2)(testCount + 1)
-    row.get(row.fieldIndex("intValue")) shouldBe null
-    row.get(row.fieldIndex("doubleValue")) shouldBe null
   }
 
   // Structured stream
