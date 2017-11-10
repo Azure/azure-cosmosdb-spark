@@ -24,6 +24,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.io.File
 import java.sql.{Date, Timestamp}
+import java.util
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
@@ -31,6 +32,7 @@ import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, CosmosDBRDDIterator}
 import com.microsoft.azure.cosmosdb.spark.streaming.{CosmosDBSinkProvider, CosmosDBSourceProvider}
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{IncUpdateOperation, UpdateItem, UpdateOperationBase}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.types.{StructField, _}
@@ -913,5 +915,34 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       contain allElementsOf List(doc1.getId, doc2.getId)
 
     streamingQuery.stop()
+  }
+
+  // Bulk Import
+  "BulkImport" should "be able to do bulk update" in withSparkSession() { spark =>
+    spark.sparkContext.parallelize((1 to documentCount).map(i => {
+      val newDoc = new Document()
+      newDoc.setId(i.toString)
+      newDoc.set("pkey", i.toString)
+      newDoc.set("doubleCol", i * 1.5)
+      newDoc
+    })).saveToCosmosDB()
+
+    val df = spark.read.cosmosDB()
+    val updateItems = df.rdd.map(r => {
+      val id = r.get(r.fieldIndex("id")).asInstanceOf[String]
+      val pkey = r.get(r.fieldIndex("pkey")).asInstanceOf[String]
+      val operations = new util.ArrayList[UpdateOperationBase]()
+      operations.add(new IncUpdateOperation("doubleCol", 1.5))
+      new UpdateItem(id, pkey, operations)
+    })
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.BulkUpdate, "true"))
+
+    updateItems.saveToCosmosDB(Config(configMap))
+
+    df.rdd.map(r => r.getDouble(r.fieldIndex("doubleCol"))).sortBy(x => x).collect() should
+      contain theSameElementsAs (1 to documentCount).map(x => x * 1.5 + 1.5).toList
   }
 }

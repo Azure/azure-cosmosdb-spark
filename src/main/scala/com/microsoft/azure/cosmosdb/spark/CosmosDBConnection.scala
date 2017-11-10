@@ -25,6 +25,7 @@ package com.microsoft.azure.cosmosdb.spark
 import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkimport.DocumentBulkImporter
 import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.rx._
 
@@ -57,7 +58,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   @transient private var asyncClient: AsyncDocumentClient = _
 
-  lazy val documentClient: DocumentClient = {
+  @transient private var bulkImporter: DocumentBulkImporter = _
+
+  private lazy val documentClient: DocumentClient = {
     if (client == null) {
       client = accquireClient(connectionMode)
 
@@ -84,6 +87,29 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     }
 
     asyncClient
+  }
+
+  lazy val documentBulkImporter: DocumentBulkImporter = {
+    if (bulkImporter == null) {
+      val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
+      if (offers.isEmpty) {
+        throw new IllegalStateException("Cannot find Collection's corresponding offer")
+      }
+      val offer = offers.get(0)
+      val collectionThroughput = if (offer.getString("offerVersion") == "V1")
+        CosmosDBConfig.SinglePartitionCollectionOfferThroughput
+      else
+        offer.getContent.getInt("offerThroughput")
+
+      bulkImporter = DocumentBulkImporter.builder.from(documentClient,
+        databaseName,
+        collectionName,
+        getCollection.getPartitionKey,
+        collectionThroughput
+      ).build()
+    }
+
+    bulkImporter
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {

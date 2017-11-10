@@ -22,7 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.io.File
+import java.nio.charset.StandardCharsets
+
 import com.microsoft.azure.documentdb._
+import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkConf
 
 import scala.collection.JavaConverters._
@@ -129,8 +133,14 @@ class CosmosDBDefaults extends LoggingTrait {
     var requestOptions: RequestOptions = new RequestOptions()
     requestOptions.setOfferThroughput(10100)
 
-    documentDBClient.createCollection("dbs/" + databaseName, collection, requestOptions)
+    val createdCollection = documentDBClient.createCollection("dbs/" + databaseName, collection, requestOptions).getResource
     logInfo(s"Created collection with Id ${collection.getId}")
+
+    // Create the stored procedure
+    val sp = new StoredProcedure()
+    sp.setId("__bulkPatch")
+    sp.setBody(FileUtils.readFileToString(new File("src/test/resources/bulkPatch.js"), StandardCharsets.UTF_8.displayName()))
+    documentDBClient.createStoredProcedure(createdCollection.getSelfLink, sp, null)
   }
 
   def deleteCollection(databaseName: String, collectionName: String): Unit = {

@@ -30,6 +30,7 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{BulkUpdateResponse, UpdateItem, UpdateOperationBase}
 import com.microsoft.azure.documentdb.bulkimport.{BulkImportResponse, DocumentBulkImporter}
 import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
@@ -40,6 +41,7 @@ import org.apache.spark.sql.types.StructType
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
+import scala.util.Random
 
 /**
   * The CosmosDBSpark allow fast creation of RDDs, DataFrames or Datasets from CosmosDBSpark.
@@ -58,6 +60,8 @@ object CosmosDBSpark extends LoggingTrait {
     */
   var lastUpsertSetting: Option[Boolean] = _
   var lastWritingBatchSize: Option[Int] = _
+
+  val random = new Random(System.nanoTime())
 
   /**
     * Create a builder for configuring the [[CosmosDBSpark]]
@@ -133,7 +137,34 @@ object CosmosDBSpark extends LoggingTrait {
     * @tparam D the type of the data in the RDD
     */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
-    rdd.foreachPartition(iter => savePartition(iter, writeConfig))
+    var numPartitions = 0
+    try {
+      numPartitions = rdd.getNumPartitions
+    } catch {
+      case _: Throwable => // no op
+    }
+    rdd.foreachPartition(iter => savePartition(iter, writeConfig, numPartitions))
+  }
+
+  private def bulkUpdate[D: ClassTag](iter: Iterator[D],
+                                      connection: CosmosDBConnection,
+                                      writingBatchSize: Integer)(implicit ev: ClassTag[D]): Unit = {
+    val importer: DocumentBulkImporter = connection.documentBulkImporter
+    val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
+    var bulkImportResponse: BulkUpdateResponse = null
+    iter.foreach(item => {
+      if (item.getClass != classOf[UpdateItem]) {
+        throw new UnsupportedOperationException("The update dataframe must contain UpdateItems.")
+      }
+      updateItems.add(item.asInstanceOf[UpdateItem])
+      if (updateItems.size() >= writingBatchSize) {
+        bulkImportResponse = importer.updateAll(updateItems)
+        updateItems.clear()
+      }
+    })
+    if (updateItems.size() > 0) {
+      bulkImportResponse = importer.updateAll(updateItems)
+    }
   }
 
   private def bulkImport[D: ClassTag](iter: Iterator[D],
@@ -141,8 +172,7 @@ object CosmosDBSpark extends LoggingTrait {
                                       writingBatchSize: Integer,
                                       rootPropertyToSave: Option[String],
                                       upsert: Boolean): Unit = {
-    val bulkImporterBuilder = DocumentBulkImporter.builder.from(connection.documentClient, connection.getCollection)
-    val importer: DocumentBulkImporter = bulkImporterBuilder.build()
+    val importer: DocumentBulkImporter = connection.documentBulkImporter
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -211,7 +241,7 @@ object CosmosDBSpark extends LoggingTrait {
     }
   }
 
-  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config): Unit = {
+  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config, partitionCount: Int): Unit = {
     val connection = new CosmosDBConnection(config)
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
@@ -224,15 +254,27 @@ object CosmosDBSpark extends LoggingTrait {
       .toInt
     val rootPropertyToSave = config
       .get[String](CosmosDBConfig.RootPropertyToSave)
-    val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
+    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
       getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
+    val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
+      getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
+      toBoolean
+    val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
+      getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
+      toInt
+
+    // Delay the start as the number of tasks grow to avoid throttling at initialization
+    val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
+    TimeUnit.SECONDS.sleep(random.nextInt(maxDelaySec))
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
     if (iter.nonEmpty) {
-      if (bulkimport) {
+      if (isBulkUpdating) {
+        bulkUpdate(iter, connection, writingBatchSize)
+      } else if (isBulkImporting) {
         bulkImport(iter, connection, writingBatchSize, rootPropertyToSave, upsert)
       } else {
         importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
@@ -264,7 +306,13 @@ object CosmosDBSpark extends LoggingTrait {
     * @since 1.1.0
     */
   def save[D: ClassTag](dataset: Dataset[D], writeConfig: Config): Unit = {
-    dataset.foreachPartition(iter => savePartition(iter, writeConfig))
+    var numPartitions = 0
+    try {
+      numPartitions = dataset.rdd.getNumPartitions
+    } catch {
+      case _: Throwable => // no op
+    }
+    dataset.foreachPartition(iter => savePartition(iter, writeConfig, numPartitions))
   }
 
   /**
