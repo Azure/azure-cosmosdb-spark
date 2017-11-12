@@ -53,7 +53,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private var collection: DocumentCollection = _
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
 
-
   @transient private var client: DocumentClient = _
 
   @transient private var asyncClient: AsyncDocumentClient = _

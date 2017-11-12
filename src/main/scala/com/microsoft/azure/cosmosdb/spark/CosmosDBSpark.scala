@@ -29,6 +29,7 @@ import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{BulkUpdateResponse, UpdateItem, UpdateOperationBase}
 import com.microsoft.azure.documentdb.bulkimport.{BulkImportResponse, DocumentBulkImporter}
@@ -39,6 +40,8 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.util.Random
@@ -143,7 +146,40 @@ object CosmosDBSpark extends LoggingTrait {
     } catch {
       case _: Throwable => // no op
     }
-    rdd.foreachPartition(iter => savePartition(iter, writeConfig, numPartitions))
+
+    // Check if we're writing ADLPartition
+    var isWritingAdlPartition = false
+    var adlPartitionMap = mutable.Map[Int, ADLFilePartition]()
+    try {
+      // The .partitons call can throw nulref for non-parallel RDD
+      val partitions = rdd.partitions
+      isWritingAdlPartition = partitions.length > 0 && partitions(0).isInstanceOf[ADLFilePartition]
+      if (isWritingAdlPartition) {
+        partitions.foreach(p => {
+          adlPartitionMap = adlPartitionMap + (p.index -> p.asInstanceOf[ADLFilePartition])
+        })
+      }
+    } catch {
+      case _: Throwable => // no op
+    }
+
+    val hadoopConfig = HdfsUtils.getConfigurationMap(rdd.sparkContext.hadoopConfiguration).toMap
+
+    val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
+      if (isWritingAdlPartition) {
+        val adlPartition = adlPartitionMap(partitionId)
+        saveAdlPartition(iter, writeConfig, numPartitions, adlPartition.adlFilePath, hadoopConfig)
+      }
+      else
+        savePartition(iter, writeConfig, numPartitions), preservesPartitioning = true)
+    mapRdd.collect()
+
+//    // All tasks have been completed, clean up the file checkpoints
+//    val adlCheckpointPath = writeConfig.get[String](CosmosDBConfig.adlFileCheckpointPath)
+//    if (adlCheckpointPath.isDefined) {
+//      val hdfsUtils = new HdfsUtils(hadoopConfig)
+//      ADLConnection.cleanUpProgress(hdfsUtils, adlCheckpointPath.get)
+//    }
   }
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
@@ -241,7 +277,24 @@ object CosmosDBSpark extends LoggingTrait {
     }
   }
 
-  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config, partitionCount: Int): Unit = {
+  private def saveAdlPartition[D: ClassTag](iter: Iterator[D],
+                                           config: Config,
+                                           partitionCount: Int,
+                                            adlFilePath: String,
+                                            hadoopConfig: Map[String, String]): Iterator[D] = {
+    val iterator = savePartition(iter, config, partitionCount)
+
+    // Mark the adlFile on this partition as processed
+    val adlCheckpointPath = config.get[String](CosmosDBConfig.adlFileCheckpointPath)
+    if (adlCheckpointPath.isDefined) {
+      val hdfsUtils = new HdfsUtils(hadoopConfig)
+      ADLConnection.markAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFilePath)
+    }
+
+    iterator
+  }
+
+  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config, partitionCount: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
@@ -280,6 +333,7 @@ object CosmosDBSpark extends LoggingTrait {
         importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
       }
     }
+    new ListBuffer[D]().iterator
   }
 
   /**

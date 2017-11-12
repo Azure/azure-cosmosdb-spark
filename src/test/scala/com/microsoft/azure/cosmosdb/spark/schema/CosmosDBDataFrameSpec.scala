@@ -928,6 +928,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     })).saveToCosmosDB()
 
     val df = spark.read.cosmosDB()
+
+    // Create UpdateItems to increase doubleCol property
     val updateItems = df.rdd.map(r => {
       val id = r.get(r.fieldIndex("id")).asInstanceOf[String]
       val pkey = r.get(r.fieldIndex("pkey")).asInstanceOf[String]
