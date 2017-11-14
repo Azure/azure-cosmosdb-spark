@@ -66,6 +66,7 @@ object CosmosDBConfig {
   val RootPropertyToSave = "rootpropertytosave"
   val BulkImport = "bulkimport"
   val BulkUpdate = "bulkupdate"
+  val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val ClientInitDelay = "clientinitdelay"
 
   // ADL import
@@ -116,6 +117,7 @@ object CosmosDBConfig {
   val DefaultStreamingSlowSourceDelayMs = 1
   val DefaultBulkImport = true
   val DefaultBulkUpdate = false
+  val DefaultMaxMiniBatchUpdateCount = 500
   val DefaultClientInitDelay = 10
 
   val DefaultAdlUseGuidForId = true

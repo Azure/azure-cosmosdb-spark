@@ -944,6 +944,8 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     updateItems.saveToCosmosDB(Config(configMap))
 
+    df.write.mode(SaveMode.Overwrite).cosmosDB(Config(configMap))
+
     df.rdd.map(r => r.getDouble(r.fieldIndex("doubleCol"))).sortBy(x => x).collect() should
       contain theSameElementsAs (1 to documentCount).map(x => x * 1.5 + 1.5).toList
   }

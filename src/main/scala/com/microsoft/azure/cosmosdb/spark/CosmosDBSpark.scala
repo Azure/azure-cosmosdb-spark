@@ -22,6 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.util
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -187,19 +188,32 @@ object CosmosDBSpark extends LoggingTrait {
                                       writingBatchSize: Integer)(implicit ev: ClassTag[D]): Unit = {
     val importer: DocumentBulkImporter = connection.documentBulkImporter
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
+    val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
     var bulkImportResponse: BulkUpdateResponse = null
     iter.foreach(item => {
-      if (item.getClass != classOf[UpdateItem]) {
-        throw new UnsupportedOperationException("The update dataframe must contain UpdateItems.")
+      item match {
+        case updateItem: UpdateItem =>
+          updateItems.add(item.asInstanceOf[UpdateItem])
+        case doc: Document =>
+          updatePatchItems.add(doc)
+        case row: Row =>
+          updatePatchItems.add(new Document(CosmosDBRowConverter.rowToJSONObject(row).toString()))
+        case _ => throw new Exception("Unsupported update item types")
       }
-      updateItems.add(item.asInstanceOf[UpdateItem])
       if (updateItems.size() >= writingBatchSize) {
         bulkImportResponse = importer.updateAll(updateItems)
         updateItems.clear()
       }
+      if (updatePatchItems.size() >= writingBatchSize) {
+        bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
+        updatePatchItems.clear()
+      }
     })
     if (updateItems.size() > 0) {
       bulkImportResponse = importer.updateAll(updateItems)
+    }
+    if (updatePatchItems.size() > 0) {
+      bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
     }
   }
 
