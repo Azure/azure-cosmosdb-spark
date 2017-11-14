@@ -22,17 +22,16 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.util
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
+import rx.Observable
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{BulkUpdateResponse, UpdateItem, UpdateOperationBase}
+import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{BulkUpdateResponse, UpdateItem}
 import com.microsoft.azure.documentdb.bulkimport.{BulkImportResponse, DocumentBulkImporter}
 import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
@@ -296,19 +295,38 @@ object CosmosDBSpark extends LoggingTrait {
                                            partitionCount: Int,
                                             adlFilePath: String,
                                             hadoopConfig: Map[String, String]): Iterator[D] = {
-    val iterator = savePartition(iter, config, partitionCount)
+    val connection = new CosmosDBConnection(config)
+    val iterator = savePartition(connection, iter, config, partitionCount)
 
     // Mark the adlFile on this partition as processed
+    // Todo: refactor this part
     val adlCheckpointPath = config.get[String](CosmosDBConfig.adlFileCheckpointPath)
     if (adlCheckpointPath.isDefined) {
       val hdfsUtils = new HdfsUtils(hadoopConfig)
       ADLConnection.markAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFilePath)
+    } else {
+      val aldFileStoreCollection = config.get[String](CosmosDBConfig.adlCosmosDBFilestoreCollection)
+      if (aldFileStoreCollection.isDefined) {
+        val dbName = config.get[String](CosmosDBConfig.Database).get
+        val collectionLink = s"/dbs/$dbName/colls/${aldFileStoreCollection.get}"
+        ADLConnection.markAdlFileStatus(connection, collectionLink, adlFilePath, isInProgress = false, isComplete = true)
+      }
     }
 
     iterator
   }
 
-  private def savePartition[D: ClassTag](iter: Iterator[D], config: Config, partitionCount: Int): Iterator[D] = {
+  private def savePartition[D: ClassTag](iter: Iterator[D],
+                                         config: Config,
+                                         partitionCount: Int): Iterator[D] = {
+    val connection = new CosmosDBConnection(config)
+    savePartition(connection, iter, config, partitionCount)
+  }
+
+  private def savePartition[D: ClassTag](connection: CosmosDBConnection,
+                                          iter: Iterator[D],
+                                          config: Config,
+                                          partitionCount: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
@@ -321,11 +339,11 @@ object CosmosDBSpark extends LoggingTrait {
       .toInt
     val rootPropertyToSave = config
       .get[String](CosmosDBConfig.RootPropertyToSave)
-    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
-      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
-      toBoolean
     val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
       getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
+      toBoolean
+    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
+      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
     val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
       getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
@@ -340,10 +358,13 @@ object CosmosDBSpark extends LoggingTrait {
 
     if (iter.nonEmpty) {
       if (isBulkUpdating) {
+        logDebug(s"Writing partition with bulk update")
         bulkUpdate(iter, connection, writingBatchSize)
       } else if (isBulkImporting) {
+        logDebug(s"Writing partition with bulk import")
         bulkImport(iter, connection, writingBatchSize, rootPropertyToSave, upsert)
       } else {
+        logDebug(s"Writing partition with rxjava")
         importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
       }
     }

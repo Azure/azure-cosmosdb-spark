@@ -80,6 +80,7 @@ object CosmosDBConfig {
   val adlUseGuidForId = "adluseguidforid"
   val adlUseGuidForPk = "adluseguidforpk"
   val adlFileCheckpointPath = "adlfilecheckpointpath"
+  val adlCosmosDBFilestoreCollection = "adlcosmosdbfilestorecollection"
   val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
   val adlMaxFileCount = "adlmaxfilecount"
 

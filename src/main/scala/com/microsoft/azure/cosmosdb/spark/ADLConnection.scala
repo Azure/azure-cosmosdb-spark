@@ -23,21 +23,63 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.io.{BufferedReader, InputStream, InputStreamReader}
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.util.UUID
 
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.datalake.store.oauth2.ClientCredsTokenProvider
 import com.microsoft.azure.datalake.store.{ADLStoreClient, DirectoryEntry}
-import com.microsoft.azure.documentdb.Document
+import com.microsoft.azure.documentdb.{Document, FeedOptions}
 
 object ADLConnection {
-  def markAdlFileProcessed(hdfsUtils: HdfsUtils, adlFileCheckpointPath: String, filepath: String): Unit = {
-    hdfsUtils.write(adlFileCheckpointPath, HdfsUtils.filterFilename(filepath), filepath)
+  def markAdlFileProcessed(hdfsUtils: HdfsUtils,
+                           adlFileCheckpointPath: String,
+                           adlFilePath: String): Unit = {
+    hdfsUtils.write(adlFileCheckpointPath, HdfsUtils.filterFilename(adlFilePath), adlFilePath)
   }
 
-  def isAdlFileProcessed(hdfsUtils: HdfsUtils, adlFileCheckpointPath: String, filepath: String): Boolean = {
-    hdfsUtils.fileExist(adlFileCheckpointPath, HdfsUtils.filterFilename(filepath))
+  def markAdlFileStatus(connection: CosmosDBConnection,
+                        collectionLink: String,
+                        adlFilePath: String,
+                        isInProgress: Boolean,
+                        isComplete: Boolean): Unit = {
+    val d = new Document()
+    d.setId(URLEncoder.encode(adlFilePath, StandardCharsets.UTF_8.name()))
+    d.set("name", adlFilePath)
+    d.set("createDate", Instant.now)
+    d.set("isInProgress", isInProgress)
+    d.set("isComplete", isComplete)
+    connection.upsertDocument(collectionLink, d, null)
+  }
+
+  def isAdlFileProcessed(hdfsUtils: HdfsUtils,
+                         adlFileCheckpointPath: String,
+                         adlFilePath: String): Boolean = {
+    hdfsUtils.fileExist(adlFileCheckpointPath, HdfsUtils.filterFilename(adlFilePath))
+  }
+
+  def isAdlFileProcessed(connection: CosmosDBConnection,
+                         collectionLink: String,
+                         adlFilePath: String): Boolean = {
+    val encodedFilePath = URLEncoder.encode(adlFilePath, StandardCharsets.UTF_8.name())
+    val query = s"SELECT VALUE 1 FROM c WHERE c.id = '$encodedFilePath' and c.isComplete = true"
+    val response = connection.queryDocuments(collectionLink, query, null)
+    response.hasNext
+  }
+
+  def getUnprocessedFiles(connection: CosmosDBConnection,
+                          collectionLink: String): java.util.HashSet[String] = {
+    val feedOptions = new FeedOptions()
+    val response = connection.queryDocuments(collectionLink, feedOptions)
+    var files = new java.util.HashSet[String]()
+    while (response.hasNext) {
+      val item = response.next()
+      files.add(item.getString("name"))
+    }
+    files
   }
 
   def cleanUpProgress(hdfsUtils: HdfsUtils, adlFileCheckpointPath: String): Unit = {
@@ -54,7 +96,6 @@ private[spark] case class ADLConnection (config: Config) extends LoggingTrait wi
   private val adlDataFolder = config.get[String](CosmosDBConfig.adlDataFolder).get
   private val adlIdField = config.get[String](CosmosDBConfig.adlIdField)
   private val adlPkField = config.get[String](CosmosDBConfig.adlPkField)
-  private val adlFileCheckpointPath = config.get[String](CosmosDBConfig.adlFileCheckpointPath).get
   private val adlCosmosDBCollectionPk = config.get[String](CosmosDBConfig.adlCosmosDbDataCollectionPkValue).get
   private val adlUseGuidForId = config.get[String](CosmosDBConfig.adlUseGuidForId)
     .getOrElse(CosmosDBConfig.DefaultAdlUseGuidForId.toString)

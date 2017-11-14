@@ -188,7 +188,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def queryDocuments (queryString : String,
         feedOpts : FeedOptions) : Iterator [Document] = {
+    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    feedResponse.getQueryIterable.iterator()
+  }
 
+  def queryDocuments (collectionLink: String, queryString : String,
+                      feedOpts : FeedOptions) : Iterator [Document] = {
     val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
     feedResponse.getQueryIterable.iterator()
   }
@@ -224,6 +229,13 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
     logTrace(s"Upserting document $document")
     asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
+  }
+
+  def upsertDocument(collectionLink: String,
+                      document: Document,
+                      requestOptions: RequestOptions): Unit = {
+    logTrace(s"Upserting document $document")
+    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
 
   def createDocument(document: Document,

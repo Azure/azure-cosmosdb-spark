@@ -51,27 +51,39 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
                         filters: Array[Filter] = Array(),
                         hadoopConfig: mutable.Map[String, String]): Array[Partition] = {
     val adlImport = config.get(CosmosDBConfig.adlAccountFqdn).isDefined
+    var connection: CosmosDBConnection = new CosmosDBConnection(config)
     if (adlImport) {
       // ADL source
       val hdfsUtils = new HdfsUtils(hadoopConfig.toMap)
       val adlConnection: ADLConnection = ADLConnection(config)
       val adlFiles = adlConnection.getFiles
       val adlCheckpointPath = config.get(CosmosDBConfig.adlFileCheckpointPath)
+      val adlCosmosDBFileStoreCollection = config.get(CosmosDBConfig.adlCosmosDBFilestoreCollection)
       val adlMaxFileCount = config.get(CosmosDBConfig.adlMaxFileCount)
         .getOrElse(CosmosDBConfig.DefaultAdlMaxFileCount.toString)
         .toInt
       logDebug(s"The Adl folder has ${adlFiles.size()} files")
       val partitions = new ListBuffer[ADLFilePartition]
-      for (i <- 0 until Math.min(adlFiles.size(), adlMaxFileCount)) {
-        if (adlCheckpointPath.isEmpty ||
-          !ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFiles.get(i))) {
-          partitions += ADLFilePartition(i, adlFiles.get(i))
+      var partitionIndex = 0
+      var i = 0
+      while (i < adlFiles.size() && partitionIndex < adlMaxFileCount) {
+        var processed = true
+        if (adlCheckpointPath.isDefined) {
+          processed = ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFiles.get(i))
+        } else if (adlCosmosDBFileStoreCollection.isDefined) {
+          val dbName = config.get[String](CosmosDBConfig.Database).get
+          val collectionLink = s"/dbs/$dbName/colls/${adlCosmosDBFileStoreCollection.get}"
+          processed = ADLConnection.isAdlFileProcessed(connection, collectionLink, adlFiles.get(i))
         }
+        if (!processed) {
+          partitions += ADLFilePartition(partitionIndex, adlFiles.get(i))
+          partitionIndex += 1
+        }
+        i += 1
       }
       partitions.toArray
     } else {
       // CosmosDB source
-      var connection: CosmosDBConnection = new CosmosDBConnection(config)
       var query: String = FilterConverter.createQueryString(requiredColumns, filters)
       var partitionKeyRanges = connection.getAllPartitions(query)
       logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
