@@ -1,7 +1,30 @@
 # Lambda Architecture
+
+An important 
+
+## What is a Lambda Architecture?
+
+![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/master/docs/images/scenarios/lambda-architecture-intro.png)
+
+The diagram above describes a high level perspective a [lambda architecture](http://lambda-architecture.net/) as per [https://lambda-architecture.net](http://lambda-architecture.net/).   As can be seen
+
+ 1. All **data** is pushed into *both* the *batch layer* and *speed layer*.
+ 2. The **batch layer** has a master dataset (immutable, append-only set of raw data) and pre-compute the batch views.
+ 3. The **serving layer** has batch views so data for fast queries. 
+ 4. The **speed layer** compensates for processing time (to serving layer) and deals with recent data only.
+ 5. All queries can be answered by merging results from batch views and real-time views.
+
+
+
+## Lambda Architecture: Re-architected
 This samples folder the Lambda Architecture: Re-architected with Apache Spark and Azure Cosmos DB per the diagram below.
 
 ![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/130adaf0c7e45fff4033cddf13adee166b0cf058/docs/images/scenarios/Lambda-architecture-rearchitected.png)
+
+
+
+
+## References
 
 The samples included are
  1. We will use the [Stream feed from Twitter to CosmosDB](https://github.com/tknandu/TwitterCosmosDBFeed) as our mechanism to push **new data** into Cosmos DB.
@@ -24,4 +47,3 @@ The samples included are
 * [Spark to Cosmos DB Connector Setup](https://github.com/Azure/azure-cosmosdb-spark/wiki/Spark-to-Cosmos-DB-Connector-Setup)
 * [Stream Processing Changes using Azure Cosmos DB Change Feed and Apache Spark](https://github.com/Azure/azure-cosmosdb-spark/wiki/Stream-Processing-Changes-using-Azure-Cosmos-DB-Change-Feed-and-Apache-Spark)
 * [Structured Stream demos](https://github.com/Azure/azure-cosmosdb-spark/wiki/Structured-Stream-demos)
-
