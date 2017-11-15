@@ -57,7 +57,7 @@ limitations under the License.
     <dependency>
       <groupId>com.microsoft.azure</groupId>
       <artifactId>azure-documentdb</artifactId>
-      <version>1.14.0</version>
+      <version>1.15.0</version>
     </dependency>
     <dependency>
       <groupId>io.reactivex</groupId>
