@@ -88,18 +88,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     asyncClient
   }
 
-  lazy val documentBulkImporter: DocumentBulkImporter = {
+  def getDocumentBulkImporter(collectionThroughput: Int): DocumentBulkImporter = {
     if (bulkImporter == null) {
-      val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
-      if (offers.isEmpty) {
-        throw new IllegalStateException("Cannot find Collection's corresponding offer")
-      }
-      val offer = offers.get(0)
-      val collectionThroughput = if (offer.getString("offerVersion") == "V1")
-        CosmosDBConfig.SinglePartitionCollectionOfferThroughput
-      else
-        offer.getContent.getInt("offerThroughput")
-
       bulkImporter = DocumentBulkImporter.builder.from(documentClient,
         databaseName,
         collectionName,
@@ -184,6 +174,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     var ranges: java.util.Collection[PartitionKeyRange] =
       documentClient.readPartitionKeyRanges(collectionLink, query)
     ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
+  }
+
+  def getCollectionThroughput: Int = {
+    val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
+    if (offers.isEmpty) {
+      throw new IllegalStateException("Cannot find Collection's corresponding offer")
+    }
+    val offer = offers.get(0)
+    val collectionThroughput = if (offer.getString("offerVersion") == "V1")
+      CosmosDBConfig.SinglePartitionCollectionOfferThroughput
+    else
+      offer.getContent.getInt("offerThroughput")
+    collectionThroughput
   }
 
   def queryDocuments (queryString : String,

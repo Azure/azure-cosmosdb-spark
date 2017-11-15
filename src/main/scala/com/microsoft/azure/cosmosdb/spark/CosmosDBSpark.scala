@@ -168,16 +168,21 @@ object CosmosDBSpark extends LoggingTrait {
 
     val hadoopConfig = HdfsUtils.getConfigurationMap(rdd.sparkContext.hadoopConfiguration).toMap
 
+    // Get the collection throughput for bulk import
+    val connection: CosmosDBConnection = new CosmosDBConnection(writeConfig)
+    var collectionThroughput: Int = 0
+    collectionThroughput = connection.getCollectionThroughput
+
     val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
       if (isWritingAdlPartition) {
         val adlPartition = partitionMap(partitionId).asInstanceOf[ADLFilePartition]
-        saveAdlPartition(iter, writeConfig, numPartitions, adlPartition.adlFilePath, hadoopConfig)
+        saveAdlPartition(iter, writeConfig, numPartitions, adlPartition.adlFilePath, hadoopConfig, collectionThroughput)
       } else if (isWritingFilePartition) {
         val filePartition = partitionMap(partitionId).asInstanceOf[FilePartition]
-        saveFilePartition(iter, writeConfig, numPartitions, filePartition, hadoopConfig)
+        saveFilePartition(iter, writeConfig, numPartitions, filePartition, hadoopConfig, collectionThroughput)
       }
       else
-        savePartition(iter, writeConfig, numPartitions), preservesPartitioning = true)
+        savePartition(iter, writeConfig, numPartitions, collectionThroughput), preservesPartitioning = true)
     mapRdd.collect()
 
 //    // All tasks have been completed, clean up the file checkpoints
@@ -190,8 +195,9 @@ object CosmosDBSpark extends LoggingTrait {
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
-                                      writingBatchSize: Integer)(implicit ev: ClassTag[D]): Unit = {
-    val importer: DocumentBulkImporter = connection.documentBulkImporter
+                                      collectionThroughput: Int,
+                                      writingBatchSize: Int)(implicit ev: ClassTag[D]): Unit = {
+    val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
     var bulkImportResponse: BulkUpdateResponse = null
@@ -224,10 +230,11 @@ object CosmosDBSpark extends LoggingTrait {
 
   private def bulkImport[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
-                                      writingBatchSize: Integer,
+                                      collectionThroughput: Int,
+                                      writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
                                       upsert: Boolean): Unit = {
-    val importer: DocumentBulkImporter = connection.documentBulkImporter
+    val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -297,10 +304,11 @@ object CosmosDBSpark extends LoggingTrait {
   }
 
   private def saveFilePartition[D: ClassTag](iter: Iterator[D],
-                                             config: Config,
-                                             partitionCount: Int,
-                                             filePartition: FilePartition,
-                                            hadoopConfig: Map[String, String]): Iterator[D] = {
+                                              config: Config,
+                                              partitionCount: Int,
+                                              filePartition: FilePartition,
+                                              hadoopConfig: Map[String, String],
+                                              collectionThroughput: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
 
     // Check the status of the files
@@ -331,7 +339,7 @@ object CosmosDBSpark extends LoggingTrait {
     if (processedFileCount == filePartition.files.size) {
       new ListBuffer().iterator
     } else {
-      val iterator = savePartition(connection, iter, config, partitionCount)
+      val iterator = savePartition(connection, iter, config, partitionCount, collectionThroughput)
 
       // Mark the file on this partition as processed
       // Todo: refactor this part
@@ -351,12 +359,13 @@ object CosmosDBSpark extends LoggingTrait {
   }
 
   private def saveAdlPartition[D: ClassTag](iter: Iterator[D],
-                                           config: Config,
-                                           partitionCount: Int,
+                                            config: Config,
+                                            partitionCount: Int,
                                             adlFilePath: String,
-                                            hadoopConfig: Map[String, String]): Iterator[D] = {
+                                            hadoopConfig: Map[String, String],
+                                            collectionThroughput: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
-    val iterator = savePartition(connection, iter, config, partitionCount)
+    val iterator = savePartition(connection, iter, config, partitionCount, collectionThroughput)
 
     // Mark the adlFile on this partition as processed
     // Todo: refactor this part
@@ -379,15 +388,17 @@ object CosmosDBSpark extends LoggingTrait {
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
-                                         partitionCount: Int): Iterator[D] = {
+                                         partitionCount: Int,
+                                         collectionThroughput: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
-    savePartition(connection, iter, config, partitionCount)
+    savePartition(connection, iter, config, partitionCount, collectionThroughput)
   }
 
   private def savePartition[D: ClassTag](connection: CosmosDBConnection,
                                           iter: Iterator[D],
                                           config: Config,
-                                          partitionCount: Int): Iterator[D] = {
+                                          partitionCount: Int,
+                                          collectionThroughput: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
@@ -412,7 +423,8 @@ object CosmosDBSpark extends LoggingTrait {
 
     // Delay the start as the number of tasks grow to avoid throttling at initialization
     val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
-    TimeUnit.SECONDS.sleep(random.nextInt(maxDelaySec))
+    if (maxDelaySec > 0)
+      TimeUnit.SECONDS.sleep(random.nextInt(maxDelaySec))
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
@@ -420,10 +432,10 @@ object CosmosDBSpark extends LoggingTrait {
     if (iter.nonEmpty) {
       if (isBulkUpdating) {
         logDebug(s"Writing partition with bulk update")
-        bulkUpdate(iter, connection, writingBatchSize)
+        bulkUpdate(iter, connection, collectionThroughput, writingBatchSize)
       } else if (isBulkImporting) {
         logDebug(s"Writing partition with bulk import")
-        bulkImport(iter, connection, writingBatchSize, rootPropertyToSave, upsert)
+        bulkImport(iter, connection, collectionThroughput, writingBatchSize, rootPropertyToSave, upsert)
       } else {
         logDebug(s"Writing partition with rxjava")
         importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
@@ -582,7 +594,7 @@ object CosmosDBSpark extends LoggingTrait {
     /**
       * Sets the [[com.microsoft.azure.cosmosdb.spark.config.Config]] to use
       *
-      * @param readConfig the readConfig
+      * @param config the readConfig
       */
     def config(config: Config): Builder = {
       this.config = Option(config)
@@ -673,7 +685,7 @@ object CosmosDBSpark extends LoggingTrait {
 /**
   * The CosmosDBSpark class
   *
-  * '''Note:''' Creation of the class should be via [[CosmosDBSpark$.builder]].
+  * '''Note:''' Creation of the class should be via [[CosmosDBSpark$.Builder]].
   *
   * @since 1.0
   */
