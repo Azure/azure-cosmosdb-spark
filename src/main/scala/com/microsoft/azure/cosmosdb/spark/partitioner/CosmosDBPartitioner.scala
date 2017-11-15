@@ -58,7 +58,8 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
       val adlConnection: ADLConnection = ADLConnection(config)
       val adlFiles = adlConnection.getFiles
       val adlCheckpointPath = config.get(CosmosDBConfig.adlFileCheckpointPath)
-      val adlCosmosDBFileStoreCollection = config.get(CosmosDBConfig.adlCosmosDBFilestoreCollection)
+      val adlCosmosDBFileStoreCollection = config.get(CosmosDBConfig.CosmosDBFileStoreCollection)
+      val writingBatchId = config.get[String](CosmosDBConfig.WritingBatchId)
       val adlMaxFileCount = config.get(CosmosDBConfig.adlMaxFileCount)
         .getOrElse(CosmosDBConfig.DefaultAdlMaxFileCount.toString)
         .toInt
@@ -69,11 +70,11 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
       while (i < adlFiles.size() && partitionIndex < adlMaxFileCount) {
         var processed = true
         if (adlCheckpointPath.isDefined) {
-          processed = ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFiles.get(i))
+          processed = ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFiles.get(i), writingBatchId.get)
         } else if (adlCosmosDBFileStoreCollection.isDefined) {
           val dbName = config.get[String](CosmosDBConfig.Database).get
           val collectionLink = s"/dbs/$dbName/colls/${adlCosmosDBFileStoreCollection.get}"
-          processed = ADLConnection.isAdlFileProcessed(connection, collectionLink, adlFiles.get(i))
+          processed = ADLConnection.isAdlFileProcessed(connection, collectionLink, adlFiles.get(i), writingBatchId.get)
         }
         if (!processed) {
           partitions += ADLFilePartition(partitionIndex, adlFiles.get(i))

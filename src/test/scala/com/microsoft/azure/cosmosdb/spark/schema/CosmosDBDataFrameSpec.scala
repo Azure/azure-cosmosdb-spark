@@ -35,6 +35,7 @@ import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{IncUpdateOperation, UpdateItem, UpdateOperationBase}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.ScalaReflection
+import org.apache.spark.sql.execution.datasources.FilePartition
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 
@@ -86,6 +87,41 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
 
     cosmosDBDefaults.deleteCollection(databaseName, collectionName)
+  }
+
+  it should "write with progress tracking with another collection" in withSparkSession() { spark =>
+    import spark.implicits._
+    spark.sparkContext.parallelize(simpleDocuments).toDF().write.mode(SaveMode.Overwrite).format("json").save("simpleDocuments.json")
+
+    val df = spark.read.json("simpleDocuments.json")
+    df.rdd.partitions.length should equal(1)
+    df.rdd.partitions.iterator.next.isInstanceOf[FilePartition] should equal(true)
+
+    // Create the checkpoint collection
+    val progressCollection = "importcheckpoint"
+    val collection = new DocumentCollection()
+    collection.setId(progressCollection)
+    cosmosDBDefaults.documentDBClient.createCollection(s"/dbs/${cosmosDBDefaults.DatabaseName}", collection, null)
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.WritingBatchId, "1001"))
+      .+((CosmosDBConfig.CosmosDBFileStoreCollection, progressCollection))
+
+    df.write.cosmosDB(Config(configMap))
+
+    // Verify the progress
+    val verifyConfigMap = configMap.
+      -(CosmosDBConfig.Collection).
+      +((CosmosDBConfig.Collection, progressCollection))
+    val progressRdd = spark.sparkContext.loadFromCosmosDB(Config(verifyConfigMap))
+    progressRdd.count() should equal(1)
+    val doc = progressRdd.take(1)(0)
+    doc.getString("batchId") should equal("1001")
+    doc.getBoolean("isComplete") should equal(true)
+
+    // Write again, the file should be skipped
+    df.write.mode(SaveMode.Append).cosmosDB(Config(configMap))
   }
 
   // DataFrameReader

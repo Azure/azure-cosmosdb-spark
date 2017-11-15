@@ -69,6 +69,10 @@ object CosmosDBConfig {
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val ClientInitDelay = "clientinitdelay"
 
+  // Writing progress tracking
+  val WritingBatchId = "writingbatchid"
+  val CosmosDBFileStoreCollection = "cosmosdbfilestorecollection"
+
   // ADL import
   val adlAccountFqdn = "adlaccountfqdn"
   val adlClientId = "adlclientid"
@@ -80,7 +84,6 @@ object CosmosDBConfig {
   val adlUseGuidForId = "adluseguidforid"
   val adlUseGuidForPk = "adluseguidforpk"
   val adlFileCheckpointPath = "adlfilecheckpointpath"
-  val adlCosmosDBFilestoreCollection = "adlcosmosdbfilestorecollection"
   val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
   val adlMaxFileCount = "adlmaxfilecount"
 

@@ -37,35 +37,42 @@ import com.microsoft.azure.documentdb.{Document, FeedOptions}
 object ADLConnection {
   def markAdlFileProcessed(hdfsUtils: HdfsUtils,
                            adlFileCheckpointPath: String,
-                           adlFilePath: String): Unit = {
-    hdfsUtils.write(adlFileCheckpointPath, HdfsUtils.filterFilename(adlFilePath), adlFilePath)
+                           adlFilePath: String,
+                           writingBatchId: String): Unit = {
+    val id = s"${writingBatchId}_${HdfsUtils.filterFilename(adlFilePath)}"
+    hdfsUtils.write(adlFileCheckpointPath, id, adlFilePath)
   }
 
   def markAdlFileStatus(connection: CosmosDBConnection,
                         collectionLink: String,
                         adlFilePath: String,
+                        writingBatchId: String,
                         isInProgress: Boolean,
                         isComplete: Boolean): Unit = {
     val d = new Document()
     d.setId(URLEncoder.encode(adlFilePath, StandardCharsets.UTF_8.name()))
     d.set("name", adlFilePath)
-    d.set("createDate", Instant.now)
+    d.set("createDate", Instant.now.toString)
     d.set("isInProgress", isInProgress)
     d.set("isComplete", isComplete)
+    d.set("batchId", writingBatchId)
     connection.upsertDocument(collectionLink, d, null)
   }
 
   def isAdlFileProcessed(hdfsUtils: HdfsUtils,
                          adlFileCheckpointPath: String,
-                         adlFilePath: String): Boolean = {
-    hdfsUtils.fileExist(adlFileCheckpointPath, HdfsUtils.filterFilename(adlFilePath))
+                         adlFilePath: String,
+                         writingBatchId: String): Boolean = {
+    val id = s"${writingBatchId}_${HdfsUtils.filterFilename(adlFilePath)}"
+    hdfsUtils.fileExist(adlFileCheckpointPath, id)
   }
 
   def isAdlFileProcessed(connection: CosmosDBConnection,
                          collectionLink: String,
-                         adlFilePath: String): Boolean = {
+                         adlFilePath: String,
+                         writingBatchId: String): Boolean = {
     val encodedFilePath = URLEncoder.encode(adlFilePath, StandardCharsets.UTF_8.name())
-    val query = s"SELECT VALUE 1 FROM c WHERE c.id = '$encodedFilePath' and c.isComplete = true"
+    val query = s"SELECT VALUE 1 FROM c WHERE c.id = '$encodedFilePath' and c.batchId = '$writingBatchId' and c.isComplete = true"
     val response = connection.queryDocuments(collectionLink, query, null)
     response.hasNext
   }
