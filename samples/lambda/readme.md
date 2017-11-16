@@ -1,6 +1,12 @@
 # Lambda Architecture with Azure Cosmos DB and HDInsight (Apache Spark)
 
-**TODO:** Combining Azure Cosmos DB and HDInsight to create Lambda Architecture.  Need to include links and Cosmos DB and HDInsight.
+**TODO:** Combining Azure Cosmos DB and HDInsight to create Lambda Architecture.  
+
+Need to include links and Cosmos DB and HDInsight and Spark connector (install instructions, background information, etc.)
+
+For a quick overview of the various notebooks and components for our Lambda Architecture samples, please refer to the Channel 9 video [Real-time Analytics with Azure Cosmos DB and Apache Spark](https://channel9.msdn.com/Events/Connect/2017/T135).  
+
+<iframe src="https://channel9.msdn.com/Events/Connect/2017/T135/player" width="960" height="540" allowFullScreen frameBorder="0"></iframe>
 
 
 ## What is a Lambda Architecture?
@@ -94,6 +100,88 @@ Since the data is loaded into Azure Cosmos DB (where the change feed is being us
  3. The **serving layer** is an Azure Cosmos DB database with collections for master dataset and computed batch view.
  4. The **speed layer** will be discussed next slide.
  5. All queries can be answered by merging results from batch views and real-time views or pinging them individually.
+
+### Code Example: Pre-computing Batch Views
+To showcase how to execute pre-calculated views against your **master dataset** from Apache Spark to Azure Cosmos DB, below are code snippets from the notebooks [Lambda Architecture Re-architected - Batch Layer](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20Layer.ipynb) and [Lambda Architecture Re-architected - Batch to Serving Layer](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20to%20Serving%20Layer.ipynb). In this scenario, we will be using Twitter data stored in Cosmos DB.
+
+* Let's start by creating the configuration connection to our Twitter data within Azure Cosmos DB using the PySpark code below.
+
+```
+# Configuration to connect to Azure Cosmos DB
+tweetsConfig = {
+  "Endpoint" : "[Endpoint URL]",
+  "Masterkey" : "[Master Key]",
+  "Database" : "[Database]",
+  "Collection" : "[Collection]", 
+  "preferredRegions" : "[Preferred Regions]",
+  "SamplingRatio" : "1.0",
+  "schema_samplesize" : "200000",
+  "query_custom" : "[Cosmos DB SQL Query]"
+}
+
+# Create DataFrame
+tweets = spark.read.format("com.microsoft.azure.cosmosdb.spark").options(**tweetsConfig).load()
+
+# Create Temp View (to run Spark SQL statements)
+tweets.createOrReplaceTempView("tweets")
+```
+
+*  Next, let's run the following Spark SQL statement to determine the top 10 hashtags of our set of tweets.  Note, for this Spark SQL query, we're running this in a Jupyter notebook without the output bar chart directly below this code snippet.
+
+```
+%%sql
+select hashtags.text, count(distinct id) as tweets
+from (
+  select 
+    explode(hashtags) as hashtags,
+    id
+  from tweets
+) a
+group by hashtags.text
+order by tweets desc
+limit 10
+```
+
+![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/master/docs/images/scenarios/lambda-architecture-batch-hashtags-bar-chart.png)
+
+* Now that you have your query, let's save it back to a collection by using the Spark Connector to save the output data into a different collection.  In this example, we will use Scala to showcase the connection.  Similar to the previous example, creating the configuration connection to save our Apache Spark DataFrame to a different Azure Cosmos DB collection.
+
+```
+val writeConfigMap = Map(
+	"Endpoint" -> "[Endpoint URL]",
+	"Masterkey" -> "[Master Key]",
+	"Database" -> "[Database]",
+	"Collection" -> "[New Collection]", 
+	"preferredRegions" -> "[Preferred Regions]",
+	"SamplingRatio" -> "1.0",
+	"schema_samplesize" -> "200000"
+)
+
+// Configuration to write
+val writeConfig = Config(writeConfigMap)
+
+```
+
+* After specifying the `SaveMode` (i.e. whether to Overwrite or Append documents), we create `tweets_bytags` DataFrame similar to the Spark SQL query in the previous example.  With the `tweets_bytags` DataFrame created, you can save it using the `write` method using the previously specified `writeConfig`.
+
+```
+// Import SaveMode so you can Overwrite, Append, ErrorIfExists, Ignore
+import org.apache.spark.sql.{Row, SaveMode, SparkSession}
+
+// Create new DataFrame of tweets tags
+val tweets_bytags = spark.sql("select hashtags.text as hashtags, count(distinct id) as tweets from ( select explode(hashtags) as hashtags, id from tweets ) a group by hashtags.text order by tweets desc")
+
+// Save to Cosmos DB (using Append in this case)
+tweets_bytags.write.mode(SaveMode.Overwrite).cosmosDB(writeConfig)
+```
+
+This last statement now has saved your Spark DataFrame into a new Azure Cosmos DB collection; from a lambda architecture perspective, this is your **batch view** within the **serving layer**.
+ 
+> For complete code samples, please refer to [azure-cosmosdb-spark/lambda/samples](vhttps://github.com/Azure/azure-cosmosdb-spark/tree/master/samples/lambda) including:
+> 
+> * Lambda Architecture Re-architected - Batch Layer [HTML](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20Layer.html) | [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20Layer.ipynb)
+> * Lambda Architecture Re-architected - Batch to Serving Layer [HTML](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20to%20Serving%20Layer.html) | [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20to%20Serving%20Layer.ipynb)
+> 
 
 
 ## Lambda Architecture: Re-architected
