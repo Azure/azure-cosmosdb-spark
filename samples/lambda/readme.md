@@ -6,7 +6,7 @@ Need to include links and Cosmos DB and HDInsight and Spark connector (install i
 
 For a quick overview of the various notebooks and components for our Lambda Architecture samples, please refer to the Channel 9 video [Real-time Analytics with Azure Cosmos DB and Apache Spark](https://channel9.msdn.com/Events/Connect/2017/T135).  
 
-<iframe src="https://channel9.msdn.com/Events/Connect/2017/T135/player" width="960" height="540" allowFullScreen frameBorder="0"></iframe>
+[![](https://raw.githubusercontent.com/dennyglee/notebooks/master/images/135_Connect.png)](https://channel9.msdn.com/Events/Connect/2017/T135/player)
 
 
 ## What is a Lambda Architecture?
