@@ -11,7 +11,7 @@ This project provides a client library that allows Azure Cosmos DB to act as an 
 
 > This connector is experimental and is provided as a public technical preview only
 
-Officially supports Spark version: 2.0.2, Scala version: 2.11, Azure DocumentDB Java SDK: 1.10.0
+Officially supports Spark version: 2.0.2/2.1.0/2.2.0, Scala version: 2.10/2.11, Azure DocumentDB Java SDK: 1.15.0
 
 There are currently two approaches to connect Apache Spark to Azure Cosmos DB:
 
@@ -23,13 +23,13 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
 
 ## Requirements
 
-* Apache Spark 2.0+
+* Apache Spark 2.0.2+
 * Java Version >= 7.0
 * If using Python
   * `pyDocumentDB` package
   * Python >= 2.7 or Python >= 3.3
 * If using Scala
-  * Azure DocumentDB Java SDK 1.10.0
+  * Azure DocumentDB Java SDK 1.15.0
 
 For those using HDInsight, this has been tested on HDI 3.5
 
@@ -188,24 +188,32 @@ mvn clean package
 ## Download the connector
 You can also download the latest versions of the jar within the [releases](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases) folder.
 
-The current version of the Spark connector is [azure-cosmosdb-spark_0.0.3_2.0.2_2.11](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases/azure-cosmosdb-spark-0.0.3_2.0.2_2.11):
-* `azure-cosmosdb-spark` version: 0.0.3
-* Apache Spark version: 2.0.2
+The current version of the Spark connector is [azure-cosmosdb-spark_1.0.0_2.1.0_2.11](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases/azure-cosmosdb-spark_2.1.0_2.11-1.0.0):
+* `azure-cosmosdb-spark` version: 1.0.0
+* Apache Spark version: 2.1.0
 * Scala version: 2.11
 
 ## Download from Maven
 You can also download the JARs from maven:
-* [azure-cosmosdb-spark_0.0.4-2.2.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.11/0.0.4)
-  * `azure-cosmosdb-spark` version: 0.0.4
+* [azure-cosmosdb-spark_1.0.0-2.2.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.11/1.0.0)
+  * `azure-cosmosdb-spark` version: 1.0.0
   * Apache Spark version: 2.2.0
+  * Scala version: 2.11
+* [azure-cosmosdb-spark_1.0.0-2.1.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.11/1.0.0)
+  * `azure-cosmosdb-spark` version: 1.0.0
+  * Apache Spark version: 2.1.0
   * Scala version: 2.11
 * [azure-cosmosdb-spark_0.0.3-2.0.2_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.11/0.0.3)
   * `azure-cosmosdb-spark` version: 0.0.3
   * Apache Spark version: 2.0.2
   * Scala version: 2.11
-* [azure-cosmosdb-spark_0.0.4-2.2.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.10/0.0.4)
-  * `azure-cosmosdb-spark` version: 0.0.4
+* [azure-cosmosdb-spark_1.0.0-2.2.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.10/1.0.0)
+  * `azure-cosmosdb-spark` version: 1.0.0
   * Apache Spark version: 2.2.0
+  * Scala version: 2.10
+* [azure-cosmosdb-spark_1.0.0-2.1.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.10/1.0.0)
+  * `azure-cosmosdb-spark` version: 1.0.0
+  * Apache Spark version: 2.1.0
   * Scala version: 2.10
 * [azure-cosmosdb-spark_0.0.3-2.0.2_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.10/0.0.3)
   * `azure-cosmosdb-spark` version: 0.0.3
