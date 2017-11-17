@@ -1,15 +1,10 @@
 # Azure CosmosDB Spark Connector [![Build Status](https://travis-ci.org/Azure/azure-cosmosdb-spark.svg?branch=master)](https://travis-ci.org/Azure/azure-cosmosdb-spark)
 
-Preview connector for [Azure CosmosDB](http://cosmosdb.com) and [Apache Spark](http://spark.apache.org). 
-
-> Note, we've updated this repo to reflect the update to Cosmos DB from DocumentDB
-> 
+The official connector for [Azure CosmosDB](http://cosmosdb.com) and [Apache Spark](http://spark.apache.org). 
 
 Official instructions for using the connector are included in the Cosmos DB documentation, in the [Accelerate real-time big-data analytics with the Spark to Cosmos DB connector](https://docs.microsoft.com/azure/documentdb/documentdb-spark-connector) article.
 
 This project provides a client library that allows Azure Cosmos DB to act as an input source or output sink for Spark jobs.
-
-> This connector is experimental and is provided as a public technical preview only
 
 Officially supports Spark version: 2.0.2/2.1.0/2.2.0, Scala version: 2.10/2.11, Azure DocumentDB Java SDK: 1.15.0
 
@@ -17,7 +12,6 @@ There are currently two approaches to connect Apache Spark to Azure Cosmos DB:
 
 * Using `pyDocumentDB`
 * Using `azure-cosmosdb-spark` - a Java-based Spark to Cosmos DB connector based utilizing the [Azure DocumentDB Java SDK](https://github.com/Azure/azure-documentdb-java)
-
 
 See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-DocumentDB-Spark-Connector-User-Guide) for more information about the API.
 
@@ -195,27 +189,12 @@ The current version of the Spark connector is [azure-cosmosdb-spark_1.0.0_2.1.0_
 
 ## Download from Maven
 You can also download the JARs from maven:
-* [azure-cosmosdb-spark_1.0.0-2.2.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.11/1.0.0)
-  * `azure-cosmosdb-spark` version: 1.0.0
-  * Apache Spark version: 2.2.0
-  * Scala version: 2.11
-* [azure-cosmosdb-spark_1.0.0-2.1.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.11/1.0.0)
-  * `azure-cosmosdb-spark` version: 1.0.0
-  * Apache Spark version: 2.1.0
-  * Scala version: 2.11
-* [azure-cosmosdb-spark_0.0.3-2.0.2_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.11/0.0.3)
-  * `azure-cosmosdb-spark` version: 0.0.3
-  * Apache Spark version: 2.0.2
-  * Scala version: 2.11
-* [azure-cosmosdb-spark_1.0.0-2.2.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.10/1.0.0)
-  * `azure-cosmosdb-spark` version: 1.0.0
-  * Apache Spark version: 2.2.0
-  * Scala version: 2.10
-* [azure-cosmosdb-spark_1.0.0-2.1.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.10/1.0.0)
-  * `azure-cosmosdb-spark` version: 1.0.0
-  * Apache Spark version: 2.1.0
-  * Scala version: 2.10
-* [azure-cosmosdb-spark_0.0.3-2.0.2_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.10/0.0.3)
-  * `azure-cosmosdb-spark` version: 0.0.3
-  * Apache Spark version: 2.0.2
-  * Scala version: 2.10
+
+| Spark | Scala | Latest version |
+|---|---|---|
+| 2.2.0 | 2.11 | [azure-cosmosdb-spark_1.0.0-2.2.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.11/1.0.0) |
+| 2.2.0 | 2.10 | [azure-cosmosdb-spark_1.0.0-2.2.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.2.0_2.10/1.0.0) |
+| 2.1.0 | 2.11 | [azure-cosmosdb-spark_1.0.0-2.1.0_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.11/1.0.0) |
+| 2.1.0 | 2.10 | [azure-cosmosdb-spark_1.0.0-2.1.0_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.10/1.0.0) |
+| 2.0.2 | 2.11 | [azure-cosmosdb-spark_0.0.3-2.0.2_2.11](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.11/0.0.3) |
+| 2.0.2 | 2.10 | [azure-cosmosdb-spark_0.0.3-2.0.2_2.10](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.0.2_2.10/0.0.3) |
