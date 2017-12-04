@@ -33,7 +33,6 @@ import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkimport.{DocumentBulkImporter}
-import com.microsoft.azure.documentdb.bulkimport.bulkread.{BulkReadResponse}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
@@ -196,8 +195,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
        var collectionThroughput: Int = 0
            collectionThroughput = connection.getCollectionThroughput
            val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
-           val response : BulkReadResponse = importer.readDocuments(partition.partitionKeyRangeId.toString)
-           response.getDocumentsRead()
+           importer.readDocuments(partition.partitionKeyRangeId.toString)
       }
       else if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
