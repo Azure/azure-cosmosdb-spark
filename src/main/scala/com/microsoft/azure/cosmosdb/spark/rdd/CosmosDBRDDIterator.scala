@@ -193,9 +193,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .get[String](CosmosDBConfig.BulkRead)
       if(bulkRead.isDefined)
       {
+       var collectionThroughput: Int = 0
+           collectionThroughput = connection.getCollectionThroughput
            val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
            val response : BulkReadResponse = importer.ReadDocuments(partition.partitionKeyRangeId.toString)
-           response.readResults
+           response.documentsRead
       }
       else if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
