@@ -194,7 +194,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       if(bulkRead.isDefined)
       {
            val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
-           BulkReadResponse response = importer.ReadDocuments(partition.partitionKeyRangeId.toString)
+           val response : BulkReadResponse = importer.ReadDocuments(partition.partitionKeyRangeId.toString)
            response.readResults
       }
       else if (queryString == FilterConverter.defaultQuery) {
