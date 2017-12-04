@@ -32,7 +32,8 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.{BulkReadResponse, DocumentBulkImporter}
+import com.microsoft.azure.documentdb.bulkimport.{DocumentBulkImporter}
+import com.microsoft.azure.documentdb.bulkimport.bulkread.{BulkReadResponse}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
