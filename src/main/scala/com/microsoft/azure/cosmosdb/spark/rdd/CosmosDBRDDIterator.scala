@@ -37,6 +37,7 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 
 object CosmosDBRDDIterator {
