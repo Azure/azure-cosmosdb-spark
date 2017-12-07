@@ -24,6 +24,7 @@ See the [user guide](https://github.com/Azure/azure-documentdb-spark/wiki/Azure-
   * Python >= 2.7 or Python >= 3.3
 * If using Scala
   * Azure DocumentDB Java SDK 1.15.0
+  * Azure Documentdb RX 0.9.0
 
 For those using HDInsight, this has been tested on HDI 3.5
 
@@ -171,6 +172,22 @@ df.write.mode(SaveMode.Overwrite).cosmosDB(writeConfig)
 // df.rdd.saveToCosmosDB(writeConfig)
 ```
 
+### Using a Jupyter Notebook
+If using a notebook like Jupyter, you can configure the jar dependencies as shown below, which gives an example of pulling jars from a default Blob Storage account (i.e., if using HDInsight) and also pulling from Maven.
+
+```scala
+%%configure -f
+{
+    "executorMemory": "4G",
+    "numExecutors":4,
+    "executorCores":3,
+    "jars": ["wasb:///azure-documentdb-1.15.0.jar","wasb:///azure-cosmosdb-spark_2.1.0_2.11-1.0.0.jar"],
+    "conf": {
+        "spark.jars.packages": "com.microsoft.azure:azure-documentdb-rx:0.9.0-rc2",
+        "spark.jars.excludes": "org.scala-lang:scala-reflect"
+    }
+}
+```
 
 ## How to build the connector
 Currently, this connector project uses `maven` so to build without dependencies, you can run:
