@@ -26,6 +26,8 @@ import java.sql.{Date, Timestamp}
 
 import org.apache.spark.sql.types._
 
+import scala.util.parsing.json.JSONObject
+
 /**
   * Json - Scala object transformation support.
   * Used to convert from DBObjects to Spark SQL Row field types.
@@ -48,41 +50,46 @@ trait JsonSupport {
       desiredType match {
         case StringType => toString(value)
         case _ if value == "" => null // guard the non string type
-        case ByteType => toByte(value)
-        case BinaryType => toBinary(value)
-        case ShortType => toShort(value)
+        case ByteType => toByte(value).getOrElse(null)
+        case BinaryType => toBinary(value).getOrElse(null)
+        case ShortType => toShort(value).getOrElse(null)
         case IntegerType => toInt(value).getOrElse(null)
-        case LongType => toLong(value)
-        case DoubleType => toDouble(value)
-        case DecimalType() => toDecimal(value)
-        case FloatType => toFloat(value)
+        case LongType => toLong(value).getOrElse(null)
+        case DoubleType => toDouble(value).getOrElse(null)
+        case DecimalType() => toDecimal(value).getOrElse(null)
+        case FloatType => toFloat(value).getOrElse(null)
         case BooleanType => value.asInstanceOf[Boolean]
-        case DateType => toDate(value)
-        case TimestampType => toTimestamp(value)
+        case DateType => toDate(value).getOrElse(null)
+        case TimestampType => toTimestamp(value).getOrElse(null)
         case NullType => null
         case _ =>
-          sys.error(s"Unsupported datatype conversion [Value: ${value}] of ${value.getClass}] to ${desiredType}]")
+          sys.error(s"Unsupported datatype conversion [Value: $value] of ${value.getClass}] to $desiredType]")
           value
       }
     }.getOrElse(null)
 
-  private def toBinary(value: Any): Array[Byte] = {
+  private def toBinary(value: Any): Option[Array[Byte]] = {
     value match {
-      case value: Array[Byte] => value
+      case value: Array[Byte] => Some(value)
+      case _ => None
     }
   }
 
-  private def toByte(value: Any): Byte = {
+  private def toByte(value: Any): Option[Byte] = {
     value match {
-      case value: java.lang.Integer => value.byteValue()
-      case value: java.lang.Long => value.byteValue()
+      case value: java.lang.Integer => Some(value.byteValue())
+      case value: java.lang.Long => Some(value.byteValue())
+      case value: String => Some(value.toByte)
+      case _ => None
     }
   }
 
-  private def toShort(value: Any): Short = {
+  private def toShort(value: Any): Option[Short] = {
     value match {
-      case value: java.lang.Integer => value.toShort
-      case value: java.lang.Long => value.toShort
+      case value: java.lang.Integer => Some(value.toShort)
+      case value: java.lang.Long => Some(value.toShort)
+      case value: String => Some(value.toShort)
+      case _ => None
     }
   }
 
@@ -98,51 +105,60 @@ trait JsonSupport {
     }
   }
 
-  private def toLong(value: Any): Long = {
+  private def toLong(value: Any): Option[Long] = {
     value match {
-      case value: java.lang.Integer => value.asInstanceOf[Int].toLong
-      case value: java.lang.Long => value.asInstanceOf[Long]
-      case value: java.lang.Double => value.asInstanceOf[Double].toLong
+      case value: java.lang.Integer => Some(value.asInstanceOf[Int].toLong)
+      case value: java.lang.Long => Some(value.asInstanceOf[Long])
+      case value: java.lang.Double => Some(value.asInstanceOf[Double].toLong)
+      case value: String => Some(value.toLong)
+      case _ => None
     }
   }
 
-  private def toDouble(value: Any): Double = {
+  private def toDouble(value: Any): Option[Double] = {
     value match {
-      case value: java.lang.Integer => value.asInstanceOf[Int].toDouble
-      case value: java.lang.Long => value.asInstanceOf[Long].toDouble
-      case value: java.lang.Double => value.asInstanceOf[Double]
+      case value: java.lang.Integer => Some(value.asInstanceOf[Int].toDouble)
+      case value: java.lang.Long => Some(value.asInstanceOf[Long].toDouble)
+      case value: java.lang.Double => Some(value.asInstanceOf[Double])
+      case value: String => Some(value.toDouble)
+      case _ => None
     }
   }
 
-  private def toDecimal(value: Any): java.math.BigDecimal = {
+  private def toDecimal(value: Any): Option[java.math.BigDecimal] = {
     value match {
-      case value: java.lang.Integer => new java.math.BigDecimal(value)
-      case value: java.lang.Long => new java.math.BigDecimal(value)
-      case value: java.lang.Double => new java.math.BigDecimal(value)
-      case value: java.math.BigInteger => new java.math.BigDecimal(value)
-      case value: java.math.BigDecimal => value
+      case value: java.lang.Integer => Some(new java.math.BigDecimal(value))
+      case value: java.lang.Long => Some(new java.math.BigDecimal(value))
+      case value: java.lang.Double => Some(new java.math.BigDecimal(value))
+      case value: java.math.BigInteger => Some(new java.math.BigDecimal(value))
+      case value: java.math.BigDecimal => Some(value)
+      case _ => None
     }
   }
 
-  private def toFloat(value: Any): Float = {
+  private def toFloat(value: Any): Option[Float] = {
     value match {
-      case value: java.lang.Integer => value.toFloat
-      case value: java.lang.Long => value.toFloat
-      case value: java.lang.Double => value.toFloat
+      case value: java.lang.Integer => Some(value.toFloat)
+      case value: java.lang.Long => Some(value.toFloat)
+      case value: java.lang.Double => Some(value.toFloat)
+      case value: String => Some(value.toFloat)
+      case _ => None
     }
   }
 
-  private def toTimestamp(value: Any): Timestamp = {
+  private def toTimestamp(value: Any): Option[Timestamp] = {
     value match {
-      case value: java.util.Date => new Timestamp(value.getTime)
-      case value: java.lang.Long => new Timestamp(value)
+      case value: java.util.Date => Some(new Timestamp(value.getTime))
+      case value: java.lang.Long => Some(new Timestamp(value))
+      case _ => None
     }
   }
 
-  private def toDate(value: Any): Date = {
+  private def toDate(value: Any): Option[Date] = {
     value match {
-      case value: java.util.Date => new Date(value.getTime)
-      case value: java.lang.Long => new Date(value)
+      case value: java.util.Date => Some(new Date(value.getTime))
+      case value: java.lang.Long => Some(new Date(value))
+      case _ => None
     }
   }
 

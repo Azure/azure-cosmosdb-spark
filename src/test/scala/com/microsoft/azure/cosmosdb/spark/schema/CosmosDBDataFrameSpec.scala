@@ -603,6 +603,37 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     df.filter("id101 is not null").count() should equal(1)
   }
 
+  it should "work with nullable number property" in withSparkSession() { spark =>
+    spark.sparkContext.parallelize((1 to 2).map {
+      case 1 => new Document("{ \"id101\" : null, \"id102\" : null }")
+      case 2 => new Document("{ \"id101\" : 123, \"id102\" : 123.123 }")
+    }).saveToCosmosDB()
+
+    val df = spark.read.cosmosDB()
+
+    val expectedSchema: StructType = {
+      DataTypes.createStructType(Array(
+        DataTypes.createStructField("_attachments", DataTypes.StringType, true),
+        DataTypes.createStructField("_etag", DataTypes.StringType, true),
+        DataTypes.createStructField("_rid", DataTypes.StringType, true),
+        DataTypes.createStructField("_self", DataTypes.StringType, true),
+        DataTypes.createStructField("_ts", DataTypes.IntegerType, true),
+        DataTypes.createStructField("id", DataTypes.StringType, true),
+        DataTypes.createStructField("id101", DataTypes.IntegerType, true),
+        DataTypes.createStructField("id102", DataTypes.DoubleType, true)
+      ))
+    }
+
+    expectedSchema.fields should contain theSameElementsAs df.schema.fields
+    df.schema.fields should contain theSameElementsAs expectedSchema.fields
+
+    // This should not throw
+    df.select("id101").count() should equal(2)
+    df.select("id102").count() should equal(2)
+    df.filter("id102 is null").count() should equal(1)
+    df.filter("id101 is not null").count() should equal(1)
+  }
+
   // Structured stream
   "Structured Stream" should "be able to stream change feed from source collection to sink collection" in withSparkSession() { spark =>
     val host = CosmosDBDefaults().CosmosDBEndpoint
