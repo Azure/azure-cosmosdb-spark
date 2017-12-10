@@ -1,12 +1,17 @@
 # Lambda Architecture with Azure Cosmos DB and HDInsight (Apache Spark)
 
-**TODO:** Combining Azure Cosmos DB and HDInsight to create Lambda Architecture.  
+Combining the [Azure Cosmos DB](https://azure.microsoft.com/blog/azure-cosmos-db-microsofts-globally-distributed-multi-model-database-service/), the industry's first globally-distributed, multi-model database service, and HDInsight not only allows you to [accelerate real-time big data analytics](https://docs.microsoft.com/en-us/azure/cosmos-db/spark-connector), but also allows you to benefit from a **Lambda Architecture** while simplifying its operations.  
 
-Need to include links and Cosmos DB and HDInsight and Spark connector (install instructions, background information, etc.)
+[![](https://raw.githubusercontent.com/dennyglee/notebooks/master/images/135_Connect.png)](https://channel9.msdn.com/Events/Connect/2017/T135/player)
 
 For a quick overview of the various notebooks and components for our Lambda Architecture samples, please refer to the Channel 9 video [Real-time Analytics with Azure Cosmos DB and Apache Spark](https://channel9.msdn.com/Events/Connect/2017/T135).  
 
-[![](https://raw.githubusercontent.com/dennyglee/notebooks/master/images/135_Connect.png)](https://channel9.msdn.com/Events/Connect/2017/T135/player)
+
+>  ### Requirements
+> * Azure Cosmos DB Collection(s)
+> * HDI (Apache Spark 2.1) cluster
+> * Spark Connector: We are currently using the [1.0](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases/azure-cosmosdb-spark_2.1.0_2.11-1.0.0) version of the connector.
+
 
 
 ## What is a Lambda Architecture?
@@ -24,7 +29,7 @@ The basic principles of a Lambda Architecture is described in the preceding diag
  4. The **speed layer** compensates for processing time (to serving layer) and deals with recent data only.
  5. All queries can be answered by merging results from batch views and real-time views or pinging them individually.
 
-## Simplifying Operations via Azure Cosmos DB Change Feed
+## Speed Layer: Simplifying Operations via Azure Cosmos DB Change Feed
 From an operations perspective, maintaining two streams of data while ensuring correct state for the data can be a complicated endeavor.  To simplify this, we can utilize [Azure Cosmos DB Change Feed](https://docs.microsoft.com/en-us/azure/cosmos-db/change-feed) to keep state for the *batch layer* while revealing the Azure Cosmos DB Change log via the *Change Feed API* for your *speed layer*.  
 
 ![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/master/docs/images/scenarios/lambda-architecture-change-feed.png)
@@ -184,39 +189,81 @@ This last statement now has saved your Spark DataFrame into a new Azure Cosmos D
 > 
 
 
+## Persisting the Speed Layer
+As previously noted, using Azure Cosmos DB Change Feed allows us to simplfy the operations between the batch and speed layers.  In this architecture, we are using Apache Spark (via HD Insight) to perform our *structured streaming* queries against the data.   But you may also want to temporarily persist the results of your structured streaming queries so other systems can access this data.
+
+![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/master/docs/images/scenarios/lambda-architecture-speed.png)
+
+To do this, we can create a separate Cosmos DB collection to save the results of your structured streaming queries.  This allows you to have other systems access this information not just Apache Spark. As well with the Cosmos DB Time-to-Live (TTL) feature, you can configure your documents to be automatically deleted after a set duration.  For more information on the Azure Cosmos DB TTL feature, please refer to [Expire data in Azure Cosmos DB collections automatically with time to live](https://docs.microsoft.com/azure/cosmos-db/time-to-live)
+
+```
+// Import Libraries
+import com.microsoft.azure.cosmosdb.spark._
+import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.config.Config
+import org.codehaus.jackson.map.ObjectMapper
+import com.microsoft.azure.cosmosdb.spark.streaming._
+import java.time._
+
+
+// Configure connection to Azure Cosmos DB Change Feed
+val sourceCollectionName = "[SOURCE COLLECTION NAME]"
+val sinkCollectionName = "[SINK COLLECTION NAME]"
+
+val configMap = Map(
+"Endpoint" -> "[COSMOSDB ENDPOINT]",
+"Masterkey" -> "[COSMOSDB MASTER KEY]",
+"Database" -> "[DATABASE NAME]",
+"Collection" -> sourceCollectionName,
+"ChangeFeedCheckpointLocation" -> "changefeedcheckpointlocation")
+
+val sourceConfigMap = configMap.+(("changefeedqueryname", "Structured Stream replication streaming test"))
+
+// Start to read the stream
+var streamData = spark.readStream.format(classOf[CosmosDBSourceProvider].getName).options(sourceConfigMap).load()
+val sinkConfigMap = configMap.-("collection").+(("collection", sinkCollectionName))
+
+// Start the stream writer to new collection
+val streamingQueryWriter = streamData.writeStream.format(classOf[CosmosDBSinkProvider].getName).outputMode("append").options(sinkConfigMap).option("checkpointLocation", "streamingcheckpointlocation")
+var streamingQuery = streamingQueryWriter.start()
+
+```
+
+
 ## Lambda Architecture: Re-architected
-This samples folder the Lambda Architecture: Re-architected with Apache Spark and Azure Cosmos DB per the diagram below.
+As noted in the previous sections, we can simplify our Lambda Architecture by using Azure Cosmos DB, the Cosmos DB Change Feed to avoid the need to multi-cast your data between the batch and speed layers, Apache Spark on HDInsight, and the Spark Connector for Azure Cosmos DB. 
 
 ![](https://raw.githubusercontent.com/Azure/azure-cosmosdb-spark/master/docs/images/scenarios/lambda-architecture-re-architected.png)
 
+With this design, we need only two two managed services that together will address the batch, serving, and speed layers of our Lambda Architecture simplifying not only the operations but also the data flow. 
+ 1. All data pushed into Cosmos DB layer for processing
+ 2. The batch layer has a master dataset (immutable, append-only set of raw data) and pre-compute the batch views
+ 3. The serving layer has batch views so data for fast queries.
+ 4. The speed layer compensates for processing time (to serving layer) and deals with recent data only.
+ 5. All queries can be answered by merging results from batch views and real-time views.
 
 
-
-
-
-
-## References
+### References
 
 The samples included are
 
  1. We will use the [Stream feed from Twitter to CosmosDB](https://github.com/tknandu/TwitterCosmosDBFeed) as our mechanism to push **new data** into Cosmos DB.
- 2. The **batch layer** is comprised of the *master dataset* (an immutable, append-only set of raw data) and ethe ability to pre-compute batch views of the data that will be pushed into the **serving layer**
-    * The [Lambda Architecture Re-architected - Batch Layer]() notebook [ipynb]() | [html]() queries the *master dataset* set of batch views.
+ 2. The **batch layer** is comprised of the *master dataset* (an immutable, append-only set of raw data) and the ability to pre-compute batch views of the data that will be pushed into the **serving layer**
+    * The **Lambda Architecture Re-architected - Batch Layer** notebook [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20Layer.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20Layer.html) queries the *master dataset* set of batch views.
  3. The **serving layer** is comprised of pre-computed data resulting in batch views (e.g. aggregations, specific slicers, etc.) for fast queries.
-    * The [Lambda Architecture Re-architected - Batch to Serving Layer]() notebook [ipynb]() | [html]() pushes the *batch* data to the *serving layer*; i.e. Spark will query a batch collection of tweets, process it, and store it into another collection (i.e. *computed batch*).
+    * The **Lambda Architecture Re-architected - Batch to Serving Layer** notebook [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20to%20Serving%20Layer.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Lambda%20Architecture%20Re-architected%20-%20Batch%20to%20Serving%20Layer.html) pushes the *batch* data to the *serving layer*; i.e. Spark will query a batch collection of tweets, process it, and store it into another collection (i.e. *computed batch*).
  4. The **speed layer** is comprised of Spark utilizing Cosmos DB change feed to read and act on immediately.  The data can also be saved to *computed RT* so that other systems can query the processed real-time data as opposed to running a real-time query themselves.
-    * The [Streaming Query from Cosmos DB Change Feed]() scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count.
-    * The [Streaming Tags Query from Cosmos DB Change Feed ]() scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count by tags.
+    * The [Streaming Query from Cosmos DB Change Feed](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Streaming%20Query%20from%20Cosmos%20DB%20Change%20Feed.scala) scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count.
+    * The [Streaming Tags Query from Cosmos DB Change Feed](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/Streaming%20Tags%20Query%20from%20Cosmos%20DB%20Change%20Feed%20.scala) scala script is to be used by spark-shell to execute a streaming query from Cosmos DB Change Feed to compute an interval count by tags.
   
-
-## Requirements
-* Azure Cosmos DB Collection
-* HDI (Apache Spark 2.1) cluster
-* Spark Connector: We are currently using the [0.0.5-SNAPSHOT](https://github.com/Azure/azure-cosmosdb-spark/tree/master/releases/azure-cosmosdb-spark_2.1.0_2.11-0.0.5-SNAPSHOT) version of the connector.
-
-## References
-* [Stream feed from Twitter to CosmosDB](https://github.com/tknandu/TwitterCosmosDBFeed)
-* [Spark to Cosmos DB Connector Setup](https://github.com/Azure/azure-cosmosdb-spark/wiki/Spark-to-Cosmos-DB-Connector-Setup)
+## Next Steps
+If you haven't already, download the Spark to Azure Cosmos DB connector from the [azure-cosmosdb-spark](https://github.com/Azure/azure-cosmosdb-spark) GitHub repository and explore the additional resources in the repo:
+* [Lambda Architecture](https://github.com/Azure/azure-cosmosdb-spark/tree/master/samples/lambda)
+* [Distributed Aggregations Examples](https://github.com/Azure/azure-documentdb-spark/wiki/Aggregations-Examples)
+* [Sample Scripts and Notebooks](https://github.com/Azure/azure-cosmosdb-spark/tree/master/samples)
+* [Structured Streaming Demos](https://github.com/Azure/azure-cosmosdb-spark/wiki/Structured-Stream-demos)
+* [Change Feed Demos](https://github.com/Azure/azure-cosmosdb-spark/wiki/Change-Feed-demos)
 * [Stream Processing Changes using Azure Cosmos DB Change Feed and Apache Spark](https://github.com/Azure/azure-cosmosdb-spark/wiki/Stream-Processing-Changes-using-Azure-Cosmos-DB-Change-Feed-and-Apache-Spark)
-* [Structured Stream demos](https://github.com/Azure/azure-cosmosdb-spark/wiki/Structured-Stream-demos)
+
+You might also want to review the [Apache Spark SQL, DataFrames, and Datasets Guide](http://spark.apache.org/docs/latest/sql-programming-guide.html) and the [Apache Spark on Azure HDInsight](https://docs.microsoft.com/en-us/azure/hdinsight/spark/apache-spark-jupyter-spark-sql) article.
 
