@@ -210,18 +210,14 @@ If you are using a notebook service such as Azure HDInsight Jupyter notebook ser
 ```
 %%configure
 { "name":"Spark-to-Cosmos_DB_Connector", 
-  "jars": ["wasb:///example/jars/1.0.0/azure-cosmosdb-spark_2.1.0_2.11-1.0.0.jar", "wasb:///example/jars/1.0.0/azure-documentdb-1.14.0.jar", "wasb:///example/jars/1.0.0/azure-documentdb-rx-0.9.0-rc2.jar", "wasb:///example/jars/1.0.0/json-20140107.jar", "wasb:///example/jars/1.0.0/rxjava-1.3.0.jar", "wasb:///example/jars/1.0.0/rxnetty-0.4.20.jar"],
   "conf": {
+    "spark.jars.packages": "com.microsoft.azure:azure-cosmosdb-spark_2.1.0_2.11:1.0.0,com.microsoft.azure:azure-documentdb:1.15.1",
     "spark.jars.excludes": "org.scala-lang:scala-reflect"
    }
 }
 ```
 
-The `jars` command enables you to include the two JARs that are needed for `azure-cosmosdb-spark` (itself and the Azure Cosmos DB SQL Java SDK) and exclude `scala-reflect` so that it does not interfere with the Livy calls (Jupyter notebook > Livy > Spark).
-
-> Note, the above `spark magic` command makes the assumption that the JARs have been uploaded to the Azure HDInsight default storage account. For more information on how to do this, please refer to [Spark to Cosmos DB Connector Setup](https://github.com/Azure/azure-cosmosdb-spark/wiki/Spark-to-Cosmos-DB-Connector-Setup) > [Step 2: Upload Spark Connector JAR to your HDI cluster's storage account](https://github.com/Azure/azure-cosmosdb-spark/wiki/Spark-to-Cosmos-DB-Connector-Setup).
-
-
+The `spark.jars.packages` entry loads packages from the Maven repository. In this example, `azure-cosmosdb-spark` and the Azure Cosmos DB SQL Java SDK.  The `spark.jars.excludes` entry excludes `scala-reflect` so that it does not interfere with the Livy calls (Jupyter notebook > Livy > Spark).
 
 ## Working with our samples
 
