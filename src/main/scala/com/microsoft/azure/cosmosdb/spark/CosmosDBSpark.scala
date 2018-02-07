@@ -31,8 +31,9 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import rx.Observable
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{BulkUpdateResponse, UpdateItem}
-import com.microsoft.azure.documentdb.bulkimport.{BulkImportResponse, DocumentBulkImporter}
+import com.microsoft.azure.documentdb.bulkexecutor.bulkupdate.{BulkUpdateResponse, UpdateItem}
+import com.microsoft.azure.documentdb.bulkexecutor.{DocumentBulkExecutor}
+import com.microsoft.azure.documentdb.bulkexecutor.bulkimport.{BulkImportResponse}
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
@@ -197,7 +198,7 @@ object CosmosDBSpark extends LoggingTrait {
                                       connection: CosmosDBConnection,
                                       collectionThroughput: Int,
                                       writingBatchSize: Int)(implicit ev: ClassTag[D]): Unit = {
-    val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput)
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
     var bulkImportResponse: BulkUpdateResponse = null
@@ -234,7 +235,7 @@ object CosmosDBSpark extends LoggingTrait {
                                       writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
                                       upsert: Boolean): Unit = {
-    val importer: DocumentBulkImporter = connection.getDocumentBulkImporter(collectionThroughput)
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput)
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {

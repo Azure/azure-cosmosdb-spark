@@ -32,7 +32,7 @@ import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, CosmosDBRDDIterator}
 import com.microsoft.azure.cosmosdb.spark.streaming.{CosmosDBSinkProvider, CosmosDBSourceProvider}
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.bulkupdate.{IncUpdateOperation, UpdateItem, UpdateOperationBase}
+import com.microsoft.azure.documentdb.bulkexecutor.bulkupdate.{IncUpdateOperation, UpdateItem, UpdateOperationBase}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.execution.datasources.FilePartition

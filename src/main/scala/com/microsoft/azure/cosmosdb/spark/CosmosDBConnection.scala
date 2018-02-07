@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark
 import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.DocumentBulkImporter
+import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.rx._
 
@@ -57,7 +57,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   @transient private var asyncClient: AsyncDocumentClient = _
 
-  @transient private var bulkImporter: DocumentBulkImporter = _
+  @transient private var bulkImporter: DocumentBulkExecutor = _
 
   private lazy val documentClient: DocumentClient = {
     if (client == null) {
@@ -88,9 +88,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     asyncClient
   }
 
-  def getDocumentBulkImporter(collectionThroughput: Int): DocumentBulkImporter = {
+  def getDocumentBulkImporter(collectionThroughput: Int): DocumentBulkExecutor = {
     if (bulkImporter == null) {
-      bulkImporter = DocumentBulkImporter.builder.from(documentClient,
+      bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
         databaseName,
         collectionName,
         getCollection.getPartitionKey,
