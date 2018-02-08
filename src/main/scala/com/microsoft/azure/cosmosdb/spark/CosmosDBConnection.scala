@@ -25,6 +25,7 @@ package com.microsoft.azure.cosmosdb.spark
 import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.rx._
 
@@ -49,11 +50,14 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
+  private var collection: DocumentCollection = _
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
 
   @transient private var client: DocumentClient = _
 
   @transient private var asyncClient: AsyncDocumentClient = _
+
+  @transient private var bulkImporter: DocumentBulkExecutor = _
 
   private lazy val documentClient: DocumentClient = {
     if (client == null) {
@@ -82,6 +86,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     }
 
     asyncClient
+  }
+
+  def getDocumentBulkImporter(collectionThroughput: Int): DocumentBulkExecutor = {
+    if (bulkImporter == null) {
+      bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
+        databaseName,
+        collectionName,
+        getCollection.getPartitionKey,
+        collectionThroughput
+      ).build()
+    }
+
+    bulkImporter
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
@@ -113,6 +130,17 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       logWarning(s"CosmosDBConnection::Input preferred region list: ${option.get}")
       val preferredLocations = option.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
+    }
+
+    val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
+      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
+      toBoolean
+    if (bulkimport) {
+      // The bulk import library handles the throttling requests on its own
+      // Gateway connection mode needed to avoid potential master partition throttling
+      // as the number of tasks grow larger for collection with a lot of partitions.
+      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
+      connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
     }
 
     ClientConfiguration(
@@ -148,9 +176,27 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
   }
 
+  def getCollectionThroughput: Int = {
+    val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
+    if (offers.isEmpty) {
+      throw new IllegalStateException("Cannot find Collection's corresponding offer")
+    }
+    val offer = offers.get(0)
+    val collectionThroughput = if (offer.getString("offerVersion") == "V1")
+      CosmosDBConfig.SinglePartitionCollectionOfferThroughput
+    else
+      offer.getContent.getInt("offerThroughput")
+    collectionThroughput
+  }
+
   def queryDocuments (queryString : String,
         feedOpts : FeedOptions) : Iterator [Document] = {
+    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    feedResponse.getQueryIterable.iterator()
+  }
 
+  def queryDocuments (collectionLink: String, queryString : String,
+                      feedOpts : FeedOptions) : Iterator [Document] = {
     val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
     feedResponse.getQueryIterable.iterator()
   }
@@ -175,10 +221,24 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     }
   }
 
+  def getCollection: DocumentCollection = {
+    if (collection == null) {
+      collection = documentClient.readCollection(collectionLink, null).getResource
+    }
+    collection
+  }
+
   def upsertDocument(document: Document,
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
     logTrace(s"Upserting document $document")
     asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
+  }
+
+  def upsertDocument(collectionLink: String,
+                      document: Document,
+                      requestOptions: RequestOptions): Unit = {
+    logTrace(s"Upserting document $document")
+    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
 
   def createDocument(document: Document,
@@ -192,7 +252,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     var requestOptions = new RequestOptions
     requestOptions.setPopulateQuotaInfo(true)
     val response = documentClient.readCollection(collectionLink, requestOptions)
+    if (collection == null) {
+      collection = response.getResource
+    }
     response.getDocumentCountUsage == 0
   }
 }
-

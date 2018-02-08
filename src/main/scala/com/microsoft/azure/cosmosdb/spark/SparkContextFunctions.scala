@@ -10,4 +10,8 @@ case class SparkContextFunctions(@transient sc: SparkContext) extends Serializab
   def loadFromCosmosDB(config: Config = Config(sc)): CosmosDBRDD = {
     CosmosDBSpark.builder().sparkContext(sc).config(config).build().toRDD
   }
+
+  def loadFromADL(config: Config = Config(sc)): CosmosDBRDD = {
+    CosmosDBSpark.builder().sparkContext(sc).config(config).build().toRDD
+  }
 }

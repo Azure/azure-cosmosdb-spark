@@ -24,15 +24,20 @@ package com.microsoft.azure.cosmosdb.spark.partitioner
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.schema.FilterConverter
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
+import com.microsoft.azure.cosmosdb.spark.{ADLConnection, ADLFilePartition, CosmosDBConnection, LoggingTrait}
+import org.apache.spark.Partition
 import org.apache.spark.sql.sources.Filter
 
-class CosmosDBPartitioner() extends Partitioner[CosmosDBPartition] with LoggingTrait {
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+
+class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
 
   /**
     * @param config Partition configuration
     */
-  override def computePartitions(config: Config): Array[CosmosDBPartition] = {
+  override def computePartitions(config: Config): Array[Partition] = {
     var connection: CosmosDBConnection = new CosmosDBConnection(config)
     var partitionKeyRanges = connection.getAllPartitions
     logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
@@ -42,14 +47,50 @@ class CosmosDBPartitioner() extends Partitioner[CosmosDBPartition] with LoggingT
   }
 
   def computePartitions(config: Config,
-                       requiredColumns: Array[String] = Array(),
-                       filters: Array[Filter] = Array()): Array[CosmosDBPartition] = {
+                        requiredColumns: Array[String] = Array(),
+                        filters: Array[Filter] = Array(),
+                        hadoopConfig: mutable.Map[String, String]): Array[Partition] = {
+    val adlImport = config.get(CosmosDBConfig.adlAccountFqdn).isDefined
     var connection: CosmosDBConnection = new CosmosDBConnection(config)
-    var query: String = FilterConverter.createQueryString(requiredColumns, filters)
-    var partitionKeyRanges = connection.getAllPartitions(query)
-    logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
-    Array.tabulate(partitionKeyRanges.length){
-      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+    if (adlImport) {
+      // ADL source
+      val hdfsUtils = new HdfsUtils(hadoopConfig.toMap)
+      val adlConnection: ADLConnection = ADLConnection(config)
+      val adlFiles = adlConnection.getFiles
+      val adlCheckpointPath = config.get(CosmosDBConfig.adlFileCheckpointPath)
+      val adlCosmosDBFileStoreCollection = config.get(CosmosDBConfig.CosmosDBFileStoreCollection)
+      val writingBatchId = config.get[String](CosmosDBConfig.WritingBatchId)
+      val adlMaxFileCount = config.get(CosmosDBConfig.adlMaxFileCount)
+        .getOrElse(CosmosDBConfig.DefaultAdlMaxFileCount.toString)
+        .toInt
+      logDebug(s"The Adl folder has ${adlFiles.size()} files")
+      val partitions = new ListBuffer[ADLFilePartition]
+      var partitionIndex = 0
+      var i = 0
+      while (i < adlFiles.size() && partitionIndex < adlMaxFileCount) {
+        var processed = true
+        if (adlCheckpointPath.isDefined) {
+          processed = ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFiles.get(i), writingBatchId.get)
+        } else if (adlCosmosDBFileStoreCollection.isDefined) {
+          val dbName = config.get[String](CosmosDBConfig.Database).get
+          val collectionLink = s"/dbs/$dbName/colls/${adlCosmosDBFileStoreCollection.get}"
+          processed = ADLConnection.isAdlFileProcessed(connection, collectionLink, adlFiles.get(i), writingBatchId.get)
+        }
+        if (!processed) {
+          partitions += ADLFilePartition(partitionIndex, adlFiles.get(i))
+          partitionIndex += 1
+        }
+        i += 1
+      }
+      partitions.toArray
+    } else {
+      // CosmosDB source
+      var query: String = FilterConverter.createQueryString(requiredColumns, filters)
+      var partitionKeyRanges = connection.getAllPartitions(query)
+      logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
+      Array.tabulate(partitionKeyRanges.length) {
+        i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+      }
     }
   }
 }

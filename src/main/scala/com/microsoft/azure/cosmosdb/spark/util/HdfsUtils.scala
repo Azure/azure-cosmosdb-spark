@@ -65,6 +65,10 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
     fs.exists(path)
   }
 
+  def deleteFile(path: String): Unit = {
+    fs.delete(new Path(path), true)
+  }
+
   def listFiles(base: String, filePath: String): RemoteIterator[LocatedFileStatus] = {
     val path = new Path(base + "/" + filePath)
     try {
@@ -79,7 +83,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
                                     collectionRid: String,
                                     partitionId: String,
                                     token: String): Unit = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid/$partitionId"
 
     write(location, path, token)
@@ -89,7 +93,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
                                    queryName: String,
                                    collectionRid: String,
                                    partitionId: String): String = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid/$partitionId"
     if (fileExist(location, path)) {
       read(location, path)
@@ -101,7 +105,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
   def readChangeFeedToken(location: String,
                           queryName: String,
                           collectionRid: String): java.util.HashMap[String, String] = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid"
     val files = listFiles(location, path)
     var tokens = new util.HashMap[String, String]()
@@ -113,10 +117,6 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
       }
     }
     tokens
-  }
-
-  private def filterQueryName(queryName: String): String = {
-    queryName.replaceAll("[^0-9a-zA-Z]", StringUtils.EMPTY)
   }
 }
 
@@ -136,5 +136,10 @@ object HdfsUtils {
       configMap += (entry.getKey -> entry.getValue)
     }
     configMap
+  }
+
+  def filterFilename(queryName: String): String = {
+    queryName.replaceAll("[^0-9a-zA-Z-_]", StringUtils.EMPTY)
+      .replaceAll("[\\W]", "--")
   }
 }
