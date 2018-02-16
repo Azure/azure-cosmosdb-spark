@@ -29,6 +29,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
+import org.json.JSONObject
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable
@@ -65,6 +66,8 @@ case class CosmosDBSchema[T <: RDD[Document]](
 
     val reduced = flatMap.reduceByKey(compatibleType)
 
+    // Group the field and derive the common type
+    // Sort the property in the schema for predictable order
     val structFields = reduced.aggregate(Seq[StructField]())({
       case (fields, (name, tpe)) =>
         val newType = tpe match {
@@ -72,7 +75,7 @@ case class CosmosDBSchema[T <: RDD[Document]](
           case other => other
         }
         fields :+ StructField(name, newType)
-    }, (oldFields, newFields) => oldFields ++ newFields)
+    }, (oldFields, newFields) => oldFields ++ newFields).sortBy(field => field.name)
 
     StructType(structFields)
   }
@@ -173,6 +176,6 @@ case class CosmosDBSchema[T <: RDD[Document]](
     case obj: java.sql.Timestamp => TimestampType
     case null => NullType
     case date: java.util.Date => TimestampType
-    case _ => StringType
+    case obj => if (obj == JSONObject.NULL) NullType else StringType
   }
 }

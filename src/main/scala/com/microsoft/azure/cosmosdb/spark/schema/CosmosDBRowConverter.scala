@@ -25,6 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 import java.util
 
+import com.microsoft.azure.cosmosdb.spark.LoggingTrait
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -57,7 +58,8 @@ trait RowConverter[T] {
 
 object CosmosDBRowConverter extends RowConverter[Document]
   with JsonSupport
-  with Serializable {
+  with Serializable
+  with LoggingTrait {
 
   def asRow(schema: StructType, rdd: RDD[Document]): RDD[Row] = {
     rdd.map { record =>
@@ -116,13 +118,13 @@ object CosmosDBRowConverter extends RowConverter[Document]
     }.orNull
   }
 
-  def rowToDocument(row: Row): Document = {
-    var document: Document = new Document()
+  def rowToJSONObject(row: Row): JSONObject = {
+    var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
-      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) document.set(field.name, null)
-      case (field, i)                    => document.set(field.name, convertToJson(row.get(i), field.dataType))
+      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
     })
-    document
+    jsonObject
   }
 
   private def convertToJson(element: Any, elementType: DataType): Any = {
@@ -143,6 +145,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )
         }
+      case structType: StructType => rowToJSONObject(element.asInstanceOf[Row])
       case _ =>
         throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
     }
@@ -151,7 +154,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
   private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any]): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     val internalData = valueType match {
-      case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowToDocument(kv._2.asInstanceOf[Row])))
+      case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowToJSONObject(kv._2.asInstanceOf[Row])))
       case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]])))
       case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType)))
     }
@@ -160,10 +163,12 @@ object CosmosDBRowConverter extends RowConverter[Document]
 
   private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any]): JSONArray = {
     val internalData = elementType match {
-      case subDocuments: StructType => data.map(x => rowToDocument(x.asInstanceOf[Row])).asJava
+      case subDocuments: StructType => data.map(x => rowToJSONObject(x.asInstanceOf[Row])).asJava
       case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]])).asJava
       case _                        => data.map(x => convertToJson(x, elementType)).asJava
     }
+    // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
+    // Otherwise, the data will be converted into String.
     new JSONArray(internalData)
   }
 
