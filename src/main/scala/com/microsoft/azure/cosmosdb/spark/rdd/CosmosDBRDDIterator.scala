@@ -187,7 +187,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
       logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
 
-      connection.queryDocuments(queryString, feedOpts)
+      if (queryString == FilterConverter.defaultQuery) {
+        // If there is no filters, read feed should be used
+        connection.readDocuments(feedOpts)
+      } else {
+        connection.queryDocuments(queryString, feedOpts)
+      }
     }
 
     /**
@@ -295,8 +300,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       }
       changeFeedOptions.setPageSize(pageSize)
 
+      val structuredStreaming: Boolean = config
+        .get[String](CosmosDBConfig.StructuredStreaming)
+        .getOrElse(CosmosDBConfig.DefaultStructuredStreaming.toString)
+        .toBoolean
+
       // Query for change feed
-      val response = connection.readChangeFeed(changeFeedOptions)
+      val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming)
       val iteratorDocument = response._1
       val nextToken = response._2
 

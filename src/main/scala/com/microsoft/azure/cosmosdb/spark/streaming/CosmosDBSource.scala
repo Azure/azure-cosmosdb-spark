@@ -40,7 +40,9 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     -(CosmosDBConfig.ReadChangeFeed).
     +((CosmosDBConfig.ReadChangeFeed, String.valueOf(true))).
     -(CosmosDBConfig.RollingChangeFeed).
-    +((CosmosDBConfig.RollingChangeFeed, String.valueOf(false)))
+    +((CosmosDBConfig.RollingChangeFeed, String.valueOf(false))).
+    -(CosmosDBConfig.StructuredStreaming).
+    +((CosmosDBConfig.StructuredStreaming, String.valueOf(true)))
 
   var currentSchema: StructType = _
 

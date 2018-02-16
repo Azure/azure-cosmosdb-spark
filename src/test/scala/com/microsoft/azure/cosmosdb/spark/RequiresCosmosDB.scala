@@ -69,6 +69,7 @@ trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll
     // if running against localhost emulator
     HttpClientFactory.DISABLE_HOST_NAME_VERIFICATION = true
 
+    cosmosDBDefaults.deleteDatabase(cosmosDBDefaults.DatabaseName)
     cosmosDBDefaults.createDatabase(cosmosDBDefaults.DatabaseName)
   }
 

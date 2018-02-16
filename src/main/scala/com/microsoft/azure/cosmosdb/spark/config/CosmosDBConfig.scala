@@ -55,12 +55,37 @@ object CosmosDBConfig {
   val ChangeFeedUseNextToken = "changefeedusenexttoken"
   val ChangeFeedContinuationToken = "changefeedcontinuationtoken"
   val IncrementalView = "incrementalview"
+  val StructuredStreaming = "structuredstreaming"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
   val WritingBatchSize = "writingbatchsize"
+  val WritingBatchDelayMs = "writingbatchdelayms"
   val StreamingTimestampToken = "tsToken"
+  val RootPropertyToSave = "rootpropertytosave"
+  val BulkImport = "bulkimport"
+  val BulkUpdate = "bulkupdate"
+  val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
+  val ClientInitDelay = "clientinitdelay"
+
+  // Writing progress tracking
+  val WritingBatchId = "writingbatchid"
+  val CosmosDBFileStoreCollection = "cosmosdbfilestorecollection"
+
+  // ADL import
+  val adlAccountFqdn = "adlaccountfqdn"
+  val adlClientId = "adlclientid"
+  val adlAuthTokenEndpoint = "adlauthtokenendpoint"
+  val adlClientKey = "adlclientkey"
+  val adlDataFolder = "adldatafolder"
+  val adlIdField = "adlidfield"
+  val adlPkField = "adlpkfield"
+  val adlUseGuidForId = "adluseguidforid"
+  val adlUseGuidForPk = "adluseguidforpk"
+  val adlFileCheckpointPath = "adlfilecheckpointpath"
+  val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
+  val adlMaxFileCount = "adlmaxfilecount"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
@@ -82,6 +107,7 @@ object CosmosDBConfig {
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
+  val DefaultStructuredStreaming = false
   val DefaultRollingChangeFeed = false
   val DefaultChangeFeedStartFromTheBeginning = false
   val DefaultChangeFeedUseNextToken = false
@@ -91,7 +117,18 @@ object CosmosDBConfig {
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
   val DefaultWritingBatchSize = 500
+  val DefaultWritingBatchDelayMs = 0
   val DefaultStreamingSlowSourceDelayMs = 1
+  val DefaultBulkImport = true
+  val DefaultBulkUpdate = false
+  val DefaultMaxMiniBatchUpdateCount = 500
+  val DefaultClientInitDelay = 10
+
+  val DefaultAdlUseGuidForId = true
+  val DefaultAdlUseGuidForPk = true
+  val DefaultAdlMaxFileCount: Int = Int.MaxValue
+
+  val SinglePartitionCollectionOfferThroughput = 10000
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

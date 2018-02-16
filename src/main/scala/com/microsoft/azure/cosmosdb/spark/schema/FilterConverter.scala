@@ -23,9 +23,13 @@
 package com.microsoft.azure.cosmosdb.spark.schema
 
 import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.sources._
 
 private [spark] object FilterConverter extends LoggingTrait {
+  private val queryTemplate = "SELECT %s FROM c %s"
+  val defaultQuery: String = String.format(queryTemplate, "*", StringUtils.EMPTY)
+
   def createQueryString(
                          requiredColumns: Array[String],
                          filters: Array[Filter]): String = {
@@ -35,10 +39,10 @@ private [spark] object FilterConverter extends LoggingTrait {
     // need to process the projection.
     //if (requiredColumns.nonEmpty)   selectClause = requiredColumns.map(x => "c." + x).mkString(",")
 
-    var whereClause = ""
+    var whereClause = StringUtils.EMPTY
     if (filters.nonEmpty) whereClause = s"where ${createWhereClause(filters)}"
 
-    s"SELECT ${selectClause} FROM c ${whereClause}"
+    String.format(queryTemplate, selectClause, whereClause)
   }
   
     private def createWhereClause(filters: Array[Filter]): String = {
