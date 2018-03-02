@@ -197,8 +197,9 @@ object CosmosDBSpark extends LoggingTrait {
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
                                       collectionThroughput: Int,
-                                      writingBatchSize: Int)(implicit ev: ClassTag[D]): Unit = {
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput)
+                                      writingBatchSize: Int,
+                                      partitionKeyDefinition: Option[String])(implicit ev: ClassTag[D]): Unit = {
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
     var bulkImportResponse: BulkUpdateResponse = null
@@ -234,8 +235,9 @@ object CosmosDBSpark extends LoggingTrait {
                                       collectionThroughput: Int,
                                       writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
+                                      partitionKeyDefinition: Option[String],
                                       upsert: Boolean): Unit = {
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput)
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -421,6 +423,8 @@ object CosmosDBSpark extends LoggingTrait {
     val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
       getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
       toInt
+    val partitionKeyDefinition = config
+      .get[String](CosmosDBConfig.PartitionKeyDefinition)
 
     // Delay the start as the number of tasks grow to avoid throttling at initialization
     val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
@@ -433,10 +437,10 @@ object CosmosDBSpark extends LoggingTrait {
     if (iter.nonEmpty) {
       if (isBulkUpdating) {
         logDebug(s"Writing partition with bulk update")
-        bulkUpdate(iter, connection, collectionThroughput, writingBatchSize)
+        bulkUpdate(iter, connection, collectionThroughput, writingBatchSize, partitionKeyDefinition)
       } else if (isBulkImporting) {
         logDebug(s"Writing partition with bulk import")
-        bulkImport(iter, connection, collectionThroughput, writingBatchSize, rootPropertyToSave, upsert)
+        bulkImport(iter, connection, collectionThroughput, writingBatchSize, rootPropertyToSave, partitionKeyDefinition, upsert)
       } else {
         logDebug(s"Writing partition with rxjava")
         importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
