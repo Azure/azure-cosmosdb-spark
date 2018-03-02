@@ -88,14 +88,29 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     asyncClient
   }
 
-  def getDocumentBulkImporter(collectionThroughput: Int): DocumentBulkExecutor = {
+  def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
-      bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
-        databaseName,
-        collectionName,
-        getCollection.getPartitionKey,
-        collectionThroughput
-      ).build()
+      if (partitionKeyDefinition.isDefined) {
+        val pkDefinition = new PartitionKeyDefinition()
+        val paths: ListBuffer[String] = new ListBuffer[String]()
+        paths.add(partitionKeyDefinition.get)
+        pkDefinition.setPaths(paths)
+
+        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
+          databaseName,
+          collectionName,
+          pkDefinition,
+          collectionThroughput
+        ).build()
+      }
+      else {
+        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
+          databaseName,
+          collectionName,
+          getCollection.getPartitionKey,
+          collectionThroughput
+        ).build()
+      }
     }
 
     bulkImporter
