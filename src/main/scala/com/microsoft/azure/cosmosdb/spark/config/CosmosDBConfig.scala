@@ -68,6 +68,7 @@ object CosmosDBConfig {
   val BulkUpdate = "bulkupdate"
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val ClientInitDelay = "clientinitdelay"
+  val PartitionKeyDefinition = "partitionkeydefinition"
 
   // Writing progress tracking
   val WritingBatchId = "writingbatchid"
