@@ -116,6 +116,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     bulkImporter
   }
 
+
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
