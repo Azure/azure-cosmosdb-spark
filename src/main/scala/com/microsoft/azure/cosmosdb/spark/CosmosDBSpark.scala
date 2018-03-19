@@ -424,11 +424,7 @@ object CosmosDBSpark extends LoggingTrait {
       getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
       toInt
     val partitionKeyDefinition = config
-<<<<<<< HEAD
-      .get[String](CosmosDBConfig.ParitionKeyDefinition)
-=======
       .get[String](CosmosDBConfig.PartitionKeyDefinition)
->>>>>>> b4cc515513ce26195d6f7d5748bc96ad87bbf56f
 
     // Delay the start as the number of tasks grow to avoid throttling at initialization
     val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
