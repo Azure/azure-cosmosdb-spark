@@ -23,6 +23,6 @@
 package com.microsoft.azure.cosmosdb.spark
 
 object Constants {
-  val currentVersion = "0.0.5-SNAPSHOT"
+  val currentVersion = "2.3.0_2.11-1.1.1"
   val userAgentSuffix = s" SparkConnector/$currentVersion"
 }
