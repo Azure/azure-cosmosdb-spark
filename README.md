@@ -131,7 +131,7 @@ val baseConfig = Config(Map("Endpoint" -> "https://doctorwho.documents.azure.com
 "Database" -> "DepartureDelays",
 "PreferredRegions" -> "Central US;East US2;",
 "Collection" -> "flights_pcoll", 
-"SamplingRatio" -> "1.0"
+"SamplingRatio" -> "1.0",
 "query_custom" -> "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'"))
 
 // Current version of the connector

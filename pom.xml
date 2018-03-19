@@ -373,6 +373,10 @@ limitations under the License.
                   <pattern>com.google</pattern>
                   <shadedPattern>cosmosdb_connector_shaded.com.google</shadedPattern>
                 </relocation>
+                <relocation>
+                  <pattern>com.google.common</pattern>
+                  <shadedPattern>cosmosdb_connector_shaded.com.google.common</shadedPattern>
+                </relocation>
               </relocations>
               <filters>
                 <filter>
