@@ -26,4 +26,6 @@ import org.apache.spark.Partition
 
 case class CosmosDBPartition(index: Int,
                              partitionCount: Int,
-                             partitionKeyRangeId: Int) extends Partition
+                             partitionKeyRangeId: Int,
+                             start: Char,
+                             end: Char) extends Partition

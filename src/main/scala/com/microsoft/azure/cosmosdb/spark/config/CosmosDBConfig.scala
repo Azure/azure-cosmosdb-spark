@@ -70,6 +70,7 @@ object CosmosDBConfig {
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val MaxBulkReadBatchCount = "maxbulkreadbatchcount"
   val ClientInitDelay = "clientinitdelay"
+  val RangeQuery = "rangequery"
 
 
   // Writing progress tracking

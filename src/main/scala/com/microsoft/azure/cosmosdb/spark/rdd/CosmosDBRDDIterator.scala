@@ -32,13 +32,17 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkimport.{DocumentBulkImporter}
+import com.microsoft.azure.documentdb.bulkimport.DocumentBulkImporter
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
-import scala.collection.JavaConversions._
+import scala.concurrent.{Await, Future}
 import scala.collection.mutable
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+
+import scala.collection.JavaConversions._
 
 object CosmosDBRDDIterator {
 
@@ -205,7 +209,72 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       }
       else if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
-        connection.readDocuments(feedOpts)
+        val rangeQuery =  config
+          .get[String](CosmosDBConfig.RangeQuery)
+
+       if(rangeQuery.isDefined) {
+
+         val rangeQueryString = s"SELECT * FROM data o WHERE o.id >= '${partition.start}' and o.id <= '${partition.end}'"
+//         val queryString2 = "SELECT * FROM data o WHERE o.partitionKey >= 'e' and o.partitionKey <= 'i'"
+//         val queryString3 = "SELECT * FROM data o WHERE o.partitionKey >= 'i' and o.partitionKey <= 'l'"
+//         val queryString4 = "SELECT * FROM data o WHERE o.partitionKey >= 'l' and o.partitionKey <= 'p'"
+//         val queryString5 = "SELECT * FROM data o WHERE o.partitionKey >= 'p' and o.partitionKey <= 't'"
+//         val queryString6 = "SELECT * FROM data o WHERE o.partitionKey >= 't' and o.partitionKey <= '{'"
+//         val queryString7 = "SELECT * FROM data o WHERE o.partitionKey >= '0' and o.partitionKey <= '4'"
+//         val queryString8 = "SELECT * FROM data o WHERE o.partitionKey >= '4' and o.partitionKey <= '7'"
+//         val queryString9 = "SELECT * FROM data o WHERE o.partitionKey >= '7' and o.partitionKey <= ':'"
+//
+//
+//         val query1 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString1, feedOpts)
+//         }
+//         val query2 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString2, feedOpts)
+//         }
+//         val query3 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString3, feedOpts)
+//         }
+//         val query4 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString4, feedOpts)
+//         }
+//         val query5 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString5, feedOpts)
+//         }
+//         val query6 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString6, feedOpts)
+//         }
+//         val query7 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString7, feedOpts)
+//         }
+//         val query8 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString8, feedOpts)
+//         }
+//         val query9 = Future[Iterator[Document]] {
+//           connection.queryDocuments(queryString9, feedOpts)
+//         }
+//
+//         val combinedFuture =
+//           for {
+//             r1 <- query1
+//             r2 <- query2
+//             r3 <- query3
+//             r4 <- query4
+//             r5 <- query5
+//             r6 <- query6
+//             r7 <- query7
+//             r8 <- query8
+//             r9 <- query9
+//           } yield (r1, r2, r3, r4, r5, r6, r7, r8, r9)
+//
+//         val (r1, r2, r3, r4, r5, r6, r7, r8, r9) = Await.result(combinedFuture, Duration.Inf)
+//         r1 ++ r2 ++ r3 ++ r4 ++ r5 ++ r6 ++ r7 ++ r8 ++ r9
+         connection.queryDocuments(rangeQueryString, feedOpts)
+       }
+        else
+       {
+           connection.readDocuments(feedOpts)
+       }
+
       } else {
         connection.queryDocuments(queryString, feedOpts)
       }
