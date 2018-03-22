@@ -66,8 +66,12 @@ object CosmosDBConfig {
   val RootPropertyToSave = "rootpropertytosave"
   val BulkImport = "bulkimport"
   val BulkUpdate = "bulkupdate"
+  val BulkRead = "bulkread"
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
+  val MaxBulkReadBatchCount = "maxbulkreadbatchcount"
   val ClientInitDelay = "clientinitdelay"
+  val RangeQuery = "rangequery"
+
 
   // Writing progress tracking
   val WritingBatchId = "writingbatchid"
@@ -121,8 +125,10 @@ object CosmosDBConfig {
   val DefaultStreamingSlowSourceDelayMs = 1
   val DefaultBulkImport = true
   val DefaultBulkUpdate = false
+  val DefaultBulkRead = false
   val DefaultMaxMiniBatchUpdateCount = 500
   val DefaultClientInitDelay = 10
+  val DefaultBulkReadBatchCount = 100
 
   val DefaultAdlUseGuidForId = true
   val DefaultAdlUseGuidForPk = true
