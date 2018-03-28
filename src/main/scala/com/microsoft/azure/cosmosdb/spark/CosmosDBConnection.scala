@@ -21,12 +21,10 @@
   * SOFTWARE.
   */
 package com.microsoft.azure.cosmosdb.spark
-
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
@@ -39,28 +37,28 @@ object CosmosDBConnection {
 
 private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
 
-  private lazy val documentClient: DocumentClient = {
-    if (client == null) {
-      client = accquireClient(connectionMode)
-
-      CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
-    }
-    client
-  }
+  case class ClientConfiguration(host: String,
+                                 key: String,
+                                 connectionPolicy: ConnectionPolicy,
+                                 consistencyLevel: ConsistencyLevel)
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
-
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
-
-
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
   private var collection: DocumentCollection = _
   @transient private var client: DocumentClient = _
 
-
   @transient private var bulkImporter: DocumentBulkExecutor = _
+
+  private lazy val documentClient: DocumentClient = {
+    if (client == null) {
+      client = accquireClient(connectionMode)
+      CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
+    }
+    client
+  }
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
@@ -179,9 +177,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       clientConfiguration.key,
       clientConfiguration.connectionPolicy,
       clientConfiguration.consistencyLevel)
-
     CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
-
     documentClient
   }
 
@@ -235,9 +231,4 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     )
   }
 
-
-  case class ClientConfiguration(host: String,
-                                 key: String,
-                                 connectionPolicy: ConnectionPolicy,
-                                 consistencyLevel: ConsistencyLevel)
 }

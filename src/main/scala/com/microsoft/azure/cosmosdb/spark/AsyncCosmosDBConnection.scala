@@ -55,17 +55,14 @@ private[spark] case class AsyncCosmosDBConnection(config: Config) extends Loggin
         }
       }
     }
-
     asyncClient
   }
-
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
-
 
   @transient private var asyncClient: AsyncDocumentClient = _
 
@@ -75,7 +72,6 @@ private[spark] case class AsyncCosmosDBConnection(config: Config) extends Loggin
                                     writingBatchDelayMs: Long,
                                     rootPropertyToSave: Option[String],
                                     upsert: Boolean): Unit = {
-
 
     var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
     var createDocumentObs: Observable[ResourceResponse[Document]] = null
