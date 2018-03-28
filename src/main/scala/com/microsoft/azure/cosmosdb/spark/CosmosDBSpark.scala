@@ -349,14 +349,6 @@ object CosmosDBSpark extends LoggingTrait {
     iterator
   }
 
-//  private def savePartition[D: ClassTag](iter: Iterator[D],
-//                                         config: Config,
-//                                         partitionCount: Int,
-//                                         collectionThroughput: Int): Iterator[D] = {
-//    //TODO REMOVE THIS LINE
-//    val connection = new CosmosDBConnection(config)
-//    savePartition(connection, iter, config, partitionCount, collectionThroughput)
-//  }
 
   private def savePartition[D: ClassTag](
                                           iter: Iterator[D],
