@@ -22,12 +22,10 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import rx.Observable
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
-import com.microsoft.azure.documentdb.rx._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -41,24 +39,6 @@ object CosmosDBConnection {
 
 private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
 
-  case class ClientConfiguration(host: String,
-                                 key: String,
-                                 connectionPolicy: ConnectionPolicy,
-                                 consistencyLevel: ConsistencyLevel)
-
-  private val databaseName = config.get[String](CosmosDBConfig.Database).get
-  private val collectionName = config.get[String](CosmosDBConfig.Collection).get
-  private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
-    .getOrElse(CosmosDBConfig.DefaultConnectionMode))
-  private var collection: DocumentCollection = _
-  val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
-
-  @transient private var client: DocumentClient = _
-
-  @transient private var asyncClient: AsyncDocumentClient = _
-
-  @transient private var bulkImporter: DocumentBulkExecutor = _
-
   private lazy val documentClient: DocumentClient = {
     if (client == null) {
       client = accquireClient(connectionMode)
@@ -67,26 +47,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     }
     client
   }
+  val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
+  private val databaseName = config.get[String](CosmosDBConfig.Database).get
+  private val collectionName = config.get[String](CosmosDBConfig.Collection).get
+  private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
+    .getOrElse(CosmosDBConfig.DefaultConnectionMode))
+  private var collection: DocumentCollection = _
+  @transient private var client: DocumentClient = _
 
-  private lazy val asyncDocumentClient: AsyncDocumentClient = {
-    if (asyncClient == null) {
-      this.synchronized {
-        if (asyncClient == null) {
-          val clientConfig = getClientConfiguration(config)
 
-          asyncClient = new AsyncDocumentClient
-          .Builder()
-            .withServiceEndpoint(clientConfig.host)
-            .withMasterKey(clientConfig.key)
-            .withConnectionPolicy(clientConfig.connectionPolicy)
-            .withConsistencyLevel(clientConfig.consistencyLevel)
-            .build
-        }
-      }
-    }
-
-    asyncClient
-  }
+  @transient private var bulkImporter: DocumentBulkExecutor = _
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
@@ -116,6 +86,100 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     bulkImporter
   }
 
+  def getCollection: DocumentCollection = {
+    if (collection == null) {
+      collection = documentClient.readCollection(collectionLink, null).getResource
+    }
+    collection
+  }
+
+  def getAllPartitions: Array[PartitionKeyRange] = {
+    var ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
+    ranges.getQueryIterator.toArray
+  }
+
+  def getAllPartitions(query: String): Array[PartitionKeyRange] = {
+    var ranges: java.util.Collection[PartitionKeyRange] =
+      documentClient.readPartitionKeyRanges(collectionLink, query)
+    ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
+  }
+
+  def getCollectionThroughput: Int = {
+    val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
+    if (offers.isEmpty) {
+      throw new IllegalStateException("Cannot find Collection's corresponding offer")
+    }
+    val offer = offers.get(0)
+    val collectionThroughput = if (offer.getString("offerVersion") == "V1")
+      CosmosDBConfig.SinglePartitionCollectionOfferThroughput
+    else
+      offer.getContent.getInt("offerThroughput")
+    collectionThroughput
+  }
+
+  def queryDocuments(queryString: String,
+                     feedOpts: FeedOptions): Iterator[Document] = {
+    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    feedResponse.getQueryIterable.iterator()
+  }
+
+  def queryDocuments(collectionLink: String, queryString: String,
+                     feedOpts: FeedOptions): Iterator[Document] = {
+    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    feedResponse.getQueryIterable.iterator()
+  }
+
+  def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
+    documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
+  }
+
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean): Tuple2[Iterator[Document], String] = {
+    val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
+    if (isStreaming) {
+      // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
+      val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
+      while (feedResponse.getQueryIterator.hasNext) {
+        val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
+        cfDocuments.addAll(feedItems)
+        logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
+      }
+      Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
+    } else {
+      Tuple2.apply(feedResponse.getQueryIterator, feedResponse.getResponseContinuation)
+    }
+  }
+
+  def upsertDocument(collectionLink: String,
+                     document: Document,
+                     requestOptions: RequestOptions): Unit = {
+    logTrace(s"Upserting document $document")
+    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
+  }
+
+  def isDocumentCollectionEmpty: Boolean = {
+    logDebug(s"Reading collection $collectionLink")
+    var requestOptions = new RequestOptions
+    requestOptions.setPopulateQuotaInfo(true)
+    val response = documentClient.readCollection(collectionLink, requestOptions)
+    if (collection == null) {
+      collection = response.getResource
+    }
+    response.getDocumentCountUsage == 0
+  }
+
+  private def accquireClient(connectionMode: ConnectionMode): DocumentClient = {
+    val clientConfiguration = getClientConfiguration(config)
+
+    var documentClient = new DocumentClient(
+      clientConfiguration.host,
+      clientConfiguration.key,
+      clientConfiguration.connectionPolicy,
+      clientConfiguration.consistencyLevel)
+
+    CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
+
+    documentClient
+  }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
@@ -167,110 +231,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     )
   }
 
-  private def accquireClient(connectionMode: ConnectionMode): DocumentClient = {
-    val clientConfiguration = getClientConfiguration(config)
 
-    var documentClient = new DocumentClient(
-      clientConfiguration.host,
-      clientConfiguration.key,
-      clientConfiguration.connectionPolicy,
-      clientConfiguration.consistencyLevel)
-
-    CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
-
-    documentClient
-  }
-
-  def getAllPartitions: Array[PartitionKeyRange] = {
-    var ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
-    ranges.getQueryIterator.toArray
-  }
-
-  def getAllPartitions(query: String): Array[PartitionKeyRange] = {
-    var ranges: java.util.Collection[PartitionKeyRange] =
-      documentClient.readPartitionKeyRanges(collectionLink, query)
-    ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
-  }
-
-  def getCollectionThroughput: Int = {
-    val offers = documentClient.queryOffers(s"SELECT * FROM c where c.offerResourceId = '${getCollection.getResourceId}'", null).getQueryIterable.toList
-    if (offers.isEmpty) {
-      throw new IllegalStateException("Cannot find Collection's corresponding offer")
-    }
-    val offer = offers.get(0)
-    val collectionThroughput = if (offer.getString("offerVersion") == "V1")
-      CosmosDBConfig.SinglePartitionCollectionOfferThroughput
-    else
-      offer.getContent.getInt("offerThroughput")
-    collectionThroughput
-  }
-
-  def queryDocuments (queryString : String,
-        feedOpts : FeedOptions) : Iterator [Document] = {
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
-  }
-
-  def queryDocuments (collectionLink: String, queryString : String,
-                      feedOpts : FeedOptions) : Iterator [Document] = {
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
-  }
-
-  def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
-    documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
-  }
-
-  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean): Tuple2[Iterator[Document], String] = {
-    val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
-    if (isStreaming) {
-      // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
-      val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
-      while (feedResponse.getQueryIterator.hasNext) {
-        val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
-        cfDocuments.addAll(feedItems)
-        logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
-      }
-      Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
-    } else {
-      Tuple2.apply(feedResponse.getQueryIterator, feedResponse.getResponseContinuation)
-    }
-  }
-
-  def getCollection: DocumentCollection = {
-    if (collection == null) {
-      collection = documentClient.readCollection(collectionLink, null).getResource
-    }
-    collection
-  }
-
-  def upsertDocument(document: Document,
-                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logTrace(s"Upserting document $document")
-    asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
-  }
-
-  def upsertDocument(collectionLink: String,
-                      document: Document,
-                      requestOptions: RequestOptions): Unit = {
-    logTrace(s"Upserting document $document")
-    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
-  }
-
-  def createDocument(document: Document,
-                     requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logTrace(s"Creating document $document")
-    asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
-  }
-
-  def isDocumentCollectionEmpty: Boolean = {
-    logDebug(s"Reading collection $collectionLink")
-    var requestOptions = new RequestOptions
-    requestOptions.setPopulateQuotaInfo(true)
-    val response = documentClient.readCollection(collectionLink, requestOptions)
-    if (collection == null) {
-      collection = response.getResource
-    }
-    response.getDocumentCountUsage == 0
-  }
+  case class ClientConfiguration(host: String,
+                                 key: String,
+                                 connectionPolicy: ConnectionPolicy,
+                                 consistencyLevel: ConsistencyLevel)
 }
