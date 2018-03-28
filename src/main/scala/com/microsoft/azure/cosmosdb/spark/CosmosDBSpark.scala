@@ -265,46 +265,6 @@ object CosmosDBSpark extends LoggingTrait {
     }
   }
 
-  private def importWithRxJava[D: ClassTag](iter: Iterator[D],
-                                            connection: CosmosDBConnection,
-                                            writingBatchSize: Integer,
-                                            writingBatchDelayMs: Long,
-                                            rootPropertyToSave: Option[String],
-                                            upsert: Boolean): Unit = {
-    var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
-    var createDocumentObs: Observable[ResourceResponse[Document]] = null
-    var batchSize = 0
-    iter.foreach(item => {
-      val document: Document = item match {
-        case doc: Document => doc
-        case row: Row =>
-          if (rootPropertyToSave.isDefined) {
-            new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
-          } else {
-            new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
-          }
-        case any => new Document(any.toString)
-      }
-      logDebug(s"Inserting document $document")
-      if (upsert)
-        createDocumentObs = connection.upsertDocument(document, null)
-      else
-        createDocumentObs = connection.createDocument(document, null)
-      observables.add(createDocumentObs)
-      batchSize = batchSize + 1
-      if (batchSize % writingBatchSize == 0) {
-        Observable.merge(observables).toBlocking.last()
-        if (writingBatchDelayMs > 0) {
-          TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
-        }
-        observables.clear()
-        batchSize = 0
-      }
-    })
-    if (!observables.isEmpty) {
-      Observable.merge(observables).toBlocking.last()
-    }
-  }
 
   private def saveFilePartition[D: ClassTag](iter: Iterator[D],
                                               config: Config,
@@ -389,20 +349,25 @@ object CosmosDBSpark extends LoggingTrait {
     iterator
   }
 
-  private def savePartition[D: ClassTag](iter: Iterator[D],
-                                         config: Config,
-                                         partitionCount: Int,
-                                         collectionThroughput: Int): Iterator[D] = {
-    val connection = new CosmosDBConnection(config)
-    savePartition(connection, iter, config, partitionCount, collectionThroughput)
-  }
+//  private def savePartition[D: ClassTag](iter: Iterator[D],
+//                                         config: Config,
+//                                         partitionCount: Int,
+//                                         collectionThroughput: Int): Iterator[D] = {
+//    //TODO REMOVE THIS LINE
+//    val connection = new CosmosDBConnection(config)
+//    savePartition(connection, iter, config, partitionCount, collectionThroughput)
+//  }
 
-  private def savePartition[D: ClassTag](connection: CosmosDBConnection,
+  private def savePartition[D: ClassTag](
                                           iter: Iterator[D],
                                           config: Config,
                                           partitionCount: Int,
                                           collectionThroughput: Int): Iterator[D] = {
-    val connection = new CosmosDBConnection(config)
+
+    val connection:CosmosDBConnection = new CosmosDBConnection(config)
+    val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
+
+
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
@@ -443,7 +408,7 @@ object CosmosDBSpark extends LoggingTrait {
         bulkImport(iter, connection, collectionThroughput, writingBatchSize, rootPropertyToSave, partitionKeyDefinition, upsert)
       } else {
         logDebug(s"Writing partition with rxjava")
-        importWithRxJava(iter, connection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
+        asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
       }
     }
     new ListBuffer[D]().iterator
