@@ -12,10 +12,10 @@
 
 * [Latest](#latest)
 * [Jump Start](#jump-start)
-  * [Reading from Cosmos DB](#Reading-from-Cosmos-DB)
-  * [Writing to Cosmos DB](#Writing-to-Cosmos-DB)
+  * [Reading from Cosmos DB](#reading-from-Cosmos-DB)
+  * [Writing to Cosmos DB](#writing-to-Cosmos-DB)
 * [Requirements](#requirements)
-* [Working with the connector](#Working-with-the-connector)
+* [Working with the connector](#working-with-the-connector)
   * [Using spark-cli](#using-spark-cli)
   * [Using Jupyter notebooks](#using-jupyter-notebooks)
   * [Using Databricks notebooks](#using-databricks-notebooks)
