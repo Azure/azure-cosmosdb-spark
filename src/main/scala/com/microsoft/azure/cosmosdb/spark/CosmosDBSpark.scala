@@ -199,9 +199,19 @@ object CosmosDBSpark extends LoggingTrait {
                                       collectionThroughput: Int,
                                       writingBatchSize: Int,
                                       partitionKeyDefinition: Option[String])(implicit ev: ClassTag[D]): Unit = {
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+
+    // Set retry options high for initialization (default values)
+    connection.setDefaultClientRetryPolicy
+
+    // Initialize BulkExecutor
+    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+
+    // Set retry options to 0 to pass control to BulkExecutor
+    connection.setZeroClientRetryPolicy
+
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
+
     var bulkImportResponse: BulkUpdateResponse = null
     iter.foreach(item => {
       item match {
@@ -214,19 +224,19 @@ object CosmosDBSpark extends LoggingTrait {
         case _ => throw new Exception("Unsupported update item types")
       }
       if (updateItems.size() >= writingBatchSize) {
-        bulkImportResponse = importer.updateAll(updateItems)
+        bulkImportResponse = updater.updateAll(updateItems)
         updateItems.clear()
       }
       if (updatePatchItems.size() >= writingBatchSize) {
-        bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
+        bulkImportResponse = updater.updateAllWithPatch(updatePatchItems)
         updatePatchItems.clear()
       }
     })
     if (updateItems.size() > 0) {
-      bulkImportResponse = importer.updateAll(updateItems)
+      bulkImportResponse = updater.updateAll(updateItems)
     }
     if (updatePatchItems.size() > 0) {
-      bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
+      bulkImportResponse = updater.updateAllWithPatch(updatePatchItems)
     }
   }
 
@@ -237,8 +247,18 @@ object CosmosDBSpark extends LoggingTrait {
                                       rootPropertyToSave: Option[String],
                                       partitionKeyDefinition: Option[String],
                                       upsert: Boolean): Unit = {
+
+    // Set retry options high for initialization (default values)
+    connection.setDefaultClientRetryPolicy
+
+    // Initialize BulkExecutor
     val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+
+    // Set retry options to 0 to pass control to BulkExecutor
+    connection.setZeroClientRetryPolicy
+
     val documents = new java.util.ArrayList[String](writingBatchSize)
+
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
       val document: Document = item match {
@@ -365,7 +385,6 @@ object CosmosDBSpark extends LoggingTrait {
 
     val connection:CosmosDBConnection = new CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
-
 
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
