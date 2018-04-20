@@ -70,6 +70,8 @@ object CosmosDBConfig {
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+
+  // Not a config, constant
   val StreamingTimestampToken = "tsToken"
 
   // Write path related config
