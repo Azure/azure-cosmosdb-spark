@@ -212,7 +212,7 @@ object CosmosDBSpark extends LoggingTrait {
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
 
-    var bulkImportResponse: BulkUpdateResponse = null
+    var bulkUpdateResponse: BulkUpdateResponse = null
     iter.foreach(item => {
       item match {
         case updateItem: UpdateItem =>
@@ -224,19 +224,31 @@ object CosmosDBSpark extends LoggingTrait {
         case _ => throw new Exception("Unsupported update item types")
       }
       if (updateItems.size() >= writingBatchSize) {
-        bulkImportResponse = updater.updateAll(updateItems)
+        bulkUpdateResponse = updater.updateAll(updateItems)
+        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
+          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        }
         updateItems.clear()
       }
       if (updatePatchItems.size() >= writingBatchSize) {
-        bulkImportResponse = updater.updateAllWithPatch(updatePatchItems)
+        bulkUpdateResponse = updater.updateAllWithPatch(updatePatchItems)
+        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
+          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        }
         updatePatchItems.clear()
       }
     })
     if (updateItems.size() > 0) {
-      bulkImportResponse = updater.updateAll(updateItems)
+      bulkUpdateResponse = updater.updateAll(updateItems)
+      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
+        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      }
     }
     if (updatePatchItems.size() > 0) {
-      bulkImportResponse = updater.updateAllWithPatch(updatePatchItems)
+      bulkUpdateResponse = updater.updateAllWithPatch(updatePatchItems)
+      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
+        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      }
     }
   }
 
@@ -277,11 +289,17 @@ object CosmosDBSpark extends LoggingTrait {
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
         bulkImportResponse = importer.importAll(documents, upsert)
+        if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
+          throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+        }
         documents.clear()
       }
     })
     if (documents.size() > 0) {
       bulkImportResponse = importer.importAll(documents, upsert)
+      if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
+        throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+      }
     }
   }
 
