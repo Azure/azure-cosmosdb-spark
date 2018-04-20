@@ -116,6 +116,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     bulkImporter
   }
 
+  def setDefaultClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(9);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(30);
+    }
+  }
+
+  def setZeroClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(0);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(0);
+    }
+  }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
