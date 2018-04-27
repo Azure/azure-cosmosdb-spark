@@ -192,6 +192,7 @@ If you're using Jupyter notebooks within HDInsight, you can use spark-magic `%%c
 ### Using Databricks notebooks
 Please create a library using within your Databricks workspace by following the guidance within the Azure Databricks Guide > [Use the Azure Cosmos DB Spark connector](https://docs.azuredatabricks.net/spark/latest/data-sources/azure/cosmosdb-connector.html)
 
+> Note, the **Use the Azure Cosmos DB Spark Connector** page is currently not up-to-date; issue is assigned to @dennyglee.  Instead of downloading the six separate JARs into six different libraries, you can download the uber JAR of [azure-cosmosdb-spark_2.2.0_2.11 (1.1.1)](http://repo1.maven.org/maven2/com/microsoft/azure/azure-cosmosdb-spark_2.2.0_2.11/1.1.1/azure-cosmosdb-spark_2.2.0_2.11-1.1.1-uber.jar) from maven and just install this one JAR / library.
 
 
 ### Build the connector
