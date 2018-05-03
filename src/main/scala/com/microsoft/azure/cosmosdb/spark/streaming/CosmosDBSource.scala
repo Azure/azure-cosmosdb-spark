@@ -54,6 +54,8 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
+
+      // Dummy change feed query to get the first continuation token
       val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
       val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
       if (StringUtils.isEmpty(tokens)) {
@@ -75,7 +77,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     def getOffsetJsonForProgress(offsetJson: String): String = {
-      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\""
+      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\"" // "tsToken": "2324343"
       offsetJson.replaceAll(tsTokenRegex, StringUtils.EMPTY)
     }
     logDebug(s"getBatch with offset: $start $end")
