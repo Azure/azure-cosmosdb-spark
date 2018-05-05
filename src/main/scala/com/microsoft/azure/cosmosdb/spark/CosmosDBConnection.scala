@@ -118,6 +118,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     bulkImporter
   }
 
+  def setDefaultClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(9);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(30);
+    }
+  }
+
+  def setZeroClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(0);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(0);
+    }
+  }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
@@ -238,20 +251,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
     } else {
       Tuple2.apply(feedResponse.getQueryIterator, feedResponse.getResponseContinuation)
-    }
-  }
-
-  def setDefaultClientRetryPolicy: Unit = {
-    if (documentClient != null) {
-      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(9);
-      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(30);
-    }
-  }
-
-  def setZeroClientRetryPolicy: Unit = {
-    if (documentClient != null) {
-      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(0);
-      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(0);
     }
   }
 
