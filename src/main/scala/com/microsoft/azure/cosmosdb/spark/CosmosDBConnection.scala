@@ -29,6 +29,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
+import java.lang.management.ManagementFactory
+
 object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
@@ -198,7 +200,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
