@@ -25,6 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 
 import org.apache.spark.sql.types._
+import org.json.JSONObject
 
 /**
   * Json - Scala object transformation support.
@@ -46,6 +47,7 @@ trait JsonSupport {
   protected def enforceCorrectType(value: Any, desiredType: DataType): Any =
     Option(value).map { _ =>
       desiredType match {
+        case _ if value == JSONObject.NULL => null // guard when null value was inserted in document
         case StringType => toString(value)
         case _ if value == "" => null // guard the non string type
         case ByteType => toByte(value)
