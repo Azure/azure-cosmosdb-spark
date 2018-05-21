@@ -151,14 +151,29 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
 
-  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean): Tuple2[Iterator[Document], String] = {
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean, shouldInferStreamSchema: Boolean): Tuple2[Iterator[Document], String] = {
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
     if (isStreaming) {
       // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
       val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
       while (feedResponse.getQueryIterator.hasNext) {
         val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
-        cfDocuments.addAll(feedItems)
+        if (shouldInferStreamSchema)
+        {
+          cfDocuments.addAll(feedItems)
+        } else {
+          for (feedItem <- feedItems) {
+            val streamDocument: Document = new Document()
+            streamDocument.set("body", feedItem.toJson)
+            streamDocument.set("id", feedItem.get("id"))
+            streamDocument.set("_rid", feedItem.get("_rid"))
+            streamDocument.set("_self", feedItem.get("_self"))
+            streamDocument.set("_etag", feedItem.get("_etag"))
+            streamDocument.set("_attachments", feedItem.get("_attachments"))
+            streamDocument.set("_ts", feedItem.get("_ts"))
+            cfDocuments.add(streamDocument)
+          }
+        }
         logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
       }
       Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
