@@ -204,7 +204,7 @@ object CosmosDBSpark extends LoggingTrait {
     val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
 
     // Set retry options to 0 to pass control to BulkExecutor
-    connection.setZeroClientRetryPolicy
+    // connection.setZeroClientRetryPolicy
 
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
@@ -263,7 +263,7 @@ object CosmosDBSpark extends LoggingTrait {
     val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
 
     // Set retry options to 0 to pass control to BulkExecutor
-    connection.setZeroClientRetryPolicy
+    // connection.setZeroClientRetryPolicy
 
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
