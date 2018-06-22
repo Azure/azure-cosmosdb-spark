@@ -139,7 +139,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
 
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
