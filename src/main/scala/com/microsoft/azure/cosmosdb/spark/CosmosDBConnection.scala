@@ -33,6 +33,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
+import java.lang.management.ManagementFactory
+
 object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
@@ -90,6 +92,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
+      val initializationRetryOptions = new RetryOptions()
+      initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
+      initializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
+
       if (partitionKeyDefinition.isDefined) {
         val pkDefinition = new PartitionKeyDefinition()
         val paths: ListBuffer[String] = new ListBuffer[String]()
@@ -101,7 +107,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           pkDefinition,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
       else {
         bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
@@ -109,18 +115,32 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           getCollection.getPartitionKey,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
     }
 
     bulkImporter
   }
 
+  def setDefaultClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(9);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(30);
+    }
+  }
+
+  def setZeroClientRetryPolicy: Unit = {
+    if (documentClient != null) {
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryAttemptsOnThrottledRequests(0);
+      documentClient.getConnectionPolicy().getRetryOptions().setMaxRetryWaitTimeInSeconds(0);
+    }
+  }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
@@ -148,6 +168,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
+    /*
     val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
       getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
@@ -158,6 +179,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
       connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
     }
+    */
 
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
