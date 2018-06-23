@@ -64,6 +64,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
+      val initializationRetryOptions = new RetryOptions()
+      initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
+      initializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
+
       if (partitionKeyDefinition.isDefined) {
         val pkDefinition = new PartitionKeyDefinition()
         val paths: ListBuffer[String] = new ListBuffer[String]()
@@ -75,7 +79,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           pkDefinition,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
       else {
         bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
@@ -83,7 +87,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           getCollection.getPartitionKey,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
     }
 
@@ -244,6 +248,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
+    /*
     val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
       getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
@@ -254,6 +259,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
       connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
     }
+    */
 
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
