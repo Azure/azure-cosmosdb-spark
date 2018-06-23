@@ -29,6 +29,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
+import java.lang.management.ManagementFactory
+
 object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
@@ -62,6 +64,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
+      val initializationRetryOptions = new RetryOptions()
+      initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
+      initializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
+
       if (partitionKeyDefinition.isDefined) {
         val pkDefinition = new PartitionKeyDefinition()
         val paths: ListBuffer[String] = new ListBuffer[String]()
@@ -73,7 +79,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           pkDefinition,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
       else {
         bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
@@ -81,7 +87,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
           collectionName,
           getCollection.getPartitionKey,
           collectionThroughput
-        ).build()
+        ).withInitializationRetryOptions(initializationRetryOptions).build()
       }
     }
 
@@ -149,14 +155,29 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
 
-  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean): Tuple2[Iterator[Document], String] = {
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean, shouldInferStreamSchema: Boolean): Tuple2[Iterator[Document], String] = {
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
     if (isStreaming) {
       // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
       val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
       while (feedResponse.getQueryIterator.hasNext) {
         val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
-        cfDocuments.addAll(feedItems)
+        if (shouldInferStreamSchema)
+        {
+          cfDocuments.addAll(feedItems)
+        } else {
+          for (feedItem <- feedItems) {
+            val streamDocument: Document = new Document()
+            streamDocument.set("body", feedItem.toJson)
+            streamDocument.set("id", feedItem.get("id"))
+            streamDocument.set("_rid", feedItem.get("_rid"))
+            streamDocument.set("_self", feedItem.get("_self"))
+            streamDocument.set("_etag", feedItem.get("_etag"))
+            streamDocument.set("_attachments", feedItem.get("_attachments"))
+            streamDocument.set("_ts", feedItem.get("_ts"))
+            cfDocuments.add(streamDocument)
+          }
+        }
         logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
       }
       Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
@@ -198,7 +219,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     val connectionPolicy = new ConnectionPolicy()
     connectionPolicy.setConnectionMode(connectionMode)
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
@@ -226,6 +248,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
+    /*
     val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
       getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
@@ -236,6 +259,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
       connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
     }
+    */
 
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,

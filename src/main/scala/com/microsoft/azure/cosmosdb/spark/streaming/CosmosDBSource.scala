@@ -29,7 +29,7 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
@@ -47,6 +47,19 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   var currentSchema: StructType = _
 
   override def schema: StructType = {
+    def cosmosDbStreamSchema: StructType = {
+      StructType(
+        Seq(
+          StructField("body", StringType),
+          StructField("id", StringType),
+          StructField("_rid", StringType),
+          StructField("_self", StringType),
+          StructField("_etag", StringType),
+          StructField("_attachments", StringType),
+          StructField("_ts", StringType)
+        ))
+    }
+
     if (currentSchema == null) {
       CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
         sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
@@ -63,7 +76,16 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         // Trigger the count to update the current continuation token
         df.count()
       }
-      currentSchema = df.schema
+
+      val shouldInferSchema = helperDfConfig.
+        getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
+        toBoolean
+
+      if (shouldInferSchema) {
+        currentSchema = df.schema
+      } else {
+        currentSchema = cosmosDbStreamSchema
+      }
     }
     currentSchema
   }

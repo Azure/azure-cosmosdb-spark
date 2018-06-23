@@ -70,6 +70,7 @@ object CosmosDBConfig {
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+  val InferStreamSchema = "inferstreamschema"
 
   // Not a config, constant
   val StreamingTimestampToken = "tsToken"
@@ -85,6 +86,7 @@ object CosmosDBConfig {
   val BulkUpdate = "bulkupdate"
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val PartitionKeyDefinition = "partitionkeydefinition"
+  val WriteThroughputBudget = "writethroughputbudget"
 
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
@@ -149,6 +151,8 @@ object CosmosDBConfig {
   val DefaultAdlMaxFileCount: Int = Int.MaxValue
 
   val SinglePartitionCollectionOfferThroughput = 10000
+
+  val DefaultInferStreamSchema = true
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
