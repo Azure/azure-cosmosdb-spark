@@ -31,9 +31,7 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import rx.Observable
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkexecutor.bulkupdate.{BulkUpdateResponse, UpdateItem}
-import com.microsoft.azure.documentdb.bulkexecutor.{DocumentBulkExecutor}
-import com.microsoft.azure.documentdb.bulkexecutor.bulkimport.{BulkImportResponse}
+import com.microsoft.azure.documentdb.bulkexecutor.{DocumentBulkExecutor, BulkImportResponse, BulkUpdateResponse, UpdateItem}
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
@@ -199,10 +197,19 @@ object CosmosDBSpark extends LoggingTrait {
                                       collectionThroughput: Int,
                                       writingBatchSize: Int,
                                       partitionKeyDefinition: Option[String])(implicit ev: ClassTag[D]): Unit = {
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+    // Set retry options high for initialization (default values)
+    connection.setDefaultClientRetryPolicy
+
+    // Initialize BulkExecutor
+    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+
+    // Set retry options to 0 to pass control to BulkExecutor
+    // connection.setZeroClientRetryPolicy
+
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
-    var bulkImportResponse: BulkUpdateResponse = null
+
+    var bulkUpdateResponse: BulkUpdateResponse = null
     iter.foreach(item => {
       item match {
         case updateItem: UpdateItem =>
@@ -214,19 +221,31 @@ object CosmosDBSpark extends LoggingTrait {
         case _ => throw new Exception("Unsupported update item types")
       }
       if (updateItems.size() >= writingBatchSize) {
-        bulkImportResponse = importer.updateAll(updateItems)
+        bulkUpdateResponse = updater.updateAll(updateItems, null)
+        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
+          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        }
         updateItems.clear()
       }
       if (updatePatchItems.size() >= writingBatchSize) {
-        bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
+        bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
+        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
+          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        }
         updatePatchItems.clear()
       }
     })
     if (updateItems.size() > 0) {
-      bulkImportResponse = importer.updateAll(updateItems)
+      bulkUpdateResponse = updater.updateAll(updateItems, null)
+      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
+        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      }
     }
     if (updatePatchItems.size() > 0) {
-      bulkImportResponse = importer.updateAllWithPatch(updatePatchItems)
+      bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
+      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
+        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      }
     }
   }
 
@@ -237,7 +256,15 @@ object CosmosDBSpark extends LoggingTrait {
                                       rootPropertyToSave: Option[String],
                                       partitionKeyDefinition: Option[String],
                                       upsert: Boolean): Unit = {
+    // Set retry options high for initialization (default values)
+    connection.setDefaultClientRetryPolicy
+
+    // Initialize BulkExecutor
     val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(collectionThroughput, partitionKeyDefinition)
+
+    // Set retry options to 0 to pass control to BulkExecutor
+    // connection.setZeroClientRetryPolicy
+
     val documents = new java.util.ArrayList[String](writingBatchSize)
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -256,12 +283,18 @@ object CosmosDBSpark extends LoggingTrait {
       }
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
-        bulkImportResponse = importer.importAll(documents, upsert)
+        bulkImportResponse = importer.importAll(documents, upsert, false, null)
+        if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
+          throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+        }
         documents.clear()
       }
     })
     if (documents.size() > 0) {
-      bulkImportResponse = importer.importAll(documents, upsert)
+      bulkImportResponse = importer.importAll(documents, upsert, false, null)
+      if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
+        throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+      }
     }
   }
 
