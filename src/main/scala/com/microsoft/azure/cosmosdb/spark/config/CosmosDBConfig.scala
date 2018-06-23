@@ -86,6 +86,7 @@ object CosmosDBConfig {
   val BulkUpdate = "bulkupdate"
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val PartitionKeyDefinition = "partitionkeydefinition"
+  val WriteThroughputBudget = "writethroughputbudget"
 
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
