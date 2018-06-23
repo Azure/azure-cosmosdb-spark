@@ -23,17 +23,32 @@
 package com.microsoft.azure.cosmosdb.spark.config
 
 /**
- * Values and Functions for access and parse the configuration parameters
- */
+  * Values and Functions for access and parse the configuration parameters
+  */
 object CosmosDBConfig {
 
   //  Parameter names
+
+  // Cosmos DB account related config
   val Endpoint = "endpoint"
   val Database = "database"
   val Collection = "collection"
   val Masterkey = "masterkey"
+
+  val PreferredRegionsList = "preferredregions"
+  val ConsistencyLevel = "consistencylevel"
+
+  // Spark dataframe schema related config
   val SamplingRatio = "schema_samplingratio"
   val SampleSize = "schema_samplesize"
+
+  // Connection related config
+  val ConnectionMode = "connectionmode"
+  val ConnectionMaxPoolSize = "connectionmaxpoolsize"
+  val ConnectionIdleTimeout = "connectionidletimeout"
+
+  // Query related config
+  val QueryCustom = "query_custom"
   val QueryPageSize = "query_pagesize"
   val QueryMaxRetryOnThrottled = "query_maxretryattemptsonthrottledrequests"
   val QueryMaxRetryWaitTimeSecs = "query_maxretrywaittimeinseconds"
@@ -42,13 +57,8 @@ object CosmosDBConfig {
   val QueryEnableScan = "query_enablescan"
   val QueryDisableRUPerMinuteUsage = "query_disableruperminuteusage"
   val QueryEmitVerboseTraces = "query_emitverbosetraces"
-  val QueryCustom = "query_custom"
-  val PreferredRegionsList = "preferredregions"
-  val Upsert = "upsert"
-  val ConnectionMode = "connectionmode"
-  val ConnectionMaxPoolSize = "connectionmaxpoolsize"
-  val ConnectionIdleTimeout = "connectionidletimeout"
-  val ConsistencyLevel = "consistencylevel"
+
+  // Change feed streaming related
   val ReadChangeFeed = "readchangefeed"
   val RollingChangeFeed = "rollingchangefeed"
   val ChangeFeedStartFromTheBeginning = "changefeedstartfromthebeginning"
@@ -60,15 +70,25 @@ object CosmosDBConfig {
   val ChangeFeedQueryName = "changefeedqueryname"
   val ChangeFeedNewQuery = "changefeednewquery"
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
-  val WritingBatchSize = "writingbatchsize"
-  val WritingBatchDelayMs = "writingbatchdelayms"
+  val InferStreamSchema = "inferstreamschema"
+
+  // Not a config, constant
   val StreamingTimestampToken = "tsToken"
+
+  // Write path related config
+  val Upsert = "upsert"
+  val ClientInitDelay = "clientinitdelay"
   val RootPropertyToSave = "rootpropertytosave"
+
+  // Bulk executor library related
   val BulkImport = "bulkimport"
+  val WritingBatchSize = "writingbatchsize"
   val BulkUpdate = "bulkupdate"
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
-  val ClientInitDelay = "clientinitdelay"
   val PartitionKeyDefinition = "partitionkeydefinition"
+
+  // Rx Java related write config
+  val WritingBatchDelayMs = "writingbatchdelayms"
 
   // Writing progress tracking
   val WritingBatchId = "writingbatchid"
@@ -130,6 +150,8 @@ object CosmosDBConfig {
   val DefaultAdlMaxFileCount: Int = Int.MaxValue
 
   val SinglePartitionCollectionOfferThroughput = 10000
+
+  val DefaultInferStreamSchema = true
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

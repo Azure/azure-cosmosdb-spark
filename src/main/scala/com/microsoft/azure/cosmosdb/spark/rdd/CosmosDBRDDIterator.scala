@@ -305,8 +305,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(CosmosDBConfig.DefaultStructuredStreaming.toString)
         .toBoolean
 
+      val shouldInferStreamSchema: Boolean = config
+        .get[String](CosmosDBConfig.InferStreamSchema)
+        .getOrElse(CosmosDBConfig.DefaultInferStreamSchema.toString)
+        .toBoolean
+
       // Query for change feed
-      val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming)
+      val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
       val iteratorDocument = response._1
       val nextToken = response._2
 
