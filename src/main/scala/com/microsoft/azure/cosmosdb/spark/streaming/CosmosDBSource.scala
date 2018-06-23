@@ -29,7 +29,7 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
@@ -47,6 +47,19 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   var currentSchema: StructType = _
 
   override def schema: StructType = {
+    def cosmosDbStreamSchema: StructType = {
+      StructType(
+        Seq(
+          StructField("body", StringType),
+          StructField("id", StringType),
+          StructField("_rid", StringType),
+          StructField("_self", StringType),
+          StructField("_etag", StringType),
+          StructField("_attachments", StringType),
+          StructField("_ts", StringType)
+        ))
+    }
+
     if (currentSchema == null) {
       CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
         sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
@@ -54,6 +67,8 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
+
+      // Dummy change feed query to get the first continuation token
       val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
       val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
       if (StringUtils.isEmpty(tokens)) {
@@ -61,7 +76,16 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         // Trigger the count to update the current continuation token
         df.count()
       }
-      currentSchema = df.schema
+
+      val shouldInferSchema = helperDfConfig.
+        getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
+        toBoolean
+
+      if (shouldInferSchema) {
+        currentSchema = df.schema
+      } else {
+        currentSchema = cosmosDbStreamSchema
+      }
     }
     currentSchema
   }
@@ -75,7 +99,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
     def getOffsetJsonForProgress(offsetJson: String): String = {
-      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\""
+      val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\"" // "tsToken": "2324343"
       offsetJson.replaceAll(tsTokenRegex, StringUtils.EMPTY)
     }
     logDebug(s"getBatch with offset: $start $end")
@@ -83,7 +107,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     val nextTokens = getOffsetJsonForProgress(CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap)))
     val currentTokens = getOffsetJsonForProgress(
       CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap),
-      shouldGetCurrentToken = true))
+        shouldGetCurrentToken = true))
     // Only getting the data in the following cases:
     // - The provided end offset is the current offset (next tokens), the stream is progressing to the batch
     // - The provided end offset is the current tokens. This means the stream didn't get to commit the to end offset yet

@@ -66,8 +66,8 @@ limitations under the License.
     </dependency>
     <dependency>
       <groupId>com.microsoft.azure</groupId>
-      <artifactId>azure-documentdb-rx</artifactId>
-      <version>0.9.0-rc2</version>
+      <artifactId>azure-cosmosdb</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.microsoft.azure</groupId>
