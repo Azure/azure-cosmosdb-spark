@@ -118,7 +118,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         streamConfigMap
           .-(CosmosDBConfig.ChangeFeedContinuationToken)
           .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
-      sqlContext.read.cosmosDB(schema, readConfig, sqlContext)
+      sqlContext.read.cosmosDB(schema, readConfig)
 
     } else {
       logDebug(s"Skipping this batch")
