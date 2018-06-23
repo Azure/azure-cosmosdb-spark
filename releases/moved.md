@@ -1,0 +1,1 @@
+We have moved our releases to Maven: [https://search.maven.org/#search%7Cga%7C1%7Cazure-cosmosdb-spark](https://search.maven.org/#search%7Cga%7C1%7Cazure-cosmosdb-spark)
