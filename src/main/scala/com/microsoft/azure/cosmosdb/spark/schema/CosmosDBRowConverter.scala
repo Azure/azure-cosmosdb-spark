@@ -121,8 +121,11 @@ object CosmosDBRowConverter extends RowConverter[Document]
   def rowToJSONObject(row: Row): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
-      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
+      case (field, i)                    => {
+        if(row.get(i) == null)  jsonObject.put(field.name, JSONObject.NULL)
+        else if (field.dataType == NullType) jsonObject.remove(field.name)
+        else jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
+      }
     })
     jsonObject
   }
