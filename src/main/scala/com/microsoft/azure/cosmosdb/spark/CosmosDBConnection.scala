@@ -141,8 +141,17 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def queryDocuments (queryString : String,
                       feedOpts : FeedOptions) : Iterator [Document] = {
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
+    Console.println("SparkConnector feed options for pk range " + feedOpts.getPartitionKeyRangeIdInternal + " : " + feedOpts.toString)
+    try {
+      val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+      feedResponse.getQueryIterable.iterator()
+    } catch {
+      case dce: DocumentClientException => {
+        Console.println("SparkConnector failed for partition key range " + feedOpts.getPartitionKeyRangeIdInternal)
+        throw dce
+      }
+    }
+
   }
 
   def queryDocuments (collectionLink: String, queryString : String,
@@ -233,10 +242,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     if (maxRetryAttemptsOnThrottled.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
     }
+    Console.println("SparkConnector >> QueryMaxRetryOnThrottled: " + connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests)
     val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs)
     if (maxRetryWaitTimeSecs.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
     }
+    Console.println("SparkConnector >> QueryMaxRetryWaitTimeSecs: " + connectionPolicy.getRetryOptions.getMaxRetryWaitTimeInSeconds)
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
