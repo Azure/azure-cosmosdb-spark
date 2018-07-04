@@ -70,17 +70,19 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
         .-(CosmosDBConfig.ReadChangeFeed).
         +((CosmosDBConfig.ReadChangeFeed, String.valueOf(false)))
+        .-(CosmosDBConfig.QueryCustom).
+        +((CosmosDBConfig.QueryCustom, "SELECT TOP 10 * FROM c"))
       val shouldInferSchema = helperDfConfig.
         getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
         toBoolean
 
       if (shouldInferSchema) {
-        // Dummy change feed query to get the first continuation token
+        // Dummy batch read query to sample schema
         val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
         val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
         if (StringUtils.isEmpty(tokens)) {
           // Empty tokens means it is a new streaming query
-          // Trigger the count to update the current continuation token
+          // Trigger the count to force batch read query to sample schema
           df.count()
         }
 
