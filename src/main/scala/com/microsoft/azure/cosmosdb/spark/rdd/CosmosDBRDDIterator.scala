@@ -43,7 +43,7 @@ object CosmosDBRDDIterator {
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
 
-  private var hdfsUtils: HdfsUtils = _
+  var hdfsUtils: HdfsUtils = _
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
     if (hdfsUtils == null) {
