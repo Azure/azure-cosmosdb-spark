@@ -102,6 +102,10 @@ object CosmosDBRDDIterator {
 
       tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
     }
+    else {
+      // Encoding offset as serialized empty map and not null to prevent serialization failure
+      tokenString = new ObjectMapper().writeValueAsString(new ConcurrentHashMap[String, String]())
+    }
 
     tokenString
   }
