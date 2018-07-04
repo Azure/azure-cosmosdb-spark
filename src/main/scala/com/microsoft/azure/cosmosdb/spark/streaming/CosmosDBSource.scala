@@ -64,6 +64,20 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
         sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
 
+      // Delete current tokens and next tokens checkpoint directories to ensure change feed starts from beginning if set
+      if (streamConfigMap.getOrElse(CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)).toBoolean) {
+        val changeFeedCheckpointLocation: String = streamConfigMap
+          .getOrElse(CosmosDBConfig.ChangeFeedCheckpointLocation, StringUtils.EMPTY)
+        val queryName = Config(streamConfigMap)
+          .get[String](CosmosDBConfig.ChangeFeedQueryName).get
+        val currentTokensCheckpointPath = changeFeedCheckpointLocation + "/" + HdfsUtils.filterFilename(queryName)
+        val nextTokensCheckpointPath = changeFeedCheckpointLocation + "/" +
+          HdfsUtils.filterFilename(CosmosDBRDDIterator.getNextTokenPath(queryName))
+
+        CosmosDBRDDIterator.hdfsUtils.deleteFile(currentTokensCheckpointPath)
+        CosmosDBRDDIterator.hdfsUtils.deleteFile(nextTokensCheckpointPath)
+      }
+
       logDebug(s"Reading data to derive the schema")
       val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
