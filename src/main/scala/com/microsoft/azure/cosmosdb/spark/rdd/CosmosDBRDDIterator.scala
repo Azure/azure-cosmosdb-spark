@@ -43,7 +43,7 @@ object CosmosDBRDDIterator {
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
 
-  var hdfsUtils: HdfsUtils = _
+  private var hdfsUtils: HdfsUtils = _
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
     if (hdfsUtils == null) {
@@ -101,10 +101,6 @@ object CosmosDBRDDIterator {
         (System.currentTimeMillis() / streamingSlowSourceDelayMs).toString)
 
       tokenString = new ObjectMapper().writeValueAsString(nextTokenMap)
-    }
-    else {
-      // Encoding offset as serialized empty map and not null to prevent serialization failure
-      tokenString = new ObjectMapper().writeValueAsString(new ConcurrentHashMap[String, String]())
     }
 
     tokenString

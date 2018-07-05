@@ -63,43 +63,25 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     if (currentSchema == null) {
       CosmosDBRDDIterator.initializeHdfsUtils(HdfsUtils.getConfigurationMap(
         sqlContext.sparkSession.sparkContext.hadoopConfiguration).toMap)
-
-      // Delete current tokens and next tokens checkpoint directories to ensure change feed starts from beginning if set
-      if (streamConfigMap.getOrElse(CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)).toBoolean) {
-        val changeFeedCheckpointLocation: String = streamConfigMap
-          .getOrElse(CosmosDBConfig.ChangeFeedCheckpointLocation, StringUtils.EMPTY)
-        val queryName = Config(streamConfigMap)
-          .get[String](CosmosDBConfig.ChangeFeedQueryName).get
-        val currentTokensCheckpointPath = changeFeedCheckpointLocation + "/" + HdfsUtils.filterFilename(queryName)
-        val nextTokensCheckpointPath = changeFeedCheckpointLocation + "/" +
-          HdfsUtils.filterFilename(CosmosDBRDDIterator.getNextTokenPath(queryName))
-
-        CosmosDBRDDIterator.hdfsUtils.deleteFile(currentTokensCheckpointPath)
-        CosmosDBRDDIterator.hdfsUtils.deleteFile(nextTokensCheckpointPath)
-      }
-
       logDebug(s"Reading data to derive the schema")
       val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
-        .-(CosmosDBConfig.ReadChangeFeed).
-        +((CosmosDBConfig.ReadChangeFeed, String.valueOf(false)))
-        .-(CosmosDBConfig.QueryCustom).
-        +((CosmosDBConfig.QueryCustom, "SELECT TOP 10 * FROM c"))
+
+      // Dummy change feed query to get the first continuation token
+      val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
+      val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
+      if (StringUtils.isEmpty(tokens)) {
+        // Empty tokens means it is a new streaming query
+        // Trigger the count to update the current continuation token
+        df.count()
+      }
+
       val shouldInferSchema = helperDfConfig.
         getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
         toBoolean
 
       if (shouldInferSchema) {
-        // Dummy batch read query to sample schema
-        val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
-        val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
-        if (StringUtils.isEmpty(tokens)) {
-          // Empty tokens means it is a new streaming query
-          // Trigger the count to force batch read query to sample schema
-          df.count()
-        }
-
         currentSchema = df.schema
       } else {
         currentSchema = cosmosDbStreamSchema
@@ -120,14 +102,12 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       val tsTokenRegex = "\"" + CosmosDBConfig.StreamingTimestampToken + "\"\\:\"[\\d]+\"" // "tsToken": "2324343"
       offsetJson.replaceAll(tsTokenRegex, StringUtils.EMPTY)
     }
-
     logDebug(s"getBatch with offset: $start $end")
-    val endJson: String = getOffsetJsonForProgress(end.json)
+    val endJson = getOffsetJsonForProgress(end.json)
     val nextTokens = getOffsetJsonForProgress(CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap)))
     val currentTokens = getOffsetJsonForProgress(
       CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap),
       shouldGetCurrentToken = true))
-
     // Only getting the data in the following cases:
     // - The provided end offset is the current offset (next tokens), the stream is progressing to the batch
     // - The provided end offset is the current tokens. This means the stream didn't get to commit the to end offset yet
@@ -138,8 +118,8 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         streamConfigMap
           .-(CosmosDBConfig.ChangeFeedContinuationToken)
           .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
-      val currentDf = sqlContext.read.cosmosDB(schema, readConfig, sqlContext)
-      currentDf
+      sqlContext.read.cosmosDB(schema, readConfig, sqlContext)
+
     } else {
       logDebug(s"Skipping this batch")
       sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema)
