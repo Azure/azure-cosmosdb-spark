@@ -217,7 +217,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
+    // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
+
     connectionPolicy.setConnectionMode(connectionMode)
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
 
@@ -229,37 +231,31 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeout(connectionIdleTimeoutStr.toInt)
       case None => // skip
     }
+
     val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
     if (maxRetryAttemptsOnThrottled.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
+    }  else {
+      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toInt)
     }
+
     val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs)
     if (maxRetryWaitTimeSecs.isDefined) {
       connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
+    } else {
+      connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(CosmosDBConfig.DefaultQueryMaxRetryWaitTimeSecs.toInt)
     }
-    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
-      .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    val option = config.get[String](CosmosDBConfig.PreferredRegionsList)
-
-    if (option.isDefined) {
-      logWarning(s"CosmosDBConnection::Input preferred region list: ${option.get}")
-      val preferredLocations = option.get.split(";").toSeq.map(_.trim)
+    val preferredRegionsList = config.get[String](CosmosDBConfig.PreferredRegionsList)
+    if (preferredRegionsList.isDefined) {
+      logWarning(s"CosmosDBConnection::Input preferred region list: ${preferredRegionsList.get}")
+      val preferredLocations = preferredRegionsList.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
 
-    /*
-    val bulkimport = config.get[String](CosmosDBConfig.BulkImport).
-      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
-      toBoolean
-    if (bulkimport) {
-      // The bulk import library handles the throttling requests on its own
-      // Gateway connection mode needed to avoid potential master partition throttling
-      // as the number of tasks grow larger for collection with a lot of partitions.
-      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(0)
-      connectionPolicy.setConnectionMode(ConnectionMode.Gateway)
-    }
-    */
+    // Get consistency level
+    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
+      .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
