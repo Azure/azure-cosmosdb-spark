@@ -122,11 +122,13 @@ object CosmosDBConfig {
     Collection
   )
 
-  val DefaultSamplingRatio = 1.0
-  val DefaultPageSize = 1000
-  val DefaultSampleSize = DefaultPageSize
-  val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString
+  val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString // for sync SDK
   val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
+  val DefaultQueryMaxRetryOnThrottled = 1000
+  val DefaultQueryMaxRetryWaitTimeSecs = 1000
+  val DefaultSamplingRatio = 1.0
+  val DefaultPageSize = 50
+  val DefaultSampleSize = DefaultPageSize
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
   val DefaultStructuredStreaming = false
@@ -138,7 +140,8 @@ object CosmosDBConfig {
   val DefaultChangeFeedNewQuery = false
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
-  val DefaultWritingBatchSize = 500
+  val DefaultWritingBatchSize_BulkInsert = 100000
+  val DefaultWritingBatchSize_PointInsert = 500
   val DefaultWritingBatchDelayMs = 0
   val DefaultStreamingSlowSourceDelayMs = 1
   val DefaultBulkImport = true

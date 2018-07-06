@@ -408,12 +408,23 @@ object CosmosDBSpark extends LoggingTrait {
     val connection:CosmosDBConnection = new CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
+    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
+      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
+      toBoolean
+
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
-    val writingBatchSize = config
-      .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize))
-      .toInt
+    var writingBatchSize: Int = 0
+    if (isBulkImporting) {
+      val writingBatchSize = config
+        .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert))
+        .toInt
+    } else {
+      val writingBatchSize = config
+        .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
+        .toInt
+    }
     val writingBatchDelayMs = config
       .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
       .toInt
@@ -421,9 +432,6 @@ object CosmosDBSpark extends LoggingTrait {
       .get[String](CosmosDBConfig.RootPropertyToSave)
     val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
       getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
-      toBoolean
-    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
-      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
       toBoolean
     val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
       getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).

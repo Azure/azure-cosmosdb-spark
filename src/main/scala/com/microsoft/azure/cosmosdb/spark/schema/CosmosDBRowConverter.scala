@@ -32,6 +32,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.{DataType, _}
 import org.json.{JSONArray, JSONObject}
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.HashMap
@@ -136,6 +138,39 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
       case StringType           => element.asInstanceOf[String]
+      case TimestampType        => element.asInstanceOf[Timestamp].getTime
+      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
+      case mapType: MapType =>
+        mapType.keyType match {
+          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
+          case _ => throw new Exception(
+            s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
+          )
+        }
+      case structType: StructType => rowToJSONObject(element.asInstanceOf[Row])
+      case _ =>
+        throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
+    }
+  }
+
+  def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
+    var jsonObject: JSONObject = new JSONObject()
+    schema.fields.zipWithIndex.foreach({
+      case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertInternalRowFieldToJson(internalRow.get(i, field.dataType), field.dataType))
+    })
+    jsonObject
+  }
+
+  private def convertInternalRowFieldToJson(element: Any, elementType: DataType): Any = {
+    elementType match {
+      case BinaryType           => element.asInstanceOf[Array[Byte]]
+      case BooleanType          => element.asInstanceOf[Boolean]
+      case DateType             => element.asInstanceOf[Date].getTime
+      case DoubleType           => element.asInstanceOf[Double]
+      case IntegerType          => element.asInstanceOf[Int]
+      case LongType             => element.asInstanceOf[Long]
+      case StringType           => new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
       case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
       case mapType: MapType =>
