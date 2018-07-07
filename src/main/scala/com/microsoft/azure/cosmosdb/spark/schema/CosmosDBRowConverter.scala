@@ -32,6 +32,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.{DataType, _}
 import org.json.{JSONArray, JSONObject}
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.HashMap
@@ -121,16 +123,22 @@ object CosmosDBRowConverter extends RowConverter[Document]
   def rowToJSONObject(row: Row): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
-      case (field, i)                    => {
-        if(row.get(i) == null)  jsonObject.put(field.name, JSONObject.NULL)
-        else if (field.dataType == NullType) jsonObject.remove(field.name)
-        else jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
-      }
+      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, false))
     })
     jsonObject
   }
 
-  private def convertToJson(element: Any, elementType: DataType): Any = {
+  def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
+    var jsonObject: JSONObject = new JSONObject()
+    schema.fields.zipWithIndex.foreach({
+      case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, true))
+    })
+    jsonObject
+  }
+
+  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
       case BooleanType          => element.asInstanceOf[Boolean]
@@ -138,7 +146,13 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
-      case StringType           => element.asInstanceOf[String]
+      case StringType           => {
+        if (isInternalRow) {
+          new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+        } else {
+          element.asInstanceOf[String]
+        }
+      }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
       case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
       case mapType: MapType =>

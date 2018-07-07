@@ -57,7 +57,7 @@ class ConfigSpec extends RequiresCosmosDB {
       CosmosDBRelation.lastSampleSize should equal(CosmosDBConfig.DefaultSampleSize)
 
       CosmosDBSpark.lastUpsertSetting.get should equal(CosmosDBConfig.DefaultUpsert)
-      CosmosDBSpark.lastWritingBatchSize.get should equal(CosmosDBConfig.DefaultWritingBatchSize)
+      CosmosDBSpark.lastWritingBatchSize.get should equal(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert)
     }
 
   it should "be able to override the defaults" in withSparkSession() { ss =>

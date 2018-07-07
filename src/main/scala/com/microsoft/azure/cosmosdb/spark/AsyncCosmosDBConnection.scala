@@ -22,6 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.lang.management.ManagementFactory
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark.config._
@@ -37,7 +38,7 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 
-private[spark] case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
+case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
 
   private lazy val asyncDocumentClient: AsyncDocumentClient = {
     if (asyncClient == null) {
@@ -61,8 +62,9 @@ private[spark] case class AsyncCosmosDBConnection(config: Config) extends Loggin
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
+  // Cosmos DB Java Async SDK supports Gateway mode
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
-    .getOrElse(CosmosDBConfig.DefaultConnectionMode))
+    .getOrElse(com.microsoft.azure.documentdb.ConnectionMode.Gateway.toString))
 
   @transient private var asyncClient: AsyncDocumentClient = _
 
@@ -121,9 +123,13 @@ private[spark] case class AsyncCosmosDBConnection(config: Config) extends Loggin
   }
 
   private def getClientConfiguration(config: Config): ClientConfiguration = {
+    // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
+
     connectionPolicy.setConnectionMode(connectionMode)
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
+    // Merging the Spark connector version with Spark executor process id for user agent
+    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
@@ -132,24 +138,23 @@ private[spark] case class AsyncCosmosDBConnection(config: Config) extends Loggin
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeoutInMillis(connectionIdleTimeoutStr.toInt)
       case None => // skip
     }
-    val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
-    if (maxRetryAttemptsOnThrottled.isDefined) {
-      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
-    }
-    val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs)
-    if (maxRetryWaitTimeSecs.isDefined) {
-      connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
-    }
-    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
-      .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    val option = config.get[String](CosmosDBConfig.PreferredRegionsList)
+    val maxRetryAttemptsOnThrottled = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryOnThrottled, CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toString)
+    connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.toInt)
 
-    if (option.isDefined) {
-      logWarning(s"CosmosDBConnection::Input preferred region list: ${option.get}")
-      val preferredLocations = option.get.split(";").toSeq.map(_.trim)
+    val maxRetryWaitTimeSecs = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs, CosmosDBConfig.DefaultQueryMaxRetryWaitTimeSecs.toString)
+    connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.toInt)
+
+    val preferredRegionList = config.get[String](CosmosDBConfig.PreferredRegionsList)
+    if (preferredRegionList.isDefined) {
+      logTrace(s"CosmosDBConnection::Input preferred region list: ${preferredRegionList.get}")
+      val preferredLocations = preferredRegionList.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
+
+    // Generate consistency level
+    val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
+      .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,

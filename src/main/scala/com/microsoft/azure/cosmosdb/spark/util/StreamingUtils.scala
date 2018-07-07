@@ -22,11 +22,22 @@
   */
 package org.apache.spark.sql.cosmosdb.util
 
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import java.util.concurrent.TimeUnit
 
-object StreamingUtils {
+import com.microsoft.azure.cosmosdb.spark._
+import com.microsoft.azure.cosmosdb.{Document, ResourceResponse}
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import rx.Observable
+
+import scala.reflect.ClassTag
+
+object StreamingUtils extends Serializable {
 
   def createDataFrameStreaming(df: DataFrame, schema: StructType, sqlContext: SQLContext): DataFrame = {
 
@@ -35,5 +46,51 @@ object StreamingUtils {
       enconder.toRow(row)
     })
     sqlContext.internalCreateDataFrame(mappedRdd, schema, isStreaming = true)
+  }
+}
+
+class StreamingWriteTask extends Serializable {
+
+  def importStreamingData[D: ClassTag](iter: Iterator[D], schemaOutput: Seq[Attribute], config: Config) = {
+
+    val schema = StructType.fromAttributes(schemaOutput)
+
+    val upsert: Boolean = config
+      .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
+      .toBoolean
+    val writingBatchSize = config
+      .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
+      .toInt
+    val writingBatchDelayMs = config
+      .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
+      .toInt
+    val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
+
+    var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
+    var createDocumentObs: Observable[ResourceResponse[Document]] = null
+    var batchSize = 0
+    iter.foreach(item => {
+      val document: Document = item match {
+        case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
+        case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
+      }
+      if (upsert)
+        createDocumentObs = asyncConnection.upsertDocument(document, null)
+      else
+        createDocumentObs = asyncConnection.createDocument(document, null)
+      observables.add(createDocumentObs)
+      batchSize = batchSize + 1
+      if (batchSize % writingBatchSize == 0) {
+        Observable.merge(observables).toBlocking.last()
+        if (writingBatchDelayMs > 0) {
+          TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
+        }
+        observables.clear()
+        batchSize = 0
+      }
+    })
+    if (!observables.isEmpty) {
+      Observable.merge(observables).toBlocking.last()
+    }
   }
 }
