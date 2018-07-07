@@ -82,11 +82,11 @@ object CosmosDBRowConverter extends RowConverter[Document]
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
         if (mdata.contains("idx") && mdata.contains("colname")) =>
-          val colName = mdata.getString("colname")
-          val idx = mdata.getLong("idx").toInt
-          json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true))).collect {
-            case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
-          } orNull
+        val colName = mdata.getString("colname")
+        val idx = mdata.getLong("idx").toInt
+        json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true))).collect {
+          case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
+        } orNull
       case StructField(name, dataType, _, _) =>
         json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
     }
@@ -123,49 +123,22 @@ object CosmosDBRowConverter extends RowConverter[Document]
   def rowToJSONObject(row: Row): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
-      case (field, i)                    => {
-        if(row.get(i) == null)  jsonObject.put(field.name, JSONObject.NULL)
-        else if (field.dataType == NullType) jsonObject.remove(field.name)
-        else jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
-      }
+      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, false))
     })
     jsonObject
-  }
-
-  private def convertToJson(element: Any, elementType: DataType): Any = {
-    elementType match {
-      case BinaryType           => element.asInstanceOf[Array[Byte]]
-      case BooleanType          => element.asInstanceOf[Boolean]
-      case DateType             => element.asInstanceOf[Date].getTime
-      case DoubleType           => element.asInstanceOf[Double]
-      case IntegerType          => element.asInstanceOf[Int]
-      case LongType             => element.asInstanceOf[Long]
-      case StringType           => element.asInstanceOf[String]
-      case TimestampType        => element.asInstanceOf[Timestamp].getTime
-      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
-      case mapType: MapType =>
-        mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
-          case _ => throw new Exception(
-            s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
-          )
-        }
-      case structType: StructType => rowToJSONObject(element.asInstanceOf[Row])
-      case _ =>
-        throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
-    }
   }
 
   def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     schema.fields.zipWithIndex.foreach({
       case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertInternalRowFieldToJson(internalRow.get(i, field.dataType), field.dataType))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, true))
     })
     jsonObject
   }
 
-  private def convertInternalRowFieldToJson(element: Any, elementType: DataType): Any = {
+  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
       case BooleanType          => element.asInstanceOf[Boolean]
@@ -173,12 +146,18 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
-      case StringType           => new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+      case StringType           => {
+        if (isInternalRow) {
+          new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+        } else {
+          element.asInstanceOf[String]
+        }
+      }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
-      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
+      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]], isInternalRow)
       case mapType: MapType =>
         mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
+          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]], isInternalRow)
           case _ => throw new Exception(
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )
@@ -189,21 +168,21 @@ object CosmosDBRowConverter extends RowConverter[Document]
     }
   }
 
-  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any]): JSONObject = {
+  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any], isInternalRow: Boolean): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     val internalData = valueType match {
       case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowToJSONObject(kv._2.asInstanceOf[Row])))
-      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]])))
-      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType)))
+      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]], isInternalRow)))
+      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType, isInternalRow)))
     }
     jsonObject
   }
 
-  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any]): JSONArray = {
+  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any], isInternalRow: Boolean): JSONArray = {
     val internalData = elementType match {
       case subDocuments: StructType => data.map(x => rowToJSONObject(x.asInstanceOf[Row])).asJava
-      case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]])).asJava
-      case _                        => data.map(x => convertToJson(x, elementType)).asJava
+      case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]], isInternalRow)).asJava
+      case _                        => data.map(x => convertToJson(x, elementType, isInternalRow)).asJava
     }
     // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
     // Otherwise, the data will be converted into String.
