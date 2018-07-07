@@ -24,7 +24,6 @@ package com.microsoft.azure.cosmosdb
 
 import com.microsoft.azure.cosmosdb.spark.DefaultHelper.DefaultsTo
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosRDDFunctions
-import com.microsoft.azure.documentdb.Document
 import org.apache.spark.SparkContext
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.rdd.RDD

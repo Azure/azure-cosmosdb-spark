@@ -154,10 +154,10 @@ object CosmosDBRowConverter extends RowConverter[Document]
         }
       }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
-      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
+      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]], isInternalRow)
       case mapType: MapType =>
         mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
+          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]], isInternalRow)
           case _ => throw new Exception(
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )
@@ -168,21 +168,21 @@ object CosmosDBRowConverter extends RowConverter[Document]
     }
   }
 
-  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any]): JSONObject = {
+  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any], isInternalRow: Boolean): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     val internalData = valueType match {
       case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowToJSONObject(kv._2.asInstanceOf[Row])))
-      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]])))
-      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType)))
+      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]], isInternalRow)))
+      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType, isInternalRow)))
     }
     jsonObject
   }
 
-  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any]): JSONArray = {
+  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any], isInternalRow: Boolean): JSONArray = {
     val internalData = elementType match {
       case subDocuments: StructType => data.map(x => rowToJSONObject(x.asInstanceOf[Row])).asJava
-      case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]])).asJava
-      case _                        => data.map(x => convertToJson(x, elementType)).asJava
+      case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]], isInternalRow)).asJava
+      case _                        => data.map(x => convertToJson(x, elementType, isInternalRow)).asJava
     }
     // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
     // Otherwise, the data will be converted into String.
