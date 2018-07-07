@@ -72,7 +72,7 @@ class StreamingWriteTask extends Serializable {
     iter.foreach(item => {
       val document: Document = item match {
         case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
-        case any => new Document(any.toString)
+        case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
       }
       if (upsert)
         createDocumentObs = asyncConnection.upsertDocument(document, null)

@@ -124,45 +124,21 @@ object CosmosDBRowConverter extends RowConverter[Document]
     var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
       case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, false))
     })
     jsonObject
-  }
-
-  private def convertToJson(element: Any, elementType: DataType): Any = {
-    elementType match {
-      case BinaryType           => element.asInstanceOf[Array[Byte]]
-      case BooleanType          => element.asInstanceOf[Boolean]
-      case DateType             => element.asInstanceOf[Date].getTime
-      case DoubleType           => element.asInstanceOf[Double]
-      case IntegerType          => element.asInstanceOf[Int]
-      case LongType             => element.asInstanceOf[Long]
-      case StringType           => element.asInstanceOf[String]
-      case TimestampType        => element.asInstanceOf[Timestamp].getTime
-      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
-      case mapType: MapType =>
-        mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
-          case _ => throw new Exception(
-            s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
-          )
-        }
-      case structType: StructType => rowToJSONObject(element.asInstanceOf[Row])
-      case _ =>
-        throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
-    }
   }
 
   def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     schema.fields.zipWithIndex.foreach({
       case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertInternalRowFieldToJson(internalRow.get(i, field.dataType), field.dataType))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, true))
     })
     jsonObject
   }
 
-  private def convertInternalRowFieldToJson(element: Any, elementType: DataType): Any = {
+  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
       case BooleanType          => element.asInstanceOf[Boolean]
@@ -170,7 +146,13 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
-      case StringType           => new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+      case StringType           => {
+        if (isInternalRow) {
+          new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+        } else {
+          element.asInstanceOf[String]
+        }
+      }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
       case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
       case mapType: MapType =>

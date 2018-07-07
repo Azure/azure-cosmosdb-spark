@@ -127,6 +127,7 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
     val connectionPolicy = new ConnectionPolicy()
 
     connectionPolicy.setConnectionMode(connectionMode)
+    // Merging the Spark connector version with Spark executor process id for user agent
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
 
     config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
@@ -138,23 +139,15 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
       case None => // skip
     }
 
-    val maxRetryAttemptsOnThrottled = config.get[String](CosmosDBConfig.QueryMaxRetryOnThrottled)
-    if (maxRetryAttemptsOnThrottled.isDefined) {
-      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.get.toInt)
-    } else {
-      connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toInt)
-    }
+    val maxRetryAttemptsOnThrottled = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryOnThrottled, CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toString)
+    connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.toInt)
 
-    val maxRetryWaitTimeSecs = config.get[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs)
-    if (maxRetryWaitTimeSecs.isDefined) {
-      connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.get.toInt)
-    } else {
-      connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(CosmosDBConfig.DefaultQueryMaxRetryWaitTimeSecs.toInt)
-    }
+    val maxRetryWaitTimeSecs = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryWaitTimeSecs, CosmosDBConfig.DefaultQueryMaxRetryWaitTimeSecs.toString)
+    connectionPolicy.getRetryOptions.setMaxRetryWaitTimeInSeconds(maxRetryWaitTimeSecs.toInt)
 
     val preferredRegionList = config.get[String](CosmosDBConfig.PreferredRegionsList)
     if (preferredRegionList.isDefined) {
-      logWarning(s"CosmosDBConnection::Input preferred region list: ${preferredRegionList.get}")
+      logTrace(s"CosmosDBConnection::Input preferred region list: ${preferredRegionList.get}")
       val preferredLocations = preferredRegionList.get.split(";").toSeq.map(_.trim)
       connectionPolicy.setPreferredLocations(preferredLocations)
     }
