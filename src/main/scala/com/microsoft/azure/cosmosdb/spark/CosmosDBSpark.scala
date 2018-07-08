@@ -415,16 +415,14 @@ object CosmosDBSpark extends LoggingTrait {
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
-    var writingBatchSize: Int = 0
-    if (isBulkImporting) {
-      val writingBatchSize = config
-        .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert))
+    val writingBatchSize = if (isBulkImporting) {
+      config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert))
         .toInt
     } else {
-      val writingBatchSize = config
-        .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
+      config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
         .toInt
     }
+
     val writingBatchDelayMs = config
       .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
       .toInt
