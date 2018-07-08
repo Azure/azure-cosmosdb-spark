@@ -1,0 +1,14 @@
+steps:
+- task: DockerCompose@0
+  displayName: package fat jar
+  inputs:
+    dockerComposeCommand: run --rm maven mvn clean package
+- task: ShellScript@2
+  displayName: Upload artifact to ADLS
+  inputs:
+    scriptPath: ./deploy_to_adls.sh
+  env:
+    AZURE_SP_USERNAME: $(azure_sp_username)
+    AZURE_SP_PASSWORD: $(azure_sp_password)
+    AZURE_SP_TENANTID: $(azure_sp_tenantid)
+    AZURE_ADLS_NAME: $(azure_adls_name)

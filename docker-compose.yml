@@ -1,0 +1,13 @@
+version: "3.3"
+services:
+  maven:
+    image: maven:3.5.4
+    working_dir: /root/
+    volumes:
+     - type: bind
+       source: .
+       target: /root
+    tty: true
+    environment:
+      - AZURE_COSMOS_END_POINT
+      - AZURE_COSMOS_MASTER_KEY
