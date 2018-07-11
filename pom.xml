@@ -533,10 +533,6 @@ limitations under the License.
                                     <shadedPattern>cosmosdb_connector_shaded.org.objenesis</shadedPattern>
                                 </relocation>
                                 <relocation>
-                                    <pattern>org.w3c</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.org.w3c</shadedPattern>
-                                </relocation>
-                                <relocation>
                                     <pattern>org.znerd</pattern>
                                     <shadedPattern>cosmosdb_connector_shaded.org.znerd</shadedPattern>
                                 </relocation>
