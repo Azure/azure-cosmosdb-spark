@@ -29,7 +29,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import com.microsoft.azure.cosmosdb.spark.schema._
 
 private[spark] class CosmosDBSink(sqlContext: SQLContext,
-                                    configMap: Map[String, String])
+                                  configMap: Map[String, String])
   extends Sink with LoggingTrait {
 
   private var lastBatchId: Long = -1L
