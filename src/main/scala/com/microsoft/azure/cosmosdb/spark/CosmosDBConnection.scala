@@ -141,8 +141,17 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   def queryDocuments (queryString : String,
                       feedOpts : FeedOptions) : Iterator [Document] = {
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
+    Console.println("SparkConnector feed options for pk range " + feedOpts.getPartitionKeyRangeIdInternal + " : " + feedOpts.toString)
+    try {
+      val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+      feedResponse.getQueryIterable.iterator()
+    } catch {
+      case dce: DocumentClientException => {
+        Console.println("SparkConnector failed for partition key range " + feedOpts.getPartitionKeyRangeIdInternal)
+        throw dce
+      }
+    }
+
   }
 
   def queryDocuments (collectionLink: String, queryString : String,
