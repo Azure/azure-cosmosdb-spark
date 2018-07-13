@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.org/Azure/azure-cosmosdb-spark.svg?branch=master)](https://travis-ci.org/Azure/azure-cosmosdb-spark)
 
 
-`azure-cosmosdb-spark` is the official connector for [Azure CosmosDB](http://cosmosdb.com) and [Apache Spark](http://spark.apache.org). The connector allows you to easily read to and write from Azure Cosmos DB via Apache Spark DataFrames in `python` and `scala`.  It also allows you to easily create a lambda architecture for batch-processing, stream-processing, and a serving layer while being globally replicated and minimizing the latency involved in working with big data. 
+`azure-cosmosdb-spark` is the official connector for [Azure CosmosDB](http://cosmosdb.com) and [Apache Spark](http://spark.apache.org). The connector allows you to easily read to and write from Azure Cosmos DB via Apache Spark DataFrames in `python` and `scala`.  It also allows you to easily create a lambda architecture for batch-processing, stream-processing, and a serving layer while being globally replicated and minimizing the latency involved in working with big data.
 
 
 <details>
@@ -26,7 +26,7 @@
 
 </details>
 
-## Latest 
+## Latest
 * Lambda Architecture Re-architected - Speed Layer ([Databricks notebook HTML view](https://htmlpreview.github.io/?https://github.com/dennyglee/azure-cosmosdb-spark/blob/master/samples/lambda/databricks/Lambda%20Architecture%20Re-architected%20-%20Speed%20Layer.html))
 * Lambda Architecture Re-architectured ([Documentation and Samples](https://github.com/dennyglee/azure-cosmosdb-spark/tree/master/samples/lambda))
 * Using the Bulk API with the connector ([Guidance](#))
@@ -36,7 +36,7 @@
 ## Jump Start
 
 ### Reading from Cosmos DB
-Below are excerpts in `Python` and `Scala` on how to create a Spark DataFrame to read from Cosmos DB 
+Below are excerpts in `Python` and `Scala` on how to create a Spark DataFrame to read from Cosmos DB
 
 ```python
 # Read Configuration
@@ -45,7 +45,7 @@ readConfig = {
   "Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
   "Database" : "DepartureDelays",
   "preferredRegions" : "Central US;East US2",
-  "Collection" : "flights_pcoll", 
+  "Collection" : "flights_pcoll",
   "SamplingRatio" : "1.0",
   "schema_samplesize" : "1000",
   "query_pagesize" : "2147483647",
@@ -61,7 +61,7 @@ flights.count()
 <details>
 <summary><em>Click for <strong>Scala</strong> Excerpt</em></summary>
 <p>
- 
+
 ```scala
 // Import Necessary Libraries
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -74,7 +74,7 @@ val readConfig = Config(Map(
   "Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
   "Database" -> "DepartureDelays",
   "PreferredRegions" -> "Central US;East US2;",
-  "Collection" -> "flights_pcoll", 
+  "Collection" -> "flights_pcoll",
   "SamplingRatio" -> "1.0",
   "query_custom" -> "SELECT c.date, c.delay, c.distance, c.origin, c.destination FROM c WHERE c.origin = 'SEA'"
 ))
@@ -88,7 +88,7 @@ flights.count()
 </details>
 
 ### Writing to Cosmos DB
-Below are excerpts in `Python` and `Scala` on how to write a Spark DataFrame to Cosmos DB 
+Below are excerpts in `Python` and `Scala` on how to write a Spark DataFrame to Cosmos DB
 
 ```python
 # Write configuration
@@ -158,9 +158,9 @@ You can build and/or use the maven coordinates to work with `azure-cosmosdb-spar
 
 | Spark | Scala | Latest version |
 |---|---|---|
-| 2.3.0 | 2.11 | *Coming soon* |
+| 2.3.0 | 2.11 | [azure-cosmosdb-spark_2.3.0_2.11_1.2.0](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.3.0_2.11%7C1.2.0%7Cjar)
 | 2.2.0 | 2.11 | [azure-cosmosdb-spark_2.2.0_2.11_1.1.1](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.2.0_2.11%7C1.1.1%7Cjar)
-| 2.1.0 | 2.11 | [azure-cosmosdb-spark_2.1.0_2.11_1.1.2](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.1.0_2.11%7C1.1.2%7Cjar)
+| 2.1.0 | 2.11 | [azure-cosmosdb-spark_2.1.0_2.11_1.2.0](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.1.0_2.11%7C1.2.0%7Cjar)
 
 
 ### Using spark-cli
@@ -207,11 +207,11 @@ mvn clean package
 ## Working with our samples
 
 Included in this GitHub repository are a number of sample notebooks and scripts that you can utilize:
-* **On-Time Flight Performance with Spark and Cosmos DB (Seattle)** [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/On-Time%20Flight%20Performance%20with%20Spark%20and%20Cosmos%20DB%20-%20Seattle.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/On-Time%20Flight%20Performance%20with%20Spark%20and%20Cosmos%20DB%20-%20Seattle.html): This notebook utilizing `azure-cosmosdb-spark` to connect Spark to Cosmos DB using HDInsight Jupyter notebook service to showcase Spark SQL, GraphFrames, and predicting flight delays using ML pipelines. 
+* **On-Time Flight Performance with Spark and Cosmos DB (Seattle)** [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/On-Time%20Flight%20Performance%20with%20Spark%20and%20Cosmos%20DB%20-%20Seattle.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/On-Time%20Flight%20Performance%20with%20Spark%20and%20Cosmos%20DB%20-%20Seattle.html): This notebook utilizing `azure-cosmosdb-spark` to connect Spark to Cosmos DB using HDInsight Jupyter notebook service to showcase Spark SQL, GraphFrames, and predicting flight delays using ML pipelines.
 * **[Connecting Spark with Cosmos DB Change feed](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/Spark%2Band%2BCosmos%2BDB%2BChange%2BFeed.ipynb)**: A quick showcase on how to connect Spark to Cosmos DB Change Feed.
 * **Twitter Source with Apache Spark and Azure Cosmos DB Change Feed**: [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/Twitter%20with%20Spark%20and%20Azure%20Cosmos%20DB%20Change%20Feed.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/Twitter%20with%20Spark%20and%20Azure%20Cosmos%20DB%20Change%20Feed.html)
 * **Using Apache Spark to query Cosmos DB Graphs**: [ipynb](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/Using%20Apache%20Spark%20to%20query%20Cosmos%20DB%20Graphs.ipynb) | [html](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/Using%20Apache%20Spark%20to%20query%20Cosmos%20DB%20Graphs.html)
-* **[Connecting Azure Databricks to Azure Cosmos DB](https://docs.databricks.com/spark/latest/data-sources/azure/cosmosdb-connector.html)** using `azure-cosmosdb-spark`.  Linked here is also an Azure Databricks version of the [On-Time Flight Performance notebook](https://github.com/dennyglee/databricks/tree/master/notebooks/Users/denny%40databricks.com/azure-databricks). 
+* **[Connecting Azure Databricks to Azure Cosmos DB](https://docs.databricks.com/spark/latest/data-sources/azure/cosmosdb-connector.html)** using `azure-cosmosdb-spark`.  Linked here is also an Azure Databricks version of the [On-Time Flight Performance notebook](https://github.com/dennyglee/databricks/tree/master/notebooks/Users/denny%40databricks.com/azure-databricks).
 * **[Lambda Architecture with Azure Cosmos DB and HDInsight (Apache Spark)](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/lambda/readme.md)**: Combining the Azure Cosmos DB, , and HDInsight not only allows you to accelerate real-time big data analytics, but also allows you to benefit from a Lambda Architecture while simplifying its operations.
 
 &nbsp;
@@ -231,7 +231,7 @@ Troubleshooting
 * [Using Cosmos DB Aggregates](https://github.com/Azure/azure-documentdb-spark/wiki/Troubleshooting:-Using-Cosmos-DB-Aggregates)
 * [Known Issues](https://github.com/Azure/azure-cosmosdb-spark/wiki/Known-Issues)
 
-Performance 
+Performance
 * [Performance Tips](https://github.com/Azure/azure-cosmosdb-spark/wiki/Performance-tips)
 * [Query Test Runs](https://github.com/Azure/azure-documentdb-spark/wiki/Query-Test-Runs)
 * [Writing Test Runs](https://github.com/Azure/azure-cosmosdb-spark/wiki/Writing-Test-Runs)
