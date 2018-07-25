@@ -229,29 +229,29 @@ object CosmosDBSpark extends LoggingTrait {
       }
       if (updateItems.size() >= writingBatchSize) {
         bulkUpdateResponse = updater.updateAll(updateItems, null)
-        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
-          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        if (!bulkUpdateResponse.getErrors.isEmpty) {
+          throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
         }
         updateItems.clear()
       }
       if (updatePatchItems.size() >= writingBatchSize) {
         bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
-        if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
-          throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+        if (!bulkUpdateResponse.getErrors.isEmpty) {
+          throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
         }
         updatePatchItems.clear()
       }
     })
     if (updateItems.size() > 0) {
       bulkUpdateResponse = updater.updateAll(updateItems, null)
-      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updateItems.size) {
-        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      if (!bulkUpdateResponse.getErrors.isEmpty) {
+        throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
       }
     }
     if (updatePatchItems.size() > 0) {
       bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
-      if (bulkUpdateResponse.getNumberOfDocumentsUpdated != updatePatchItems.size) {
-        throw new Exception("Error encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
+      if (!bulkUpdateResponse.getErrors.isEmpty) {
+        throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
       }
     }
   }
@@ -293,16 +293,22 @@ object CosmosDBSpark extends LoggingTrait {
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
         bulkImportResponse = importer.importAll(documents, upsert, false, null)
-        if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
-          throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+        if (!bulkImportResponse.getErrors.isEmpty) {
+          throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+        }
+        if (!bulkImportResponse.getBadInputDocuments.isEmpty) {
+          throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
         }
         documents.clear()
       }
     })
     if (documents.size() > 0) {
       bulkImportResponse = importer.importAll(documents, upsert, false, null)
-      if (bulkImportResponse.getNumberOfDocumentsImported != documents.size) {
-        throw new Exception("Error encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+      if (!bulkImportResponse.getErrors.isEmpty) {
+        throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+      }
+      if (!bulkImportResponse.getBadInputDocuments.isEmpty) {
+        throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
       }
     }
   }
