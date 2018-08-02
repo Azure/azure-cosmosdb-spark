@@ -134,6 +134,12 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
     }
+
+    config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
+      case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeoutInMillis(connectionRequestTimeoutStr.toInt * 1000)
+      case None => // skip
+    }
+
     config.get[String](CosmosDBConfig.ConnectionIdleTimeout) match {
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeoutInMillis(connectionIdleTimeoutStr.toInt)
       case None => // skip
