@@ -228,6 +228,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
       case None => // skip
     }
+
+    config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
+      case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeout(connectionRequestTimeoutStr.toInt)
+      case None => // skip
+    }
+
     config.get[String](CosmosDBConfig.ConnectionIdleTimeout) match {
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeout(connectionIdleTimeoutStr.toInt)
       case None => // skip
