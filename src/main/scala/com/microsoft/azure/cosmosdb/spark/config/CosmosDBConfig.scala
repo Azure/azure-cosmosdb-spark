@@ -46,6 +46,7 @@ object CosmosDBConfig {
   val ConnectionMode = "connectionmode"
   val ConnectionMaxPoolSize = "connectionmaxpoolsize"
   val ConnectionIdleTimeout = "connectionidletimeout"
+  val ConnectionRequestTimeout = "connectionrequesttimeout"
 
   // Query related config
   val QueryCustom = "query_custom"
