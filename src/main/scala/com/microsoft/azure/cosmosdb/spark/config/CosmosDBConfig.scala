@@ -88,6 +88,7 @@ object CosmosDBConfig {
   val MaxMiniBatchUpdateCount = "maxminibatchupdatecount"
   val PartitionKeyDefinition = "partitionkeydefinition"
   val WriteThroughputBudget = "writethroughputbudget"
+  val BulkImportMaxConcurrencyPerPartitionRange = "bulkimport_maxconcurrencyperpartitionrange"
 
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
