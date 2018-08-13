@@ -159,6 +159,8 @@ object CosmosDBConfig {
 
   val DefaultInferStreamSchema = true
 
+  val DefaultMaxConnectionPoolSize = 500
+
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
   }
