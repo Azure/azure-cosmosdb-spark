@@ -37,26 +37,32 @@ import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
+case class AsyncClientConfiguration(host: String,
+                               key: String,
+                               connectionPolicy: ConnectionPolicy,
+                               consistencyLevel: ConsistencyLevel)
+
+object AsyncCosmosDBConnection {
+  var client: AsyncDocumentClient = _
+  def getClient(clientConfig: AsyncClientConfiguration): AsyncDocumentClient = synchronized {
+    if (client == null) {
+      client = new AsyncDocumentClient
+      .Builder()
+        .withServiceEndpoint(clientConfig.host)
+        .withMasterKey(clientConfig.key)
+        .withConnectionPolicy(clientConfig.connectionPolicy)
+        .withConsistencyLevel(clientConfig.consistencyLevel)
+        .build
+    }
+
+    client
+  }
+}
 
 case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
 
   private lazy val asyncDocumentClient: AsyncDocumentClient = {
-    if (asyncClient == null) {
-      this.synchronized {
-        if (asyncClient == null) {
-          val clientConfig = getClientConfiguration(config)
-
-          asyncClient = new AsyncDocumentClient
-          .Builder()
-            .withServiceEndpoint(clientConfig.host)
-            .withMasterKey(clientConfig.key)
-            .withConnectionPolicy(clientConfig.connectionPolicy)
-            .withConsistencyLevel(clientConfig.consistencyLevel)
-            .build
-        }
-      }
-    }
-    asyncClient
+    AsyncCosmosDBConnection.getClient(getClientConfiguration(config))
   }
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
@@ -89,7 +95,9 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
           }
         case any => new Document(any.toString)
       }
+
       logDebug(s"Inserting document $document")
+
       if (upsert)
         createDocumentObs = connection.upsertDocument(document, null)
       else
@@ -122,18 +130,13 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
     asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
   }
 
-  private def getClientConfiguration(config: Config): ClientConfiguration = {
+  private def getClientConfiguration(config: Config): AsyncClientConfiguration = {
     // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
 
     connectionPolicy.setConnectionMode(connectionMode)
     // Merging the Spark connector version with Spark executor process id for user agent
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
-
-    config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
-      case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
-      case None => // skip
-    }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
       case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeoutInMillis(connectionRequestTimeoutStr.toInt * 1000)
@@ -144,6 +147,9 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeoutInMillis(connectionIdleTimeoutStr.toInt)
       case None => // skip
     }
+
+    val maxConnectionPoolSize = config.getOrElse[String](CosmosDBConfig.ConnectionMaxPoolSize, CosmosDBConfig.DefaultMaxConnectionPoolSize.toString)
+    connectionPolicy.setMaxPoolSize(maxConnectionPoolSize.toInt)
 
     val maxRetryAttemptsOnThrottled = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryOnThrottled, CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toString)
     connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.toInt)
@@ -162,17 +168,12 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    ClientConfiguration(
+    AsyncClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
       config.get[String](CosmosDBConfig.Masterkey).get,
       connectionPolicy,
       consistencyLevel
     )
   }
-
-  case class ClientConfiguration(host: String,
-                                 key: String,
-                                 connectionPolicy: ConnectionPolicy,
-                                 consistencyLevel: ConsistencyLevel)
-
 }
+
