@@ -262,7 +262,8 @@ object CosmosDBSpark extends LoggingTrait {
                                       writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
                                       partitionKeyDefinition: Option[String],
-                                      upsert: Boolean): Unit = {
+                                      upsert: Boolean,
+                                      maxConcurrencyPerPartitionRange: Integer): Unit = {
 
     // Set retry options high for initialization (default values)
     connection.setDefaultClientRetryPolicy
@@ -292,7 +293,7 @@ object CosmosDBSpark extends LoggingTrait {
       }
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
-        bulkImportResponse = importer.importAll(documents, upsert, false, null)
+        bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
         if (!bulkImportResponse.getErrors.isEmpty) {
           throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
         }
@@ -303,7 +304,7 @@ object CosmosDBSpark extends LoggingTrait {
       }
     })
     if (documents.size() > 0) {
-      bulkImportResponse = importer.importAll(documents, upsert, false, null)
+      bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
       if (!bulkImportResponse.getErrors.isEmpty) {
         throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
       }
@@ -443,6 +444,10 @@ object CosmosDBSpark extends LoggingTrait {
     val partitionKeyDefinition = config
       .get[String](CosmosDBConfig.PartitionKeyDefinition)
 
+    val maxConcurrencyPerPartitionRangeStr = config.get[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange)
+    val maxConcurrencyPerPartitionRange = if (maxConcurrencyPerPartitionRangeStr.nonEmpty)
+      Integer.valueOf(maxConcurrencyPerPartitionRangeStr.get) else null
+
     // Delay the start as the number of tasks grow to avoid throttling at initialization
     val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
     if (maxDelaySec > 0)
@@ -457,7 +462,8 @@ object CosmosDBSpark extends LoggingTrait {
         bulkUpdate(iter, connection, offerThroughput, writingBatchSize, partitionKeyDefinition)
       } else if (isBulkImporting) {
         logDebug(s"Writing partition with bulk import")
-        bulkImport(iter, connection, offerThroughput, writingBatchSize, rootPropertyToSave, partitionKeyDefinition, upsert)
+        bulkImport(iter, connection, offerThroughput, writingBatchSize, rootPropertyToSave,
+          partitionKeyDefinition, upsert, maxConcurrencyPerPartitionRange)
       } else {
         logDebug(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)

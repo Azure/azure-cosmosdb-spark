@@ -25,24 +25,38 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
-
 import java.lang.management.ManagementFactory
 
+
+case class ClientConfiguration(host: String,
+                               key: String,
+                               connectionPolicy: ConnectionPolicy,
+                               consistencyLevel: ConsistencyLevel)
 object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
-}
+  var client: DocumentClient = _
+
+  def getClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
+      if (client == null) {
+          client = new DocumentClient(
+          clientConfiguration.host,
+          clientConfiguration.key,
+          clientConfiguration.connectionPolicy,
+          clientConfiguration.consistencyLevel)
+        CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
+      }
+
+      client
+   }
+ }
 
 private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
-
-  case class ClientConfiguration(host: String,
-                                 key: String,
-                                 connectionPolicy: ConnectionPolicy,
-                                 consistencyLevel: ConsistencyLevel)
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
@@ -55,11 +69,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
   @transient private var bulkImporter: DocumentBulkExecutor = _
 
   private lazy val documentClient: DocumentClient = {
-    if (client == null) {
-      client = accquireClient(connectionMode)
-      CosmosDBConnection.lastConnectionPolicy = client.getConnectionPolicy
-    }
-    client
+    CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
   }
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
@@ -204,18 +214,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     response.getDocumentCountUsage == 0
   }
 
-  private def accquireClient(connectionMode: ConnectionMode): DocumentClient = {
-    val clientConfiguration = getClientConfiguration(config)
-
-    var documentClient = new DocumentClient(
-      clientConfiguration.host,
-      clientConfiguration.key,
-      clientConfiguration.connectionPolicy,
-      clientConfiguration.consistencyLevel)
-    CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
-    documentClient
-  }
-
   private def getClientConfiguration(config: Config): ClientConfiguration = {
     // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
@@ -223,11 +221,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     connectionPolicy.setConnectionMode(connectionMode)
     // Merging the Spark connector version with Spark executor process id for user agent
     connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
-
-    config.get[String](CosmosDBConfig.ConnectionMaxPoolSize) match {
-      case Some(maxPoolSizeStr) => connectionPolicy.setMaxPoolSize(maxPoolSizeStr.toInt)
-      case None => // skip
-    }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
       case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeout(connectionRequestTimeoutStr.toInt)
@@ -238,6 +231,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
       case Some(connectionIdleTimeoutStr) => connectionPolicy.setIdleConnectionTimeout(connectionIdleTimeoutStr.toInt)
       case None => // skip
     }
+
+    val maxConnectionPoolSize = config.getOrElse[String](CosmosDBConfig.ConnectionMaxPoolSize, CosmosDBConfig.DefaultMaxConnectionPoolSize.toString)
+    connectionPolicy.setMaxPoolSize(maxConnectionPoolSize.toInt)
 
     val maxRetryAttemptsOnThrottled = config.getOrElse[String](CosmosDBConfig.QueryMaxRetryOnThrottled, CosmosDBConfig.DefaultQueryMaxRetryOnThrottled.toString)
     connectionPolicy.getRetryOptions.setMaxRetryAttemptsOnThrottledRequests(maxRetryAttemptsOnThrottled.toInt)
