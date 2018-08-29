@@ -11,3 +11,38 @@ services:
     environment:
       - AZURE_COSMOS_END_POINT
       - AZURE_COSMOS_MASTER_KEY
+  python:
+    image: sdhcontainerregistryshared.azurecr.io/sdh-deployment:0.0.13-python
+    working_dir: /root/
+    volumes:
+    - type: bind
+      source: ./
+      target: /root
+    tty: true
+    environment:
+    - EVENTHUB_ENTITIES
+    - EVENTHUB_CONSUMER_GROUPS
+    - GITHUB_TOKEN
+    - AZURE_ADLS_NAME
+    - SUBSCRIPTION_ID
+    - AZURE_USERNAME_DEV
+    - AZURE_PASSWORD_DEV
+    - AZURE_USERNAME_ACP
+    - AZURE_PASSWORD_ACP
+    - AZURE_USERNAME_PRD
+    - AZURE_PASSWORD_PRD
+    - AZURE_DATABRICKS_HOST
+    - AZURE_DATABRICKS_TOKEN_DEV
+    - AZURE_DATABRICKS_TOKEN_ACP
+    - AZURE_DATABRICKS_TOKEN_PRD
+    - BUILD_SOURCEBRANCHNAME
+    - BUILD_DEFINITIONNAME
+    - AZURE_SHARED_BLOB_USERNAME
+    - AZURE_SHARED_BLOB_PASSWORD
+    - AZURE_SP_USERNAME_DEV
+    - AZURE_SP_PASSWORD_DEV
+    - AZURE_SP_USERNAME_ACP
+    - AZURE_SP_PASSWORD_ACP
+    - AZURE_SP_USERNAME_PRD
+    - AZURE_SP_PASSWORD_PRD
+    - AZURE_SP_TENANTID
