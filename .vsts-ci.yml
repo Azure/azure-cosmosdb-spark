@@ -1,0 +1,32 @@
+steps:
+- task: DockerCompose@0
+  displayName: package fat jar
+  inputs:
+    dockerComposeCommand: run --rm maven mvn clean package
+
+- task: DockerCompose@0
+  displayName: Deploy to Azure and Databricks
+  inputs:
+    dockerComposeCommand: |
+      run --rm python bash -c "run_deployment"
+  env:
+    GITHUB_TOKEN: ${github_token}
+    AZURE_SP_USERNAME: $(azure_sp_username)
+    AZURE_SP_PASSWORD: $(azure_sp_password)
+    AZURE_SP_TENANTID: $(azure_sp_tenantid)
+    AZURE_ADLS_NAME: $(azure_adls_name)
+    SUBSCRIPTION_ID: ${subscription_id}
+    AZURE_DATABRICKS_HOST: ${azure_databricks_host}
+    AZURE_DATABRICKS_TOKEN_DEV: ${azure_databricks_token_dev}
+    AZURE_DATABRICKS_TOKEN_ACP: ${azure_databricks_token_acp}
+    AZURE_DATABRICKS_TOKEN_PRD: ${azure_databricks_token_prd}
+    AZURE_USERNAME_DEV: ${azure_username_dev}
+    AZURE_PASSWORD_DEV: ${azure_password_dev}
+    AZURE_SP_USERNAME_DEV: $(azure_sp_username_dev)
+    AZURE_SP_PASSWORD_DEV: $(azure_sp_password_dev)
+    AZURE_SP_USERNAME_ACP: $(azure_sp_username_acp)
+    AZURE_SP_PASSWORD_ACP: $(azure_sp_password_acp)
+    AZURE_SP_USERNAME_PRD: $(azure_sp_username_prd)
+    AZURE_SP_PASSWORD_PRD: $(azure_sp_password_prd)
+    AZURE_SHARED_BLOB_USERNAME: $(azure_shared_blob_username)
+    AZURE_SHARED_BLOB_PASSWORD: $(azure_shared_blob_password)
