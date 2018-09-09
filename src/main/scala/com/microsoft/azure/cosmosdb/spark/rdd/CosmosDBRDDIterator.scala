@@ -190,7 +190,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       val queryString = config
         .get[String](CosmosDBConfig.QueryCustom)
         .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
-      logDebug(s"CosmosDBRDDIterator::LazyReader, convert to predicate: $queryString")
+      logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
 
       if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
