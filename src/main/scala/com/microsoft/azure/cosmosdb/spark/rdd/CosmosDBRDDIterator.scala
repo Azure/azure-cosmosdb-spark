@@ -183,6 +183,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       if (emitVerboseTraces.isDefined) {
         feedOpts.setEmitVerboseTracesInQuery(emitVerboseTraces.get.toBoolean)
       }
+      val responseContinuationTokenLimitInKb = config
+        .get[String](CosmosDBConfig.ResponseContinuationTokenLimitInKb)
+        .getOrElse(CosmosDBConfig.DefaultResponseContinuationTokenLimitInKb.toString)
+        .toInt
+      feedOpts.setResponseContinuationTokenLimitInKb(responseContinuationTokenLimitInKb)
+
       feedOpts.setPartitionKeyRangeIdInternal(partition.partitionKeyRangeId.toString)
       CosmosDBRDDIterator.lastFeedOptions = feedOpts
 
