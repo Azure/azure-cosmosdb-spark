@@ -143,6 +143,7 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
     } else {
       // Merging the Spark connector version with Spark executor process id for user agent
       connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+    }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
       case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeoutInMillis(connectionRequestTimeoutStr.toInt * 1000)

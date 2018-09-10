@@ -21,6 +21,8 @@
   * SOFTWARE.
   */
 package com.microsoft.azure.cosmosdb.spark
+
+import java.lang.management.ManagementFactory
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
@@ -226,6 +228,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     } else {
       // Merging the Spark connector version with Spark executor process id for user agent
       connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+    }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
       case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeout(connectionRequestTimeoutStr.toInt)
