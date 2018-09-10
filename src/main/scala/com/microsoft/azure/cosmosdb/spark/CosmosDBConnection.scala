@@ -219,8 +219,15 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     val connectionPolicy = new ConnectionPolicy()
 
     connectionPolicy.setConnectionMode(connectionMode)
-    // Merging the Spark connector version with Spark executor process id for user agent
-    connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+
+    val applicationName = config.get[String](CosmosDBConfig.ApplicationName)
+    if (applicationName.isDefined) {
+      // Merging the Spark connector version with Spark executor process id and application name for user agent
+      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName() + " " + applicationName.get)
+    } else {
+      // Merging the Spark connector version with Spark executor process id for user agent
+      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+    }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
       case Some(connectionRequestTimeoutStr) => connectionPolicy.setRequestTimeout(connectionRequestTimeoutStr.toInt)
