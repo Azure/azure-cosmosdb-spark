@@ -126,7 +126,7 @@ object CosmosDBConfig {
   )
 
   val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString // for sync SDK
-  val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
+  val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Eventual.toString
   val DefaultQueryMaxRetryOnThrottled = 1000
   val DefaultQueryMaxRetryWaitTimeSecs = 1000
   val DefaultSamplingRatio = 1.0
