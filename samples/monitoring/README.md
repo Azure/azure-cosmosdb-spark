@@ -3,8 +3,8 @@ This sample shows how to use azure application insights add monitoring and telem
 The tutorial is written as a python sample but you can achieve the same in scala with application insights java sdk
 
 ## Prerequisites
-�	Databricks or HDInsight cluster with with Cosmos DB Spark Connector loaded
-�	Application Insights workspace (Note down the instrumentation key from the Dashboard)
+* Databricks or HDInsight cluster with with Cosmos DB Spark Connector loaded
+* Application Insights workspace (Note down the instrumentation key from the Dashboard)
 
 ## Setup 
 ### Databricks
@@ -65,14 +65,16 @@ logger.addHandler(handler)
 
 4.	Using the telemetry client, add relevant log messages and metrics. Track exceptions/failures separately 
 
-�	tc.track_event('Reading from Cosmos DB collection')
-�	tc.track_metric('read_latency', readend-readstart)
-�	except Exception, e:
+* tc.track_event('Reading from Cosmos DB collection')
+* tc.track_metric('read_latency', readend-readstart)
+* except Exception, e:
       tc.track_exception()
 
 5.	Make sure you flush the telemetry client and shutdown logging at the end of the script:
-�	tc.flush()
-�	logging.shutdown()
+```   
+      tc.flush()
+      logging.shutdown()
+```
 
 ## Application insights logging and metrics
 
