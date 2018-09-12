@@ -3,8 +3,8 @@ This sample shows how to use azure application insights add monitoring and telem
 The tutorial is written as a python sample but you can achieve the same in scala with application insights java sdk
 
 ## Prerequisites
-•	Databricks or HDInsight cluster with with Cosmos DB Spark Connector loaded
-•	Application Insights workspace (Note down the instrumentation key from the Dashboard)
+ï¿½	Databricks or HDInsight cluster with with Cosmos DB Spark Connector loaded
+ï¿½	Application Insights workspace (Note down the instrumentation key from the Dashboard)
 
 ## Setup 
 ### Databricks
@@ -65,14 +65,14 @@ logger.addHandler(handler)
 
 4.	Using the telemetry client, add relevant log messages and metrics. Track exceptions/failures separately 
 
-•	tc.track_event('Reading from Cosmos DB collection')
-•	tc.track_metric('read_latency', readend-readstart)
-•	except Exception, e:
+ï¿½	tc.track_event('Reading from Cosmos DB collection')
+ï¿½	tc.track_metric('read_latency', readend-readstart)
+ï¿½	except Exception, e:
       tc.track_exception()
 
 5.	Make sure you flush the telemetry client and shutdown logging at the end of the script:
-•	tc.flush()
-•	logging.shutdown()
+ï¿½	tc.flush()
+ï¿½	logging.shutdown()
 
 ## Application insights logging and metrics
 
@@ -107,14 +107,14 @@ traces | where customDimensions["application_id"] == "app-20180912021715-0000" |
 ```
 exceptions | where outerMessage contains "cosmosdb" | project timestamp, outerMessage 
 ```
-![Image not available](./images/analytics_exceptions.jpg)
+![Image not available](./images/analytics_exceptions.PNG)
 
 4. Get different metrics for an application id
 
 ```
 customMetrics | where name in ("write_latency", "read_latency", "read_count") and customDimensions["application_id"] == "app-20180912021715-0000" | project name, value
 ```
-![Image not available](./images/all_metrics_values.jpg)
+![Image not available](./images/all_metrics_values.PNG)
 
 5. Create a time chart for write_latency for all runs for a certain application name ( similar for read latency and count)
 

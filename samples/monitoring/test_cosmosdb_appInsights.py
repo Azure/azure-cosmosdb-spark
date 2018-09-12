@@ -91,9 +91,9 @@ def run():
     logger.error(e)
     print(e)
     tc.track_exception()
-    
-  tc.flush()
-  logging.shutdown()
+  finally:  
+    tc.flush()
+    logging.shutdown()
   
 # start running the sample app  
 run()
