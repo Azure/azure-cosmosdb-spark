@@ -178,6 +178,8 @@ object CosmosDBSpark extends LoggingTrait {
       offerThroughput = Math.min(writeThroughputBudget.get.toInt, collectionThroughput)
     }
 
+    logInfo("Write config: " + writeConfig.toString)
+
     val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
       if (isWritingAdlPartition) {
         val adlPartition = partitionMap(partitionId).asInstanceOf[ADLFilePartition]
@@ -552,6 +554,7 @@ object CosmosDBSpark extends LoggingTrait {
         case false => Config(session.sparkContext.getConf, options)
       }
 
+      logInfo("Read config: " + readConf.toString)
       new CosmosDBSpark(session, readConf)
     }
 

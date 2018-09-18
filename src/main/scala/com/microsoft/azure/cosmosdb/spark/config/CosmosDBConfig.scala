@@ -58,6 +58,7 @@ object CosmosDBConfig {
   val QueryEnableScan = "query_enablescan"
   val QueryDisableRUPerMinuteUsage = "query_disableruperminuteusage"
   val QueryEmitVerboseTraces = "query_emitverbosetraces"
+  val ResponseContinuationTokenLimitInKb = "response_continuationtoken_limit_kb"
 
   // Change feed streaming related
   val ReadChangeFeed = "readchangefeed"
@@ -111,6 +112,8 @@ object CosmosDBConfig {
   val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
   val adlMaxFileCount = "adlmaxfilecount"
 
+  val ApplicationName = "application_name"
+
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
   // In those cases, the connector gives a delay and then trigger the next batch.
@@ -125,7 +128,7 @@ object CosmosDBConfig {
   )
 
   val DefaultConnectionMode: String = com.microsoft.azure.documentdb.ConnectionMode.DirectHttps.toString // for sync SDK
-  val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Session.toString
+  val DefaultConsistencyLevel: String = com.microsoft.azure.documentdb.ConsistencyLevel.Eventual.toString
   val DefaultQueryMaxRetryOnThrottled = 1000
   val DefaultQueryMaxRetryWaitTimeSecs = 1000
   val DefaultSamplingRatio = 1.0
@@ -142,6 +145,7 @@ object CosmosDBConfig {
   val DefaultChangeFeedNewQuery = false
   val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
+  val DefaultResponseContinuationTokenLimitInKb = 10
   val DefaultWritingBatchSize_BulkInsert = 100000
   val DefaultWritingBatchSize_PointInsert = 500
   val DefaultWritingBatchDelayMs = 0
