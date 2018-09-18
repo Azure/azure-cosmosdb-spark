@@ -40,19 +40,19 @@ object CosmosDBConnection {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
-  var client: DocumentClient = _
+  var clients: scala.collection.mutable.Map[String, DocumentClient] = scala.collection.mutable.Map[String,DocumentClient]()
 
   def getClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
-      if (client == null) {
-          client = new DocumentClient(
+      if (!clients.contains(clientConfiguration.host)) {
+          clients(clientConfiguration.host) = new DocumentClient(
           clientConfiguration.host,
           clientConfiguration.key,
           clientConfiguration.connectionPolicy,
           clientConfiguration.consistencyLevel)
-        CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
+          CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
       }
 
-      client
+      clients.get(clientConfiguration.host).get
    }
  }
 
