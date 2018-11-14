@@ -132,7 +132,7 @@ object CosmosDBConfig {
   val DefaultQueryMaxRetryOnThrottled = 1000
   val DefaultQueryMaxRetryWaitTimeSecs = 1000
   val DefaultSamplingRatio = 1.0
-  val DefaultPageSize = 50
+  val DefaultPageSize = 1000
   val DefaultSampleSize = DefaultPageSize
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
