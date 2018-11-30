@@ -110,7 +110,10 @@ object CosmosDBRowConverter extends RowConverter[Document]
             case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
           }).map(element => (toSQL(element._1, map.keyType), toSQL(element._2, map.valueType)))
         case (_, array: ArrayType) =>
-          value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(element, array.elementType)).toArray
+          if(!JSONObject.NULL.equals(value))
+            value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(element, array.elementType)).toArray
+          else
+            null
         case (_, binaryType: BinaryType) =>
           value.asInstanceOf[java.util.ArrayList[Int]].asScala.map(x => x.toByte).toArray
         case _ =>
