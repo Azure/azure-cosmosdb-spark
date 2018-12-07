@@ -125,6 +125,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
   private def rowTyperouterToJsonArray(element: Any, schema: StructType) = element match {
     case e: Row => rowToJSONObject(e)
     case e: InternalRow => internalRowToJSONObject(e, schema)
+    case _ => throw new Exception(s"Cannot cast $element into a Json value. Struct $element has no matching Json value.")
   }
 
   def rowToJSONObject(row: Row): JSONObject = {
@@ -189,6 +190,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
     data match {
       case d:Seq[_] => arrayTypeToJSONArray(elementType, d, isInternalRow)
       case d:ArrayData => arrayDataTypeToJSONArray(elementType,d, isInternalRow)
+      case _ => throw new Exception(s"Cannot cast $data into a Json value. ArrayType $elementType has no matching Json value.")
     }
   }
 
