@@ -142,7 +142,7 @@ See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tre
 
 | Component | Versions Supported |
 | --------- | ------------------ |
-| Apache Spark | 2.2.1, 2.3 |
+| Apache Spark | 2.2.1, 2.3.X |
 | Scala | 2.11 |
 | Python | 2.7, 3.6 |
 | Azure Cosmos DB Java SDK | 1.16.1, 1.16.2 |
