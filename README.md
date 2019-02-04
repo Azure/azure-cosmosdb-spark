@@ -164,7 +164,7 @@ You can build and/or use the maven coordinates to work with `azure-cosmosdb-spar
 
 
 ### Using spark-cli
-To work with the connector using the spark-cli (i.e. `spark-shell`, `pyspark`, `spark-submit`), you can use the `--packages` parameter with the connector's [maven coordinates](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.3.0_2.11).
+To work with the connector using the spark-cli (i.e. `spark-shell`, `pyspark`, `spark-submit`), you can use the `--packages` parameter with the connector's [maven coordinates](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.3.0_2.11).  Please note if you are using a virtual machine with restricted NSG rules, your rule configuration may not allow spark to download packages.
 
 ```sh
 spark-shell --master YARN --packages "com.microsoft.azure:azure-cosmosdb-spark_2.3.0_2.11:1.2.2"
