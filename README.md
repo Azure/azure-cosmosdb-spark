@@ -142,7 +142,7 @@ See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tre
 
 | Component | Versions Supported |
 | --------- | ------------------ |
-| Apache Spark | 2.2.1, 2.3.X |
+| Apache Spark | 2.2.1, 2.3.X, 2.4.X |
 | Scala | 2.11 |
 | Python | 2.7, 3.6 |
 | Azure Cosmos DB Java SDK | 1.16.1, 1.16.2 |
@@ -158,7 +158,8 @@ You can build and/or use the maven coordinates to work with `azure-cosmosdb-spar
 
 | Spark | Scala | Latest version |
 |---|---|---|
-| 2.3.0 | 2.11 | [azure-cosmosdb-spark_2.3.0_2.11_1.3.2](https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.3.0_2.11/1.3.2/jar)
+| 2.4.0 | 2.11 | [azure-cosmosdb-spark_2.4.0_2.11_1.3.5](https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.4.0_2.11/1.3.4/jar)
+| 2.3.0 | 2.11 | [azure-cosmosdb-spark_2.3.0_2.11_1.3.3](https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.3.0_2.11/1.3.3/jar)
 | 2.2.0 | 2.11 | [azure-cosmosdb-spark_2.2.0_2.11_1.1.1](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.2.0_2.11%7C1.1.1%7Cjar)
 | 2.1.0 | 2.11 | [azure-cosmosdb-spark_2.1.0_2.11_1.2.2](https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.11/1.2.2)
 
