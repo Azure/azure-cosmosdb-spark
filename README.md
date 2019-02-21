@@ -10,28 +10,20 @@
 <details>
 <summary><strong><em>Table of Contents</em></strong></summary>
 
-* [Latest](#latest)
 * [Jump Start](#jump-start)
   * [Reading from Cosmos DB](#reading-from-Cosmos-DB)
   * [Writing to Cosmos DB](#writing-to-Cosmos-DB)
 * [Requirements](#requirements)
 * [Working with the connector](#working-with-the-connector)
+  * [Using Databricks notebooks](#using-databricks-notebooks)
   * [Using spark-cli](#using-spark-cli)
   * [Using Jupyter notebooks](#using-jupyter-notebooks)
-  * [Using Databricks notebooks](#using-databricks-notebooks)
-  * [Build the connector](#build-the-connector)
+* [Build the connector](#build-the-connector)
 * [Working with our samples](#working-with-our-samples)
-* [More Inforamtion](#more-information)
+* [More Information](#more-information)
 * [Contributing & Feedback](#contributing--feedback)
 
 </details>
-
-## Latest
-* Lambda Architecture Re-architected - Speed Layer ([Databricks notebook HTML view](https://htmlpreview.github.io/?https://github.com/dennyglee/azure-cosmosdb-spark/blob/master/samples/lambda/databricks/Lambda%20Architecture%20Re-architected%20-%20Speed%20Layer.html))
-* Lambda Architecture Re-architectured ([Documentation and Samples](https://github.com/dennyglee/azure-cosmosdb-spark/tree/master/samples/lambda))
-* Using the Bulk API with the connector ([Guidance](#))
-
-&nbsp;
 
 ## Jump Start
 
@@ -136,7 +128,7 @@ See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tre
 
 ## Requirements
 
-`azure-cosmosdb-spark` has been regularly tested using HDInsight 3.6 (Spark 2.1), 3.7 (Spark 2.2) and Azure Databricks Runtime 3.5 (Spark 2.2.1), 4.0 (Spark 2.3.0).
+`azure-cosmosdb-spark` has been regularly tested using Azure Databricks Runtime 3.5 (Spark 2.2.1), 4.0 (Spark 2.3.0), HDInsight 3.6 (Spark 2.1), and 3.7 (Spark 2.2).
 
 <em>Review <strong>supported</strong> component versions</em>
 
@@ -163,15 +155,19 @@ You can build and/or use the maven coordinates to work with `azure-cosmosdb-spar
 | 2.2.0 | 2.11 | [azure-cosmosdb-spark_2.2.0_2.11_1.1.1](https://search.maven.org/#artifactdetails%7Ccom.microsoft.azure%7Cazure-cosmosdb-spark_2.2.0_2.11%7C1.1.1%7Cjar)
 | 2.1.0 | 2.11 | [azure-cosmosdb-spark_2.1.0_2.11_1.2.2](https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.1.0_2.11/1.2.2)
 
+### Using Databricks notebooks
+Please create a library using within your Databricks workspace by following the guidance within the Azure Databricks Guide > [Use the Azure Cosmos DB Spark connector](https://docs.azuredatabricks.net/spark/latest/data-sources/azure/cosmosdb-connector.html)
+
+> Note, the **Use the Azure Cosmos DB Spark Connector** page is currently not up-to-date; issue is assigned to @dennyglee.  Instead of downloading the six separate JARs into six different libraries, you can download the uber jar from maven at https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.4.0_2.11/1.3.5/jar) and install this one jar/library.
+
 
 ### Using spark-cli
-To work with the connector using the spark-cli (i.e. `spark-shell`, `pyspark`, `spark-submit`), you can use the `--packages` parameter with the connector's [maven coordinates](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.3.0_2.11).
+To work with the connector using the spark-cli (i.e. `spark-shell`, `pyspark`, `spark-submit`), you can use the `--packages` parameter with the connector's [maven coordinates](https://mvnrepository.com/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.4.0_2.11).
 
 ```sh
-spark-shell --master YARN --packages "com.microsoft.azure:azure-cosmosdb-spark_2.3.0_2.11:1.2.2"
+spark-shell --master yarn --packages "com.microsoft.azure:azure-cosmosdb-spark_2.4.0_2.11:1.3.5"
 
 ```
-
 
 ### Using Jupyter notebooks
 If you're using Jupyter notebooks within HDInsight, you can use spark-magic `%%configure` cell to specify the connector's maven coordinates.
@@ -179,7 +175,7 @@ If you're using Jupyter notebooks within HDInsight, you can use spark-magic `%%c
 ```python
 { "name":"Spark-to-Cosmos_DB_Connector",
   "conf": {
-    "spark.jars.packages": "com.microsoft.azure:azure-cosmosdb-spark_2.3.0_2.11:1.2.2",
+    "spark.jars.packages": "com.microsoft.azure:azure-cosmosdb-spark_2.4.0_2.11:1.3.5",
     "spark.jars.excludes": "org.scala-lang:scala-reflect"
    }
    ...
@@ -187,14 +183,6 @@ If you're using Jupyter notebooks within HDInsight, you can use spark-magic `%%c
 ```
 
 > Note, the inclusion of the `spark.jars.excludes` is specific to remove potential conflicts between the connector, Apache Spark, and Livy.
-
-
-
-### Using Databricks notebooks
-Please create a library using within your Databricks workspace by following the guidance within the Azure Databricks Guide > [Use the Azure Cosmos DB Spark connector](https://docs.azuredatabricks.net/spark/latest/data-sources/azure/cosmosdb-connector.html)
-
-> Note, the **Use the Azure Cosmos DB Spark Connector** page is currently not up-to-date; issue is assigned to @dennyglee.  Instead of downloading the six separate JARs into six different libraries, you can download the uber JAR of [https://search.maven.org/remotecontent?filepath=com/microsoft/azure/azure-cosmosdb-spark_2.3.0_2.11/1.2.2/azure-cosmosdb-spark_2.3.0_2.11-1.2.2-uber.jar) from maven and just install this one JAR / library.
-
 
 ### Build the connector
 Currently, this connector project uses `maven` so to build without dependencies, you can run:
