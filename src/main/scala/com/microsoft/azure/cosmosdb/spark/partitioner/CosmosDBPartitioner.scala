@@ -86,6 +86,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
     } else {
       // CosmosDB source
       var query: String = FilterConverter.createQueryString(requiredColumns, filters)
+      connection.reinitializeClient()
       var partitionKeyRanges = connection.getAllPartitions(query)
       logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
       Array.tabulate(partitionKeyRanges.length) {

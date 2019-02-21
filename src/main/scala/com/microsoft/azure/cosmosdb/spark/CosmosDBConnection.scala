@@ -37,7 +37,7 @@ case class ClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
                                consistencyLevel: ConsistencyLevel)
-object CosmosDBConnection {
+object CosmosDBConnection extends LoggingTrait {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
@@ -46,7 +46,8 @@ object CosmosDBConnection {
   def getClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
       val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
       if (!clients.contains(cacheKey)) {
-          clients(clientConfiguration.host) = new DocumentClient(
+          logInfo(s"Initializing new client for host ${clientConfiguration.host}")
+          clients(cacheKey) = new DocumentClient(
           clientConfiguration.host,
           clientConfiguration.key,
           clientConfiguration.connectionPolicy,
@@ -55,6 +56,18 @@ object CosmosDBConnection {
       }
 
       clients.get(cacheKey).get
+   }
+
+   def reinitializeClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
+     val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
+     if(clients.get(cacheKey).nonEmpty) {
+       logInfo(s"Reinitializing client for host ${clientConfiguration.host}")
+       val client = clients.get(cacheKey).get
+       client.close()
+       CosmosDBConnection.clients.remove(cacheKey)
+     }
+
+     getClient(connectionMode, clientConfiguration)
    }
  }
 
@@ -72,9 +85,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
 
   @transient private var bulkImporter: DocumentBulkExecutor = _
 
-  private lazy val documentClient: DocumentClient = {
-    CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
-  }
+  private var documentClient: DocumentClient = CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
+
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
     if (bulkImporter == null) {
@@ -163,6 +175,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     else
       offer.getContent.getInt("offerThroughput")
     collectionThroughput
+  }
+
+  def reinitializeClient () = {
+    documentClient = CosmosDBConnection.reinitializeClient(connectionMode, getClientConfiguration(config))
   }
 
   def queryDocuments (queryString : String,
