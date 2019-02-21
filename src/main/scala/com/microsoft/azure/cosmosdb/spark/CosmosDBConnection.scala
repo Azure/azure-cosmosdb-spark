@@ -44,7 +44,8 @@ object CosmosDBConnection {
   var clients: scala.collection.mutable.Map[String, DocumentClient] = scala.collection.mutable.Map[String,DocumentClient]()
 
   def getClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
-      if (!clients.contains(clientConfiguration.host)) {
+      val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
+      if (!clients.contains(cacheKey)) {
           clients(clientConfiguration.host) = new DocumentClient(
           clientConfiguration.host,
           clientConfiguration.key,
@@ -53,7 +54,7 @@ object CosmosDBConnection {
           CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
       }
 
-      clients.get(clientConfiguration.host).get
+      clients.get(cacheKey).get
    }
  }
 

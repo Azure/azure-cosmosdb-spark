@@ -47,10 +47,10 @@ private [spark] object FilterConverter extends LoggingTrait {
   
     private def createWhereClause(filters: Array[Filter]): String = {
       filters.map {
-        case EqualTo(field, value)            => s"""(c[\"${field}\"] = ${createValueClause(value)})"""
-        case EqualNullSafe(field, value)      => s"""(c[\"${field}\"] = ${createValueClause(value)})"""
-        case GreaterThan(field, value)        => s"""(c[\"${field}\"] > ${createValueClause(value)})"""
-        case GreaterThanOrEqual(field, value) => s"""(c[\"${field}\"] >= ${createValueClause(value)})"""
+        case EqualTo(field, value)            => s"""(c[\"${createFieldIdentifier(field)}\"] = ${createValueClause(value)})"""
+        case EqualNullSafe(field, value)      => s"""(c[\"${createFieldIdentifier(field)}\"] = ${createValueClause(value)})"""
+        case GreaterThan(field, value)        => s"""(c[\"${createFieldIdentifier(field)}\"] > ${createValueClause(value)})"""
+        case GreaterThanOrEqual(field, value) => s"""(c[\"${createFieldIdentifier(field)}\"] >= ${createValueClause(value)})"""
         case In(field, values)                => s"""(c[\"${field}\"] IN (${values.map(value => createValueClause(value)).mkString(",")}))"""
         case LessThan(field, value)           => s"""(c[\"${field}\"] < ${createValueClause(value)})"""
         case LessThanOrEqual(field, value)    => s"""(c[\"${field}\"] <= ${createValueClause(value)})"""
@@ -66,6 +66,14 @@ private [spark] object FilterConverter extends LoggingTrait {
           logWarning(s"Unsupported filter $default")
           "true"
       }.mkString(" AND ")
+  }
+
+  private def createFieldIdentifier(field: String): String = {
+    val parts = field.split(".")
+    val identifierBuilder = StringBuilder.newBuilder
+
+    for(part <- parts) identifierBuilder.append(s"""(c[\"${part}\"])""" )
+    identifierBuilder.toString()
   }
 
   private def createValueClause(value: Any): Any = {
