@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.util
 
-import java.io.FileNotFoundException
+import java.io.{FileNotFoundException, PrintWriter, StringWriter}
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.LoggingTrait
@@ -38,13 +38,18 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
     configMap.foreach(e => config.set(e._1, e._2))
     config
   }
+
+  private val maxRetryCount = 10
   private val fs = FileSystem.get(fsConfig)
 
   def write(base: String, filePath: String, content: String): Unit = {
     val path = new Path(base + "/" + filePath)
-    val os = fs.create(path)
-    os.writeUTF(content)
-    os.close()
+    retry(maxRetryCount) {
+      val os = fs.create(path)
+      os.writeUTF(content)
+      os.close()
+    }
+
     logInfo(s"Write $content for $path")
   }
 
@@ -54,10 +59,12 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
   }
 
   def read(path: Path): String = {
-    val os = fs.open(path)
-    val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
-    os.close()
-    content
+    retry(maxRetryCount) {
+      val os = fs.open(path)
+      val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
+      os.close()
+      content
+    }
   }
 
   def fileExist(base: String, filePath: String): Boolean = {
@@ -117,6 +124,19 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
       }
     }
     tokens
+  }
+
+  def retry[T](n: Int)(fn: => T): T = {
+    try {
+      fn
+    } catch {
+      case e if n > 1 => {
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        logError(s"Exception during executing HDFS operation with message: ${e.getMessage} and stacktrace: ${sw.toString}, retrying .. ")
+        retry(n - 1)(fn)
+      }
+    }
   }
 }
 
