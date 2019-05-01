@@ -277,6 +277,7 @@ object Config {
   private def isEmpty(value: String): Boolean =
     value == null || value.isEmpty()
 
+
   /**
     * Strip the prefix from options
     *
