@@ -274,7 +274,7 @@ object Config {
     builder.build()
   }
 
-  def isEmpty(value: String): Boolean =
+  private def isEmpty(value: String): Boolean =
     value == null || value.isEmpty()
 
   /**
