@@ -259,10 +259,10 @@ object Config {
     }
 
     if (!combine.contains(CosmosDBConfig.Endpoint) && !combine.contains(CosmosDBConfig.Masterkey)) {
-      var endpoint = System.getenv(CosmosDBConfig.EndpointEnvVarName)
-      var key = System.getenv(CosmosDBConfig.KeyEnvVarname)
+      val endpoint = System.getenv(CosmosDBConfig.EndpointEnvVarName)
+      val key = System.getenv(CosmosDBConfig.KeyEnvVarname)
 
-      if (!isEmpty(endpoint) && !isEmpty(masterKey)) {
+      if (!isEmpty(endpoint) && !isEmpty(key)) {
         LoggerFactory.getLogger("Setting cosmos credentials from env variables")
         combine += (CosmosDBConfig.Endpoint -> endpoint)
         combine += (CosmosDBConfig.Masterkey -> key)
@@ -275,7 +275,7 @@ object Config {
   }
 
   def isEmpty(value: String): Boolean =
-    return value == null || value.isEmpty()
+    value == null || value.isEmpty()
 
   /**
     * Strip the prefix from options
