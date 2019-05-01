@@ -26,6 +26,7 @@ import com.microsoft.azure.cosmosdb.spark.config.Config.Property
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
+import org.slf4j.LoggerFactory
 
 import scala.reflect.ClassTag
 
@@ -256,11 +257,25 @@ object Config {
         case None => Map.empty[String, String]
       }
     }
+
+    if (!combine.contains(CosmosDBConfig.Endpoint) && !combine.contains(CosmosDBConfig.Masterkey)) {
+      var endpoint = System.getenv(CosmosDBConfig.EndpointEnvVarName)
+      var key = System.getenv(CosmosDBConfig.KeyEnvVarname)
+
+      if (!isEmpty(endpoint) && !isEmpty(masterKey)) {
+        LoggerFactory.getLogger("Setting cosmos credentials from env variables")
+        combine += (CosmosDBConfig.Endpoint -> endpoint)
+        combine += (CosmosDBConfig.Masterkey -> key)
+      }
+    }
+
     var builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
 
     builder.build()
   }
 
+  def isEmpty(value: String): Boolean =
+    return value == null || value.isEmpty()
 
   /**
     * Strip the prefix from options
