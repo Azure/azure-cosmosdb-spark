@@ -29,6 +29,10 @@ object CosmosDBConfig {
 
   //  Parameter names
 
+  // Environment variable name
+  val EndpointEnvVarName = "COSMOS_ENDPOINT"
+  val KeyEnvVarname = "COSMOS_KEY"
+
   // Cosmos DB account related config
   val Endpoint = "endpoint"
   val Database = "database"
