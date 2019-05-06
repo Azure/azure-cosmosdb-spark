@@ -64,7 +64,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * @return DataFrame
     */
   def cosmosDB[T <: Product : TypeTag](readConfig: Config): DataFrame =
-    createCosmosDBDataFrame(InferSchema.reflectSchema[T](), Some(readConfig), None)
+    createCosmosDBDataFrame(InferSchema.reflectSchema[T](), Option(readConfig), None)
 
   /**
     * Creates a [[DataFrame]] with the set schema
@@ -72,7 +72,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * @param schema the schema definition
     * @return DataFrame
     */
-  def cosmosDB(schema: StructType): DataFrame = createCosmosDBDataFrame(Some(schema), None, None)
+  def cosmosDB(schema: StructType): DataFrame = createCosmosDBDataFrame(Option(schema), None, None)
 
   /**
     * Creates a [[DataFrame]] with the set schema
@@ -81,7 +81,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
     * @param readConfig any custom read configuration
     * @return DataFrame
     */
-  def cosmosDB(schema: StructType, readConfig: Config, sqlContext: SQLContext): DataFrame = createCosmosDBDataFrame(Some(schema), Some(readConfig), Some(sqlContext))
+  def cosmosDB(schema: StructType, readConfig: Config, sqlContext: SQLContext): DataFrame = createCosmosDBDataFrame(Option(schema), Option(readConfig), Option(sqlContext))
 
   private def createDataFrame(schema: Option[StructType], readConfig: Option[Config], sqlContext: Option[SQLContext]): DataFrame = {
     var cachingMode: CachingMode = CachingMode.NONE
@@ -135,12 +135,12 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
           .-(CosmosDBConfig.RollingChangeFeed)
           .-(CosmosDBConfig.CachingModeParam)
           .+((CosmosDBConfig.CachingModeParam, CachingMode.CACHE.toString)))
-        val df = createDataFrame(schema, Some(dfConfig), sqlContext)
+        val df = createDataFrame(schema, Option(dfConfig), sqlContext)
 
         val changeFeedConfig = Config(dfConfig.asOptions
           .+((CosmosDBConfig.ReadChangeFeed, "true"))
           .-(CosmosDBConfig.CachingModeParam))
-        val changeFeedDf = createDataFrame(schema, Some(changeFeedConfig), sqlContext)
+        val changeFeedDf = createDataFrame(schema, Option(changeFeedConfig), sqlContext)
 
         df.union(changeFeedDf)
       } else {
