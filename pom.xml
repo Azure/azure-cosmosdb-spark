@@ -57,7 +57,7 @@ limitations under the License.
         <dependency>
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-documentdb</artifactId>
-            <version>2.2.3</version>
+            <version>2.4.0</version>
         </dependency>
         <dependency>
             <groupId>io.reactivex</groupId>
@@ -73,6 +73,12 @@ limitations under the License.
             <groupId>com.microsoft.azure</groupId>
             <artifactId>documentdb-bulkexecutor</artifactId>
             <version>2.5.0</version>
+            <exclusions>
+              <exclusion>
+                <groupId>com.microsoft.azure</groupId>
+                <artifactId>azure-documentdb</artifactId>
+              </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
