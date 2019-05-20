@@ -25,14 +25,14 @@ package com.microsoft.azure.cosmosdb.spark.util
 import java.io.{FileNotFoundException, PrintWriter, StringWriter}
 import java.util
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path, RemoteIterator}
 
 import scala.collection.mutable
 
-case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
+case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrait {
   private val fsConfig: Configuration = {
     val config = new Configuration()
     configMap.foreach(e => config.set(e._1, e._2))

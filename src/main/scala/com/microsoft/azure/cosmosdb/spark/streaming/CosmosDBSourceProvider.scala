@@ -22,14 +22,14 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.execution.streaming.Source
 import org.apache.spark.sql.sources.{DataSourceRegister, StreamSourceProvider}
 import org.apache.spark.sql.types.StructType
 
 class CosmosDBSourceProvider extends DataSourceRegister
-  with StreamSourceProvider with LoggingTrait {
+  with StreamSourceProvider with CosmosDBLoggingTrait {
 
   var cosmosDBSource: CosmosDBSource = _
 

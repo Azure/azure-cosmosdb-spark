@@ -25,14 +25,14 @@ package com.microsoft.azure.cosmosdb.spark.partitioner
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.schema.FilterConverter
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.{ADLConnection, ADLFilePartition, CosmosDBConnection, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{ADLConnection, ADLFilePartition, CosmosDBConnection, CosmosDBLoggingTrait}
 import org.apache.spark.Partition
 import org.apache.spark.sql.sources.Filter
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-class CosmosDBPartitioner() extends Partitioner[Partition] with LoggingTrait {
+class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingTrait {
 
   /**
     * @param config Partition configuration

@@ -49,7 +49,7 @@ object AsyncCosmosDBConnection {
       client = new AsyncDocumentClient
       .Builder()
         .withServiceEndpoint(clientConfig.host)
-        .withMasterKey(clientConfig.key)
+        .withMasterKeyOrResourceToken(clientConfig.key)
         .withConnectionPolicy(clientConfig.connectionPolicy)
         .withConsistencyLevel(clientConfig.consistencyLevel)
         .build
@@ -59,7 +59,7 @@ object AsyncCosmosDBConnection {
   }
 }
 
-case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
+case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
 
   private lazy val asyncDocumentClient: AsyncDocumentClient = {
     AsyncCosmosDBConnection.getClient(getClientConfiguration(config))
@@ -71,8 +71,6 @@ case class AsyncCosmosDBConnection(config: Config) extends LoggingTrait with Ser
   // Cosmos DB Java Async SDK supports Gateway mode
   private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
     .getOrElse(com.microsoft.azure.documentdb.ConnectionMode.Gateway.toString))
-
-  @transient private var asyncClient: AsyncDocumentClient = _
 
   def importWithRxJava[D: ClassTag](iter: Iterator[D],
                                     connection: AsyncCosmosDBConnection,

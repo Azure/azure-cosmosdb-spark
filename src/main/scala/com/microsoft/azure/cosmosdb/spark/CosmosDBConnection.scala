@@ -37,7 +37,7 @@ case class ClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
                                consistencyLevel: ConsistencyLevel)
-object CosmosDBConnection extends LoggingTrait {
+object CosmosDBConnection extends CosmosDBLoggingTrait {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
@@ -71,7 +71,7 @@ object CosmosDBConnection extends LoggingTrait {
    }
  }
 
-private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrait with Serializable {
+private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val databaseLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName"
@@ -81,7 +81,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends LoggingTrai
     .getOrElse(CosmosDBConfig.DefaultConnectionMode))
   private var collection: DocumentCollection = _
   private var database: Database = _
-  @transient private var client: DocumentClient = _
 
   @transient private var bulkImporter: DocumentBulkExecutor = _
 

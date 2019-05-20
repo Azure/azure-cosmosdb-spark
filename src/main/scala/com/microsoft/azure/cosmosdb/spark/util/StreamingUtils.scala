@@ -22,6 +22,8 @@
   */
 package org.apache.spark.sql.cosmosdb.util
 
+import java.time.temporal.ChronoUnit
+import java.time.{LocalDate, LocalDateTime, Period}
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark._
@@ -49,7 +51,7 @@ object StreamingUtils extends Serializable {
   }
 }
 
-class StreamingWriteTask extends Serializable {
+class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
 
   def importStreamingData[D: ClassTag](iter: Iterator[D], schemaOutput: Seq[Attribute], config: Config) = {
 
@@ -69,6 +71,11 @@ class StreamingWriteTask extends Serializable {
     var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
     var createDocumentObs: Observable[ResourceResponse[Document]] = null
     var batchSize = 0
+    var numberOfBatchesWritten = 0
+    var startTime = LocalDateTime.now()
+
+    logInfo(s"Writing batch size is ${writingBatchSize}")
+
     iter.foreach(item => {
       val document: Document = item match {
         case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
@@ -87,10 +94,15 @@ class StreamingWriteTask extends Serializable {
         }
         observables.clear()
         batchSize = 0
+        numberOfBatchesWritten+=1
       }
     })
     if (!observables.isEmpty) {
+      numberOfBatchesWritten+=1
       Observable.merge(observables).toBlocking.last()
     }
+
+    var latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
+    logInfo(s"Number of batches written is ${numberOfBatchesWritten} with latency ${latency} milliseconds")
   }
 }

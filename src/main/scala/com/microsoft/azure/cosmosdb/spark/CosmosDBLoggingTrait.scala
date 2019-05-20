@@ -22,14 +22,16 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import org.apache.spark.sql
 import org.slf4j.{Logger, LoggerFactory}
+
 
 /**
   * Utility trait for classes that want to log data. Creates a SLF4J logger for the class and allows
   * logging messages at different levels using methods that only evaluate parameters lazily if the
   * log level is enabled.
   */
-private[spark] trait LoggingTrait {
+trait CosmosDBLoggingTrait {
 
   // Make the log field transient so that objects with Logging can
   // be serialized and used on another machine

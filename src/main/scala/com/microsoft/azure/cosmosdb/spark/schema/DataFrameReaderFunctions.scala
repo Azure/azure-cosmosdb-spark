@@ -26,7 +26,7 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import com.microsoft.azure.cosmosdb.spark.config.CachingMode.CachingMode
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.cosmosdb.spark.{DefaultSource, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{DefaultSource, CosmosDBLoggingTrait}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.cosmosdb.util.StreamingUtils
 import org.apache.spark.sql.types.StructType
@@ -44,7 +44,7 @@ object DataFrameReaderFunctions {
   }
 }
 
-private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameReader) extends LoggingTrait {
+private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameReader) extends CosmosDBLoggingTrait {
 
   /**
     * Creates a [[DataFrame]] through schema inference via the `T` type, otherwise will sample the collection to

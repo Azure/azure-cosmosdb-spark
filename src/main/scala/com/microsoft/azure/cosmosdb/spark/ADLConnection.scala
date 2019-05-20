@@ -94,7 +94,7 @@ object ADLConnection {
   }
 }
 
-private[spark] case class ADLConnection (config: Config) extends LoggingTrait with Serializable {
+private[spark] case class ADLConnection (config: Config) extends CosmosDBLoggingTrait with Serializable {
 
   private val adlAccountFqdn = config.get[String](CosmosDBConfig.adlAccountFqdn).get
   private val adlClientId = config.get[String](CosmosDBConfig.adlClientId).get

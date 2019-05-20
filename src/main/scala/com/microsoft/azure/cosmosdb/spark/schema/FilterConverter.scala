@@ -22,11 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark.schema
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.sources._
 
-private [spark] object FilterConverter extends LoggingTrait {
+private [spark] object FilterConverter extends CosmosDBLoggingTrait {
   private val queryTemplate = "SELECT %s FROM c %s"
   val defaultQuery: String = String.format(queryTemplate, "*", StringUtils.EMPTY)
 

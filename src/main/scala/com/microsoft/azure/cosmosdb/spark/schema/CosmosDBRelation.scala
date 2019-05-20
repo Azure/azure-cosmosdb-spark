@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.schema
 
-import com.microsoft.azure.cosmosdb.spark.{DefaultSource, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{DefaultSource, CosmosDBLoggingTrait}
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDD
 import org.apache.spark.rdd.RDD
@@ -36,7 +36,7 @@ class CosmosDBRelation(private val config: Config,
   extends BaseRelation
     with PrunedFilteredScan
     with InsertableRelation
-    with LoggingTrait {
+    with CosmosDBLoggingTrait {
 
   implicit val _: Config = config
 

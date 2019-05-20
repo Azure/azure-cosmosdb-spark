@@ -29,7 +29,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 
-trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with LoggingTrait {
+trait RequiresCosmosDB extends FlatSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with CosmosDBLoggingTrait {
 
   val cosmosDBDefaults: CosmosDBDefaults = CosmosDBDefaults()
 

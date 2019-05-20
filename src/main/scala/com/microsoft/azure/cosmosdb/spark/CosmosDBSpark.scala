@@ -51,7 +51,7 @@ import scala.util.Random
   *
   * @since 1.0
   */
-object CosmosDBSpark extends LoggingTrait {
+object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   /**
    * The default source string for creating DataFrames from CosmosDB

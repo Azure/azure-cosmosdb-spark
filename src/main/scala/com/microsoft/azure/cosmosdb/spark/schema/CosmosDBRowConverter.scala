@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 import java.util
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -63,7 +63,7 @@ trait RowConverter[T] {
 object CosmosDBRowConverter extends RowConverter[Document]
   with JsonSupport
   with Serializable
-  with LoggingTrait {
+  with CosmosDBLoggingTrait {
 
   def asRow(schema: StructType, rdd: RDD[Document]): RDD[Row] = {
     rdd.map { record =>

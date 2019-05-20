@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -34,7 +34,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
                                     configMap: Map[String, String])
-  extends Source with LoggingTrait {
+  extends Source with CosmosDBLoggingTrait {
 
   val streamConfigMap: Map[String, String] = configMap.
     -(CosmosDBConfig.ReadChangeFeed).

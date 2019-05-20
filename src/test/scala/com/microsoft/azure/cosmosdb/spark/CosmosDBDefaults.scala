@@ -37,7 +37,7 @@ object CosmosDBDefaults {
   def apply(): CosmosDBDefaults = new CosmosDBDefaults()
 }
 
-class CosmosDBDefaults extends LoggingTrait {
+class CosmosDBDefaults extends CosmosDBLoggingTrait {
 
   val CosmosDBEndpoint: String = {
     val cosmosDBEndpoint = "CosmosDBEndpoint"

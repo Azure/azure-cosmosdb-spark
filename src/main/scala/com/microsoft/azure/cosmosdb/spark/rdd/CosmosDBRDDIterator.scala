@@ -30,7 +30,7 @@ import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
@@ -126,7 +126,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
                           requiredColumns: Array[String],
                           filters: Array[Filter])
   extends Iterator[Document]
-    with LoggingTrait {
+    with CosmosDBLoggingTrait {
 
   CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap)
 
