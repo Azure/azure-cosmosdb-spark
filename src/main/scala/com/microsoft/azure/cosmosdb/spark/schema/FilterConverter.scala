@@ -54,7 +54,7 @@ private [spark] object FilterConverter extends CosmosDBLoggingTrait {
         case In(field, values)                => s"""(c${createFieldIdentifier(field)} IN (${values.map(value => createValueClause(value)).mkString(",")}))"""
         case LessThan(field, value)           => s"""(c${createFieldIdentifier(field)} < ${createValueClause(value)})"""
         case LessThanOrEqual(field, value)    => s"""(c${createFieldIdentifier(field)} <= ${createValueClause(value)})"""
-        case IsNull(field)                    => s"""(c${createFieldIdentifier(field)} = null"""
+        case IsNull(field)                    => s"""(c${createFieldIdentifier(field)} = null)"""
         case IsNotNull(field)                 => s"""(c${createFieldIdentifier(field)} != null)"""
         case And(leftFilter, rightFilter)     => s"""(${createWhereClause(Array(leftFilter))} AND ${createWhereClause(Array(rightFilter))})"""
         case Or(leftFilter, rightFilter)      => s"""(${createWhereClause(Array(leftFilter))} OR ${createWhereClause(Array(rightFilter))})"""
