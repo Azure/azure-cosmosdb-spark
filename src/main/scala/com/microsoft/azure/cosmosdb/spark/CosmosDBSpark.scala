@@ -30,9 +30,10 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.{HdfsUtils, JacksonWrapper}
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import rx.Observable
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkexecutor.{BulkImportResponse, BulkUpdateResponse, DocumentBulkExecutor, UpdateItem}
+import com.microsoft.azure.documentdb.bulkexecutor.{DocumentBulkExecutor, BulkImportResponse, BulkUpdateResponse, UpdateItem}
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
@@ -193,6 +194,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       else
         savePartition(iter, writeConfig, numPartitions, offerThroughput), preservesPartitioning = true)
+
     mapRdd.collect()
 
 //    // All tasks have been completed, clean up the file checkpoints
@@ -450,6 +452,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     iterator
   }
 
+
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
                                          partitionCount: Int,
@@ -457,7 +460,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     val connection = new CosmosDBConnection(config)
     savePartition(connection, iter, config, partitionCount, offerThroughput)
   }
-
 
 
   private def executePreSave(schemaDocument : ItemSchema, item : Document): Unit =
@@ -535,6 +537,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         logDebug(s"Writing partition with bulk import")
         bulkImport(iter, connection, offerThroughput, writingBatchSize, rootPropertyToSave,
           partitionKeyDefinition, upsert, maxConcurrencyPerPartitionRange, config, executePreSave)
+
       } else {
         logDebug(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)

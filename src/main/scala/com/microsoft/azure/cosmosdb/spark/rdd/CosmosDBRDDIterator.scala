@@ -31,6 +31,8 @@ import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.{HdfsUtils, JacksonWrapper}
 import com.microsoft.azure.cosmosdb.spark.{Column, CosmosDBConnection, CosmosDBLoggingTrait, ItemSchema}
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
@@ -46,6 +48,7 @@ object CosmosDBRDDIterator {
   var hdfsUtils: HdfsUtils = _
 
   var schemaCheckRequired = false
+
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
     if (hdfsUtils == null) {
@@ -209,7 +212,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           CosmosDBRDDIterator.schemaCheckRequired = true;
         }
       }
-
 
       if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used

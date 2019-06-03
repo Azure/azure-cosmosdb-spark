@@ -172,8 +172,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val collectionThroughput = if (offer.getString("offerVersion") == "V1")
       CosmosDBConfig.SinglePartitionCollectionOfferThroughput
     else
-      10000
-      //offer.getContent.getInt("offerThroughput")
+      offer.getContent.getInt("offerThroughput")
     collectionThroughput
   }
 
