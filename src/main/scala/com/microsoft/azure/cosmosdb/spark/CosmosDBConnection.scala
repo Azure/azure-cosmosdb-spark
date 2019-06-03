@@ -172,7 +172,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val collectionThroughput = if (offer.getString("offerVersion") == "V1")
       CosmosDBConfig.SinglePartitionCollectionOfferThroughput
     else
-      offer.getContent.getInt("offerThroughput")
+      10000
+      //offer.getContent.getInt("offerThroughput")
     collectionThroughput
   }
 
@@ -190,6 +191,13 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                       feedOpts : FeedOptions) : Iterator [Document] = {
     val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
     feedResponse.getQueryIterable.iterator()
+  }
+
+  def readSchema(schemaType : String, partitionKey : String) = {
+    val feedOptions = new FeedOptions();
+    feedOptions.setEnableCrossPartitionQuery(true);
+    val schemaResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where c.id = '__schema__' and c.schemaType = '" + schemaType + "'"), feedOptions);
+    schemaResponse.getQueryIterable.fetchNextBlock()
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
