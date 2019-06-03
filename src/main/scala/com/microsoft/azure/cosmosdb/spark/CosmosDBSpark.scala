@@ -283,14 +283,16 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
     var itemSchema : ItemSchema = null;
-    var schemaWriteRequired= true;
+    var schemaWriteRequired= false;
     if(config.get[String](CosmosDBConfig.SchemaType).isDefined) {
 
       val document = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get, CosmosDBConfig.PartitionKeyDefinition);
       if(document != null) {
-        schemaWriteRequired = false;
         val doc = document.get(0);
         itemSchema = JacksonWrapper.deserialize[ItemSchema](doc.toJson());
+      }
+      else{
+        schemaWriteRequired = true
       }
     }
 
@@ -343,7 +345,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         schemaWriteRequired = false
       }
 
-      executePreSave(itemSchema, document);
+      if(config.get[String](CosmosDBConfig.SchemaType).isDefined){
+        executePreSave(itemSchema, document);
+      }
 
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {

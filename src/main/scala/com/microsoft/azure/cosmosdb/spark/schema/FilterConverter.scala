@@ -32,7 +32,7 @@ private [spark] object FilterConverter extends CosmosDBLoggingTrait {
 
   def createQueryString(
                          requiredColumns: Array[String],
-                         filters: Array[Filter]): String = {
+                         filters: Array[Filter], schemaTypeName: Option[String]): String = {
 
     var selectClause = "*"
     //Note: for small document, the projection will transport less data but it might be slower because server
@@ -41,6 +41,13 @@ private [spark] object FilterConverter extends CosmosDBLoggingTrait {
 
     var whereClause = StringUtils.EMPTY
     if (filters.nonEmpty) whereClause = s"where ${createWhereClause(filters)}"
+    if (schemaTypeName.isDefined) {
+      val schemaFilter = s"c.documentSchema = '${schemaTypeName.get}'"
+      if (whereClause.nonEmpty)
+        whereClause = whereClause + s" AND ${schemaFilter}"
+      else
+        whereClause = s"where ${schemaFilter}"
+    }
 
     String.format(queryTemplate, selectClause, whereClause)
   }
