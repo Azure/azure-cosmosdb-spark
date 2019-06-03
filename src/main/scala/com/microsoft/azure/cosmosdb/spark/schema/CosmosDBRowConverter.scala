@@ -25,16 +25,20 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 import java.util
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.{DataType, _}
 import org.json.{JSONArray, JSONObject}
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.util.ArrayData
+import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.HashMap
+import scala.collection.mutable.ListBuffer
 
 /**
   * Knows how to map from some Data Source native RDD to an {{{RDD[Row]}}}
@@ -59,7 +63,7 @@ trait RowConverter[T] {
 object CosmosDBRowConverter extends RowConverter[Document]
   with JsonSupport
   with Serializable
-  with LoggingTrait {
+  with CosmosDBLoggingTrait {
 
   def asRow(schema: StructType, rdd: RDD[Document]): RDD[Row] = {
     rdd.map { record =>
@@ -108,7 +112,10 @@ object CosmosDBRowConverter extends RowConverter[Document]
             case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
           }).map(element => (toSQL(element._1, map.keyType), toSQL(element._2, map.valueType)))
         case (_, array: ArrayType) =>
-          value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(element, array.elementType)).toArray
+          if(!JSONObject.NULL.equals(value))
+            value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(element, array.elementType)).toArray
+          else
+            null
         case (_, binaryType: BinaryType) =>
           value.asInstanceOf[java.util.ArrayList[Int]].asScala.map(x => x.toByte).toArray
         case _ =>
@@ -118,16 +125,31 @@ object CosmosDBRowConverter extends RowConverter[Document]
     }.orNull
   }
 
+  private def rowTyperouterToJsonArray(element: Any, schema: StructType) = element match {
+    case e: Row => rowToJSONObject(e)
+    case e: InternalRow => internalRowToJSONObject(e, schema)
+    case _ => throw new Exception(s"Cannot cast $element into a Json value. Struct $element has no matching Json value.")
+  }
+
   def rowToJSONObject(row: Row): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
       case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, false))
     })
     jsonObject
   }
 
-  private def convertToJson(element: Any, elementType: DataType): Any = {
+  def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
+    var jsonObject: JSONObject = new JSONObject()
+    schema.fields.zipWithIndex.foreach({
+      case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, true))
+    })
+    jsonObject
+  }
+
+  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
       case BooleanType          => element.asInstanceOf[Boolean]
@@ -135,42 +157,70 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
-      case StringType           => element.asInstanceOf[String]
+      case StringType           => {
+        if (isInternalRow) {
+          new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
+        } else {
+          element.asInstanceOf[String]
+        }
+      }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
-      case arrayType: ArrayType => arrayTypeToJSONArray(arrayType.elementType, element.asInstanceOf[Seq[_]])
+      case arrayType: ArrayType => arrayTypeRouterToJsonArray(arrayType.elementType, element, isInternalRow)
       case mapType: MapType =>
         mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]])
+          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]], isInternalRow)
           case _ => throw new Exception(
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )
         }
-      case structType: StructType => rowToJSONObject(element.asInstanceOf[Row])
+      case structType: StructType => rowTyperouterToJsonArray(element, structType)
       case _ =>
         throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
     }
   }
 
-  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any]): JSONObject = {
+  private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any], isInternalRow: Boolean): JSONObject = {
     var jsonObject: JSONObject = new JSONObject()
     val internalData = valueType match {
-      case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowToJSONObject(kv._2.asInstanceOf[Row])))
-      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeToJSONArray(subArray.elementType, kv._2.asInstanceOf[Seq[Any]])))
-      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType)))
+      case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowTyperouterToJsonArray(kv._2, subDocuments)))
+      case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeRouterToJsonArray(subArray.elementType, kv._2, isInternalRow)))
+      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType, isInternalRow)))
     }
     jsonObject
   }
 
-  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any]): JSONArray = {
+  private def arrayTypeRouterToJsonArray(elementType: DataType, data: Any, isInternalRow: Boolean):JSONArray = {
+    data match {
+      case d:Seq[_] => arrayTypeToJSONArray(elementType, d, isInternalRow)
+      case d:ArrayData => arrayDataTypeToJSONArray(elementType,d, isInternalRow)
+      case _ => throw new Exception(s"Cannot cast $data into a Json value. ArrayType $elementType has no matching Json value.")
+    }
+  }
+
+  private def arrayTypeToJSONArray(elementType: DataType, data: Seq[Any], isInternalRow: Boolean): JSONArray = {
     val internalData = elementType match {
-      case subDocuments: StructType => data.map(x => rowToJSONObject(x.asInstanceOf[Row])).asJava
-      case subArray: ArrayType      => data.map(x => arrayTypeToJSONArray(subArray.elementType, x.asInstanceOf[Seq[Any]])).asJava
-      case _                        => data.map(x => convertToJson(x, elementType)).asJava
+      case subDocuments: StructType => data.map(x => rowTyperouterToJsonArray(x, subDocuments)).asJava
+      case subArray: ArrayType      => data.map(x => arrayTypeRouterToJsonArray(subArray.elementType, x, isInternalRow)).asJava
+      case _                        => data.map(x => convertToJson(x, elementType, isInternalRow)).asJava
     }
     // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
     // Otherwise, the data will be converted into String.
     new JSONArray(internalData)
   }
+
+  private def arrayDataTypeToJSONArray(elementType: DataType, data: ArrayData, isInternalRow: Boolean): JSONArray = {
+    val listBuffer = ListBuffer.empty[Any]
+    elementType match {
+      case subDocuments: StructType => data.foreach(elementType, (_, x) => listBuffer.append(rowTyperouterToJsonArray(x, subDocuments)))
+      case subArray: ArrayType      => data.foreach(elementType,(_,x) => listBuffer.append(arrayTypeRouterToJsonArray(subArray.elementType, x, isInternalRow)))
+      case _                        => data.foreach(elementType,(_,x) => listBuffer.append(convertToJson(x, elementType, isInternalRow)))
+    }
+    // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
+    // Otherwise, the data will be converted into String.
+    new JSONArray(listBuffer.toList.asJava)
+  }
+
+
 
   def documentToMap(document: Document): Map[String, AnyRef] = {
     if (document == null)

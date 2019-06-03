@@ -23,10 +23,10 @@
 package com.microsoft.azure.cosmosdb.spark.schema
 
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBSpark, LoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBSpark, CosmosDBLoggingTrait}
 import org.apache.spark.sql.DataFrameWriter
 
-private[spark] case class DataFrameWriterFunctions(@transient dfw: DataFrameWriter[_]) extends LoggingTrait {
+private[spark] case class DataFrameWriterFunctions(@transient dfw: DataFrameWriter[_]) extends CosmosDBLoggingTrait {
 
   /**
     * Saves the contents of the `DataFrame` to CosmosDB.

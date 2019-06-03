@@ -32,7 +32,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 class DefaultSource extends RelationProvider
   with SchemaRelationProvider
   with CreatableRelationProvider
-  with LoggingTrait {
+  with CosmosDBLoggingTrait {
 
   override def createRelation(
                                sqlContext: SQLContext,

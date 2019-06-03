@@ -25,6 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 import java.sql.{Date, Timestamp}
 
 import org.apache.spark.sql.types._
+import org.json.JSONObject
 
 /**
   * Json - Scala object transformation support.
@@ -46,6 +47,7 @@ trait JsonSupport {
   protected def enforceCorrectType(value: Any, desiredType: DataType): Any =
     Option(value).map { _ =>
       desiredType match {
+        case _ if value == JSONObject.NULL => null // guard when null value was inserted in document
         case StringType => toString(value)
         case _ if value == "" => null // guard the non string type
         case ByteType => toByte(value)
@@ -76,6 +78,7 @@ trait JsonSupport {
     value match {
       case value: java.lang.Integer => value.byteValue()
       case value: java.lang.Long => value.byteValue()
+      case value: java.lang.String => value.toByte
     }
   }
 
@@ -83,6 +86,7 @@ trait JsonSupport {
     value match {
       case value: java.lang.Integer => value.toShort
       case value: java.lang.Long => value.toShort
+      case value: java.lang.String => value.toShort
     }
   }
 
@@ -103,6 +107,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.asInstanceOf[Int].toLong
       case value: java.lang.Long => value.asInstanceOf[Long]
       case value: java.lang.Double => value.asInstanceOf[Double].toLong
+      case value: java.lang.String => value.toLong
     }
   }
 
@@ -111,6 +116,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.asInstanceOf[Int].toDouble
       case value: java.lang.Long => value.asInstanceOf[Long].toDouble
       case value: java.lang.Double => value.asInstanceOf[Double]
+      case value: java.lang.String => value.toDouble
     }
   }
 
@@ -121,6 +127,7 @@ trait JsonSupport {
       case value: java.lang.Double => new java.math.BigDecimal(value)
       case value: java.math.BigInteger => new java.math.BigDecimal(value)
       case value: java.math.BigDecimal => value
+      case value: java.lang.String => new java.math.BigDecimal(value)
     }
   }
 
@@ -129,6 +136,7 @@ trait JsonSupport {
       case value: java.lang.Integer => value.toFloat
       case value: java.lang.Long => value.toFloat
       case value: java.lang.Double => value.toFloat
+      case value: java.lang.String => value.toFloat
     }
   }
 
@@ -136,6 +144,7 @@ trait JsonSupport {
     value match {
       case value: java.util.Date => new Timestamp(value.getTime)
       case value: java.lang.Long => new Timestamp(value)
+      case value: java.lang.String => Timestamp.valueOf(value)
     }
   }
 
@@ -143,6 +152,7 @@ trait JsonSupport {
     value match {
       case value: java.util.Date => new Date(value.getTime)
       case value: java.lang.Long => new Date(value)
+      case value: java.lang.String => Date.valueOf(value)
     }
   }
 

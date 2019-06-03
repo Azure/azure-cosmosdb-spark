@@ -22,29 +22,34 @@
   */
 package com.microsoft.azure.cosmosdb.spark.util
 
-import java.io.FileNotFoundException
+import java.io.{FileNotFoundException, PrintWriter, StringWriter}
 import java.util
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path, RemoteIterator}
 
 import scala.collection.mutable
 
-case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
+case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrait {
   private val fsConfig: Configuration = {
     val config = new Configuration()
     configMap.foreach(e => config.set(e._1, e._2))
     config
   }
+
+  private val maxRetryCount = 10
   private val fs = FileSystem.get(fsConfig)
 
   def write(base: String, filePath: String, content: String): Unit = {
     val path = new Path(base + "/" + filePath)
-    val os = fs.create(path)
-    os.writeUTF(content)
-    os.close()
+    retry(maxRetryCount) {
+      val os = fs.create(path)
+      os.writeUTF(content)
+      os.close()
+    }
+
     logInfo(s"Write $content for $path")
   }
 
@@ -54,15 +59,21 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
   }
 
   def read(path: Path): String = {
-    val os = fs.open(path)
-    val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
-    os.close()
-    content
+    retry(maxRetryCount) {
+      val os = fs.open(path)
+      val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
+      os.close()
+      content
+    }
   }
 
   def fileExist(base: String, filePath: String): Boolean = {
     val path = new Path(base + "/" + filePath)
     fs.exists(path)
+  }
+
+  def deleteFile(path: String): Unit = {
+    fs.delete(new Path(path), true)
   }
 
   def listFiles(base: String, filePath: String): RemoteIterator[LocatedFileStatus] = {
@@ -79,7 +90,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
                                     collectionRid: String,
                                     partitionId: String,
                                     token: String): Unit = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid/$partitionId"
 
     write(location, path, token)
@@ -89,7 +100,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
                                    queryName: String,
                                    collectionRid: String,
                                    partitionId: String): String = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid/$partitionId"
     if (fileExist(location, path)) {
       read(location, path)
@@ -101,7 +112,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
   def readChangeFeedToken(location: String,
                           queryName: String,
                           collectionRid: String): java.util.HashMap[String, String] = {
-    val queryNameAlphaNum = filterQueryName(queryName)
+    val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid"
     val files = listFiles(location, path)
     var tokens = new util.HashMap[String, String]()
@@ -115,8 +126,17 @@ case class HdfsUtils(configMap: Map[String, String]) extends LoggingTrait {
     tokens
   }
 
-  private def filterQueryName(queryName: String): String = {
-    queryName.replaceAll("[^0-9a-zA-Z]", StringUtils.EMPTY)
+  def retry[T](n: Int)(fn: => T): T = {
+    try {
+      fn
+    } catch {
+      case e if n > 1 => {
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        logError(s"Exception during executing HDFS operation with message: ${e.getMessage} and stacktrace: ${sw.toString}, retrying .. ")
+        retry(n - 1)(fn)
+      }
+    }
   }
 }
 
@@ -136,5 +156,10 @@ object HdfsUtils {
       configMap += (entry.getKey -> entry.getValue)
     }
     configMap
+  }
+
+  def filterFilename(queryName: String): String = {
+    queryName.replaceAll("[^0-9a-zA-Z-_]", StringUtils.EMPTY)
+      .replaceAll("[\\W]", "--")
   }
 }

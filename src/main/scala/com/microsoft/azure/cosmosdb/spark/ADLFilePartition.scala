@@ -20,33 +20,9 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.cosmosdb.spark.streaming
+package com.microsoft.azure.cosmosdb.spark
 
-import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
-import org.apache.spark.sql.cosmosdb.util.StreamingWriteTask
-import org.apache.spark.sql.execution.QueryExecution
-import org.apache.spark.sql.execution.streaming.Sink
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import com.microsoft.azure.cosmosdb.spark.config.Config
+import org.apache.spark.Partition
 
-private[spark] class CosmosDBSink(sqlContext: SQLContext,
-                                    configMap: Map[String, String])
-  extends Sink with CosmosDBLoggingTrait with Serializable {
-
-  private var lastBatchId: Long = -1L
-  
-  override def addBatch(batchId: Long, data: DataFrame): Unit = {
-    if (batchId <= lastBatchId) {
-      logDebug(s"Rerun batchId $batchId")
-    } else {
-      lastBatchId = batchId
-    }
-
-    val queryExecution: QueryExecution = data.queryExecution
-    val schemaOutput = queryExecution.analyzed.output
-    queryExecution.toRdd.foreachPartition( iter => {
-      val writeTask = new StreamingWriteTask()
-      writeTask.importStreamingData(iter, schemaOutput, Config(configMap))
-    })
-  }
-}
+case class ADLFilePartition(index: Int,
+                            adlFilePath: String) extends Partition

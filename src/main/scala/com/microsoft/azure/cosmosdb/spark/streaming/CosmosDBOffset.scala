@@ -22,12 +22,12 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.spark.sql.execution.streaming.Offset
 
 case class CosmosDBOffset(offset: String)
   extends Offset
-    with LoggingTrait {
+    with CosmosDBLoggingTrait {
 
   override def json: String = {
     offset

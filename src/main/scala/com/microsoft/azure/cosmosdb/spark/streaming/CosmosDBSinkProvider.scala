@@ -22,14 +22,14 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
 import org.apache.spark.sql.streaming.OutputMode
 
 class CosmosDBSinkProvider extends DataSourceRegister
-  with StreamSinkProvider with LoggingTrait {
+  with StreamSinkProvider with CosmosDBLoggingTrait {
 
   override def shortName(): String = "CosmosDBSinkProvider"
 

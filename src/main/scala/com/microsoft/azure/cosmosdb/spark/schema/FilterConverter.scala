@@ -22,11 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark.schema
 
-import com.microsoft.azure.cosmosdb.spark.LoggingTrait
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.sources._
 
-private [spark] object FilterConverter extends LoggingTrait {
+private [spark] object FilterConverter extends CosmosDBLoggingTrait {
   private val queryTemplate = "SELECT %s FROM c %s"
   val defaultQuery: String = String.format(queryTemplate, "*", StringUtils.EMPTY)
 
@@ -47,25 +47,33 @@ private [spark] object FilterConverter extends LoggingTrait {
   
     private def createWhereClause(filters: Array[Filter]): String = {
       filters.map {
-        case EqualTo(field, value)            => s"c.${field} = ${createValueClause(value)}"
-        case EqualNullSafe(field, value)      => s"c.${field} = ${createValueClause(value)}"
-        case GreaterThan(field, value)        => s"c.${field} > ${createValueClause(value)}"
-        case GreaterThanOrEqual(field, value) => s"c.${field} >= ${createValueClause(value)}"
-        case In(field, values)                => s"c.${field} IN (${values.map(value => createValueClause(value)).mkString(",")})"
-        case LessThan(field, value)           => s"c.${field} < ${createValueClause(value)}"
-        case LessThanOrEqual(field, value)    => s"c.${field} <= ${createValueClause(value)}"
-        case IsNull(field)                    => s"c.${field} = null"
-        case IsNotNull(field)                 => s"c.${field} != null"
-        case And(leftFilter, rightFilter)     => s"${createWhereClause(Array(leftFilter))} AND ${createWhereClause(Array(rightFilter))}"
-        case Or(leftFilter, rightFilter)      => s"${createWhereClause(Array(leftFilter))} OR ${createWhereClause(Array(rightFilter))}"
-        case Not(filter)                      => s"NOT ${createWhereClause(Array(filter))}"
-        case StringStartsWith(field, value)   => s"STARTSWITH(c.${field}, ${createValueClause(value)})"
-        case StringEndsWith(field, value)     => s"ENDSWITH(c.${field}, ${createValueClause(value)})"
-        case StringContains(field, value)     => s"CONTAINS(c.${field}, ${createValueClause(value)})"
+        case EqualTo(field, value)            => s"""(c${createFieldIdentifier(field)} = ${createValueClause(value)})"""
+        case EqualNullSafe(field, value)      => s"""(c${createFieldIdentifier(field)} = ${createValueClause(value)})"""
+        case GreaterThan(field, value)        => s"""(c${createFieldIdentifier(field)} > ${createValueClause(value)})"""
+        case GreaterThanOrEqual(field, value) => s"""(c${createFieldIdentifier(field)} >= ${createValueClause(value)})"""
+        case In(field, values)                => s"""(c${createFieldIdentifier(field)} IN (${values.map(value => createValueClause(value)).mkString(",")}))"""
+        case LessThan(field, value)           => s"""(c${createFieldIdentifier(field)} < ${createValueClause(value)})"""
+        case LessThanOrEqual(field, value)    => s"""(c${createFieldIdentifier(field)} <= ${createValueClause(value)})"""
+        case IsNull(field)                    => s"""(c${createFieldIdentifier(field)} = null)"""
+        case IsNotNull(field)                 => s"""(c${createFieldIdentifier(field)} != null)"""
+        case And(leftFilter, rightFilter)     => s"""(${createWhereClause(Array(leftFilter))} AND ${createWhereClause(Array(rightFilter))})"""
+        case Or(leftFilter, rightFilter)      => s"""(${createWhereClause(Array(leftFilter))} OR ${createWhereClause(Array(rightFilter))})"""
+        case Not(filter)                      => s"""NOT ${createWhereClause(Array(filter))}"""
+        case StringStartsWith(field, value)   => s"""STARTSWITH(c${createFieldIdentifier(field)}, ${createValueClause(value)})"""
+        case StringEndsWith(field, value)     => s"""ENDSWITH(c${createFieldIdentifier(field)}, ${createValueClause(value)})"""
+        case StringContains(field, value)     => s"""CONTAINS(c${createFieldIdentifier(field)}, ${createValueClause(value)})"""
         case default =>
           logWarning(s"Unsupported filter $default")
           "true"
       }.mkString(" AND ")
+  }
+
+  private def createFieldIdentifier(field: String): String = {
+    val parts = field.split('.')
+    val identifierBuilder = StringBuilder.newBuilder
+
+    for(part <- parts) identifierBuilder.append(s"""[\"${part}\"]""" )
+    identifierBuilder.toString()
   }
 
   private def createValueClause(value: Any): Any = {

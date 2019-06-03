@@ -22,16 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
-import java.util
-import java.util.Dictionary
-import java.util.Map.Entry
-
-import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
-import com.microsoft.azure.documentdb._
-import com.microsoft.azure.cosmosdb.spark.config.Config
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.{CosmosDBPartition, CosmosDBPartitioner}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import org.apache.hadoop.conf.Configuration
+import com.microsoft.azure.cosmosdb.spark.{ADLFilePartition, ADLPartitionIterator, CosmosDBSpark}
+import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
@@ -54,14 +49,17 @@ class CosmosDBRDD(
   // It's a Map because Configuration is not serializable
   private val hadoopConfig: mutable.Map[String, String] = HdfsUtils.getConfigurationMap(sparkContext.hadoopConfiguration)
 
+  private val adlImport = config.get(CosmosDBConfig.adlAccountFqdn).isDefined
+
   private def cosmosDBSpark = {
     CosmosDBSpark(spark, config)
   }
 
   override def toJavaRDD(): JavaCosmosDBRDD = JavaCosmosDBRDD(this)
 
-  override def getPartitions: Array[Partition] =
-    partitioner.computePartitions(config, requiredColumns, filters).asInstanceOf[Array[Partition]]
+  override def getPartitions: Array[Partition] = {
+    partitioner.computePartitions(config, requiredColumns, filters, hadoopConfig)
+  }
 
   /**
     * Creates a `DataFrame` based on the schema derived from the optional type.
@@ -110,23 +108,33 @@ class CosmosDBRDD(
   def toDS[T](beanClass: Class[T]): Dataset[T] = cosmosDBSpark.toDS[T](beanClass)
 
   override def compute(
-                        split: Partition,
-                        context: TaskContext): CosmosDBRDDIterator = {
+                        partition: Partition,
+                        context: TaskContext): Iterator[Document] = {
 
-    var cosmosDBPartition: CosmosDBPartition = split.asInstanceOf[CosmosDBPartition]
-    logDebug(s"CosmosDBRDD:compute: Start CosmosDBRDD compute on partition with index ${cosmosDBPartition.partitionKeyRangeId}")
+    partition match {
 
-    context.addTaskCompletionListener((ctx: TaskContext) => {
-      logDebug(s"CosmosDBRDD:compute: Task completed RDD compute ${cosmosDBPartition.partitionKeyRangeId}")
-    })
+      case cosmosDBPartition: CosmosDBPartition =>
+        var cosmosDBPartition: CosmosDBPartition = partition.asInstanceOf[CosmosDBPartition]
+        logInfo(s"CosmosDBRDD:compute: Start CosmosDBRDD compute task for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
 
-    new CosmosDBRDDIterator(
-      hadoopConfig,
-      context,
-      cosmosDBPartition,
-      config,
-      maxItems,
-      requiredColumns,
-      filters)
+        context.addTaskCompletionListener((ctx: TaskContext) => {
+          logInfo(s"CosmosDBRDD:compute: CosmosDBRDD compute task completed for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
+        })
+
+        new CosmosDBRDDIterator(
+          hadoopConfig,
+          context,
+          cosmosDBPartition,
+          config,
+          maxItems,
+          requiredColumns,
+          filters)
+
+      case adlFilePartition: ADLFilePartition =>
+        new ADLPartitionIterator(
+          config,
+          adlFilePartition
+        )
+    }
   }
 }

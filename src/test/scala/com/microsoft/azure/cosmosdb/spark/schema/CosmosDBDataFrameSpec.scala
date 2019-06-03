@@ -24,6 +24,7 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.io.File
 import java.sql.{Date, Timestamp}
+import java.util
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
@@ -31,8 +32,10 @@ import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, CosmosDBRDDIterator}
 import com.microsoft.azure.cosmosdb.spark.streaming.{CosmosDBSinkProvider, CosmosDBSourceProvider}
 import com.microsoft.azure.cosmosdb.spark.{RequiresCosmosDB, _}
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkexecutor.{IncUpdateOperation, UpdateItem, UpdateOperationBase}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.ScalaReflection
+import org.apache.spark.sql.execution.datasources.FilePartition
 import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 
@@ -84,6 +87,41 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
 
     cosmosDBDefaults.deleteCollection(databaseName, collectionName)
+  }
+
+  it should "write with progress tracking with another collection" in withSparkSession() { spark =>
+    import spark.implicits._
+    spark.sparkContext.parallelize(simpleDocuments).toDF().write.mode(SaveMode.Overwrite).format("json").save("simpleDocuments.json")
+
+    val df = spark.read.json("simpleDocuments.json")
+    df.rdd.partitions.length should equal(1)
+    df.rdd.partitions.iterator.next.isInstanceOf[FilePartition] should equal(true)
+
+    // Create the checkpoint collection
+    val progressCollection = "importcheckpoint"
+    val collection = new DocumentCollection()
+    collection.setId(progressCollection)
+    cosmosDBDefaults.documentDBClient.createCollection(s"/dbs/${cosmosDBDefaults.DatabaseName}", collection, null)
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.WritingBatchId, "1001"))
+      .+((CosmosDBConfig.CosmosDBFileStoreCollection, progressCollection))
+
+    df.write.cosmosDB(Config(configMap))
+
+    // Verify the progress
+    val verifyConfigMap = configMap.
+      -(CosmosDBConfig.Collection).
+      +((CosmosDBConfig.Collection, progressCollection))
+    val progressRdd = spark.sparkContext.loadFromCosmosDB(Config(verifyConfigMap))
+    progressRdd.count() should equal(1)
+    val doc = progressRdd.take(1)(0)
+    doc.getString("batchId") should equal("1001")
+    doc.getBoolean("isComplete") should equal(true)
+
+    // Write again, the file should be skipped
+    df.write.mode(SaveMode.Append).cosmosDB(Config(configMap))
   }
 
   // DataFrameReader
@@ -603,6 +641,44 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     df.filter("id101 is not null").count() should equal(1)
   }
 
+  it should "be able to convert string property to numbers" in withSparkSession() { spark =>
+    val testCount = 5
+    spark.sparkContext.parallelize((1 to testCount).map(i => {
+      val doc = new Document()
+      doc.set("intValue", i)
+      doc.set("longValue", Int.MaxValue.asInstanceOf[Long] * 2 + i)
+      doc.set("doubleValue", i * 1.2345)
+      doc.set("decimalValue", BigDecimal.valueOf(Double.MaxValue) * 2 + i)
+      doc
+    })).saveToCosmosDB()
+    var df = spark.read.cosmosDB()
+
+    // Verify with a document with string value for number property
+    spark.sql(s"select '${testCount + 1}' as id, " +
+      "'0' as intValue, " +
+      "'0' as longValue, " +
+      "'0.0' as doubleValue, " +
+      "'0.0' as decimalValue").
+      write.mode(SaveMode.Append).cosmosDB()
+    df.count() should equal(testCount + 1)
+    df.filter("intValue = 0").count() should equal(0)
+    df.filter("intValue = '0'").count() should equal(1)
+    var row = df.take(testCount + 1)(testCount)
+    row.get(row.fieldIndex("intValue")) should equal(0)
+    row.get(row.fieldIndex("doubleValue")) should equal(0.0)
+
+    // Verify with a document with null value for non-null property
+    spark.sql(s"select '${testCount + 2}' as id, " +
+      "null as intValue, " +
+      "null as longValue, " +
+      "null as doubleValue, " +
+      "null as decimalValue").
+      write.mode(SaveMode.Append).cosmosDB()
+    df.count() should equal(testCount + 2)
+    df.filter("intValue = 0").count() should equal(0)
+    row = df.take(testCount + 2)(testCount + 1)
+  }
+
   // Structured stream
   "Structured Stream" should "be able to stream change feed from source collection to sink collection" in withSparkSession() { spark =>
     val host = CosmosDBDefaults().CosmosDBEndpoint
@@ -629,9 +705,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
-    val documentCollection = new DocumentCollection()
-    documentCollection.setId(sinkCollection)
-    documentClient.createCollection(databaseLink, documentCollection, null)
+    cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     /*
      * SCENARIO 1: STREAM READER TO STREAM WRITER TO SINK COLLECTION
@@ -814,9 +888,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
     val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
-    val documentCollection = new DocumentCollection()
-    documentCollection.setId(sinkCollection)
-    documentClient.createCollection(databaseLink, documentCollection, null)
+    cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     // Create some documents in the collection
     // These existing documents are needed to derive the starting schema
@@ -879,5 +951,38 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       contain allElementsOf List(doc1.getId, doc2.getId)
 
     streamingQuery.stop()
+  }
+
+  // Bulk Import
+  "BulkImport" should "be able to do bulk update" in withSparkSession() { spark =>
+    spark.sparkContext.parallelize((1 to documentCount).map(i => {
+      val newDoc = new Document()
+      newDoc.setId(i.toString)
+      newDoc.set("pkey", i.toString)
+      newDoc.set("doubleCol", i * 1.5)
+      newDoc
+    })).saveToCosmosDB()
+
+    val df = spark.read.cosmosDB()
+
+    // Create UpdateItems to increase doubleCol property
+    val updateItems = df.rdd.map(r => {
+      val id = r.get(r.fieldIndex("id")).asInstanceOf[String]
+      val pkey = r.get(r.fieldIndex("pkey")).asInstanceOf[String]
+      val operations = new util.ArrayList[UpdateOperationBase]()
+      operations.add(new IncUpdateOperation("doubleCol", 1.5))
+      new UpdateItem(id, pkey, operations)
+    })
+
+    var configMap = Config(spark.sparkContext.getConf)
+      .asOptions
+      .+((CosmosDBConfig.BulkUpdate, "true"))
+
+    updateItems.saveToCosmosDB(Config(configMap))
+
+    df.write.mode(SaveMode.Overwrite).cosmosDB(Config(configMap))
+
+    df.rdd.map(r => r.getDouble(r.fieldIndex("doubleCol"))).sortBy(x => x).collect() should
+      contain theSameElementsAs (1 to documentCount).map(x => x * 1.5 + 1.5).toList
   }
 }

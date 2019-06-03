@@ -26,6 +26,7 @@ import com.microsoft.azure.cosmosdb.spark.config.Config.Property
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
+import org.slf4j.LoggerFactory
 
 import scala.reflect.ClassTag
 
@@ -76,12 +77,15 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
     val properties: Map[Property, Any] = builder.properties.map { case (k, v) => k.toLowerCase -> v }
     val reqProperties: List[Property] = requiredProperties.map(_.toLowerCase)
 
-    require(
-      reqProperties.forall(properties.isDefinedAt),
-      s"Not all properties are defined! : ${
-        reqProperties.diff(
-          properties.keys.toList.intersect(requiredProperties))
-      }")
+    // If source is not ADL then the CosmosDB configs are required
+    if (get(CosmosDBConfig.adlAccountFqdn).isEmpty) {
+      require(
+        reqProperties.forall(properties.isDefinedAt),
+        s"Not all properties are defined! : ${
+          reqProperties.diff(
+            properties.keys.toList.intersect(requiredProperties))
+        }")
+    }
 
     if (get(CosmosDBConfig.ReadChangeFeed).getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString).toBoolean ||
       get(CosmosDBConfig.IncrementalView).getOrElse(CosmosDBConfig.DefaultIncrementalView.toString).toBoolean) {
@@ -253,10 +257,25 @@ object Config {
         case None => Map.empty[String, String]
       }
     }
+
+    if (!combine.contains(CosmosDBConfig.Endpoint) && !combine.contains(CosmosDBConfig.Masterkey)) {
+      val endpoint = System.getenv(CosmosDBConfig.EndpointEnvVarName)
+      val key = System.getenv(CosmosDBConfig.KeyEnvVarname)
+
+      if (!isEmpty(endpoint) && !isEmpty(key)) {
+        LoggerFactory.getLogger("Setting cosmos credentials from env variables")
+        combine += (CosmosDBConfig.Endpoint -> endpoint)
+        combine += (CosmosDBConfig.Masterkey -> key)
+      }
+    }
+
     var builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
 
     builder.build()
   }
+
+  private def isEmpty(value: String): Boolean =
+    value == null || value.isEmpty()
 
 
   /**
