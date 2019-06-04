@@ -321,7 +321,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           key => {
             // Don't add system properties to the schema
 
-            if(!key.equals("_rid") && !key.equals("id") && !key.equals("_self") && !key.equals("_ts") && !key.equals("_etag") && !key.equals("_attachments")) {
+            val systemProperties = List("_rid", "id", "_self", "_etag", "_attachments");
+
+            if(!systemProperties.contains(key)) {
               val knownDefaults  = List("", " ", 0)
               var defaultVal : Object = null
               var schemaType = "String"
