@@ -313,10 +313,14 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
       if(schemaWriteRequired) {
         // Create the schema document by reading columns from the first document
+        // This needs to be done only once
+
         var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
         val keys = document.getHashMap().keySet().toArray;
         keys.foreach(
           key => {
+            // Don't add system properties to the schema
+
             if(!key.equals("_rid") && !key.equals("id") && !key.equals("_self") && !key.equals("_ts") && !key.equals("_etag") && !key.equals("_attachments")) {
               val knownDefaults  = List("", " ", 0)
               var defaultVal : Object = null
@@ -324,6 +328,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
               val value = document.get(key.toString)
               if(knownDefaults.contains(value) || value == null)
               {
+                // Currently adding only known default values
                 defaultVal = value
               }
 
@@ -465,6 +470,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def executePreSave(schemaDocument : ItemSchema, item : Document): Unit =
   {
+    // Add the schema property to the document
     item.set("documentSchema", schemaDocument.schemaType)
     var docColumns = item.getHashMap().keySet().toArray();
     var schemaColumns = schemaDocument.columns.map(col => (col.name, col.defaultValue));

@@ -353,9 +353,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private def executePostRead(item : Document): Unit =
   {
     if(schemaDocument != null) {
+
+      // Check if the document which is read has all the columns defined in the schema and add the default value if it is not defined
       var newColumns = Map[String, ItemColumn]();
       var docColumns = item.getHashMap().keySet().toArray();
       var schemaColumns = schemaDocument.columns.map(col => (col.name, col));
+
       schemaColumns.foreach(
         col => if (!docColumns.contains(col._1)) {
           newColumns += (col._1 -> col._2);
@@ -368,7 +371,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         }
       );
     }
-
   }
 
   // Register an on-task-completion callback to close the input stream.
