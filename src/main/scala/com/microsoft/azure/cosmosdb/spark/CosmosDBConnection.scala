@@ -23,7 +23,9 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
+
 import com.microsoft.azure.cosmosdb.spark.config._
+import com.microsoft.azure.cosmosdb.spark.util.JacksonWrapper
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
@@ -192,11 +194,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     feedResponse.getQueryIterable.iterator()
   }
 
-  def readSchema(schemaType : String, partitionKey : String) = {
-    val feedOptions = new FeedOptions();
-    feedOptions.setEnableCrossPartitionQuery(true);
-    val schemaResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where c.id = '__schema__' and c.schemaType = '" + schemaType + "'"), feedOptions);
-    schemaResponse.getQueryIterable.fetchNextBlock()
+  def readSchema(schemaType : String) = {
+    val feedOptions = new FeedOptions()
+    feedOptions.setEnableCrossPartitionQuery(true)
+    var schemaDocument : ItemSchema = null
+    val response = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where c.id = '__schema__' and c.schemaType = '" + schemaType + "'"), feedOptions);
+    val schemaResponse = response.getQueryIterable.fetchNextBlock()
+    if(schemaResponse != null && !schemaResponse.isEmpty) {
+      schemaDocument = JacksonWrapper.deserialize[ItemSchema](schemaResponse.get(0).toJson());
+    }
+    schemaDocument
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {

@@ -282,16 +282,13 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
-    var itemSchema : ItemSchema = null;
+    var schemaDocument : ItemSchema = null;
     var schemaWriteRequired= false;
     if(config.get[String](CosmosDBConfig.SchemaType).isDefined) {
+      schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+      if(schemaDocument == null){
 
-      val document = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get, CosmosDBConfig.PartitionKeyDefinition);
-      if(document != null) {
-        val doc = document.get(0);
-        itemSchema = JacksonWrapper.deserialize[ItemSchema](doc.toJson());
-      }
-      else{
+        // This means that we are writing data with a schema which is not defined yet
         schemaWriteRequired = true
       }
     }
@@ -316,7 +313,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
       if(schemaWriteRequired) {
         // Create the schema document by reading columns from the first document
-        var schemaCols : ListBuffer[Column] = new ListBuffer[Column]();
+        var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
         val keys = document.getHashMap().keySet().toArray;
         keys.foreach(
           key => {
@@ -334,19 +331,19 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                 val typeClass = value.getClass().toString.split('.').last;
                 schemaType = typeClass
               }
-              schemaCols += new Column(key.toString, schemaType, defaultVal);
+              schemaCols += new ItemColumn(key.toString, schemaType, defaultVal);
             }
           }
         )
-        itemSchema = new ItemSchema(schemaCols.toArray, config.get[String](CosmosDBConfig.SchemaType).get);
-        val schemaDoc = new Document(JacksonWrapper.serialize(itemSchema))
+        schemaDocument = new ItemSchema(schemaCols.toArray, config.get[String](CosmosDBConfig.SchemaType).get);
+        val schemaDoc = new Document(JacksonWrapper.serialize(schemaDocument))
         schemaDoc.setId("__schema__")
         connection.upsertDocument(connection.collectionLink, schemaDoc, null);
         schemaWriteRequired = false
       }
 
       if(config.get[String](CosmosDBConfig.SchemaType).isDefined){
-        executePreSave(itemSchema, document);
+        executePreSave(schemaDocument, document);
       }
 
       documents.add(document.toJson())

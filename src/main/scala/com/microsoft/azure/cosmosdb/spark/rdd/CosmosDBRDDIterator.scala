@@ -30,9 +30,8 @@ import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.{HdfsUtils, JacksonWrapper}
-import com.microsoft.azure.cosmosdb.spark.{Column, CosmosDBConnection, CosmosDBLoggingTrait, ItemSchema}
+import com.microsoft.azure.cosmosdb.spark.{ CosmosDBConnection, CosmosDBLoggingTrait, ItemColumn, ItemSchema}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
@@ -206,12 +205,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
 
       if(schemaTypeName.isDefined) {
-        val document = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get, CosmosDBConfig.PartitionKeyDefinition);
-        if(document != null) {
-          var doc = document.get(0);
-          schemaDocument = JacksonWrapper.deserialize[ItemSchema](doc.toJson());
-          CosmosDBRDDIterator.schemaCheckRequired = true;
-        }
+        schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
       }
 
       if (queryString == FilterConverter.defaultQuery) {
@@ -359,7 +353,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private def executePostRead(item : Document): Unit =
   {
     if(schemaDocument != null) {
-      var newColumns = Map[String, Column]();
+      var newColumns = Map[String, ItemColumn]();
       var docColumns = item.getHashMap().keySet().toArray();
       var schemaColumns = schemaDocument.columns.map(col => (col.name, col));
       schemaColumns.foreach(
