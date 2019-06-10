@@ -198,7 +198,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val feedOptions = new FeedOptions()
     feedOptions.setEnableCrossPartitionQuery(true)
     var schemaDocument : ItemSchema = null
-    val response = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where c.id = '__schema__' and c.schemaType = '" + schemaType + "'"), feedOptions);
+    val response = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where STARTSWITH(c.id, '__schema__') and c.schemaType = '" + schemaType + "'"), feedOptions);
     val schemaResponse = response.getQueryIterable.fetchNextBlock()
     if(schemaResponse != null && !schemaResponse.isEmpty) {
       schemaDocument = JacksonWrapper.deserialize[ItemSchema](schemaResponse.get(0).toJson());

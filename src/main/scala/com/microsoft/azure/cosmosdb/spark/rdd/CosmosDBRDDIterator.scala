@@ -206,6 +206,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       if(schemaTypeName.isDefined) {
         schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+        if(schemaDocument != null)
+          CosmosDBRDDIterator.schemaCheckRequired = true
       }
 
       if (queryString == FilterConverter.defaultQuery) {

@@ -315,6 +315,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         // Create the schema document by reading columns from the first document
         // This needs to be done only once
 
+        val schemaType =  config.get[String](CosmosDBConfig.SchemaType).get
         var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
         val keys = document.getHashMap().keySet().toArray;
         keys.foreach(
@@ -324,15 +325,17 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             val systemProperties = List("_rid", "id", "_self", "_etag", "_attachments");
 
             if(!systemProperties.contains(key)) {
-              val knownDefaults  = List("", " ", 0)
+              //val knownDefaults  = List("", " ", 0)
               var defaultVal : Object = null
               var schemaType = "String"
               val value = document.get(key.toString)
-              if(knownDefaults.contains(value) || value == null)
-              {
-                // Currently adding only known default values
-                defaultVal = value
-              }
+              defaultVal = value
+
+//              if(knownDefaults.contains(value) || value == null)
+//              {
+//                // Currently adding only known default values
+//                defaultVal = value
+//              }
 
               if(value != null) {
                 val typeClass = value.getClass().toString.split('.').last;
@@ -342,9 +345,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             }
           }
         )
-        schemaDocument = new ItemSchema(schemaCols.toArray, config.get[String](CosmosDBConfig.SchemaType).get);
+        schemaDocument = new ItemSchema(schemaCols.toArray, schemaType);
         val schemaDoc = new Document(JacksonWrapper.serialize(schemaDocument))
-        schemaDoc.setId("__schema__")
+        schemaDoc.setId("__schema__" + schemaType)
         connection.upsertDocument(connection.collectionLink, schemaDoc, null);
         schemaWriteRequired = false
       }
