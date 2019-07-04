@@ -318,24 +318,36 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         val schemaType =  config.get[String](CosmosDBConfig.SchemaType).get
         var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
         val keys = document.getHashMap().keySet().toArray;
+
+        val partitionKeyDefinition = connection.getCollection.getPartitionKey
+        val partitionKeyPath = partitionKeyDefinition.getPaths
+        val partitionKeyProperty = partitionKeyPath.iterator.next.replaceFirst("^/", "")
+
+        var knownDefaults  = List("", " ", 0)
+        var fixedDefaults = List("000000000000000000", "00000000000000000", "0000000000000000", "000000000000000", "00000000000000", "0000000000000","000000000000", "00000000000" ,"0000000000", "000000000" ,"00000000", "0000000", "000000","00000","0000","000","00","0")
+        knownDefaults =  knownDefaults ::: fixedDefaults
+        if(config.get[String](CosmosDBConfig.KnownDefaultValues).isDefined) {
+          val customDefaults = config.get[String](CosmosDBConfig.KnownDefaultValues).get.split('|').toList
+          knownDefaults =  knownDefaults ::: customDefaults
+        }
+
         keys.foreach(
           key => {
             // Don't add system properties to the schema
 
-            val systemProperties = List("_rid", "id", "_self", "_etag", "_attachments");
+            val systemProperties = List("_rid", "id", "_self", "_etag", "_attachments", "_ts", "documentSchema");
 
             if(!systemProperties.contains(key)) {
-              //val knownDefaults  = List("", " ", 0)
+
               var defaultVal : Object = null
               var schemaType = "String"
               val value = document.get(key.toString)
-              defaultVal = value
+             // defaultVal = value
 
-//              if(knownDefaults.contains(value) || value == null)
-//              {
-//                // Currently adding only known default values
-//                defaultVal = value
-//              }
+              if(knownDefaults.contains(value) || value == null) {
+                // Currently adding only known default values
+                defaultVal = value
+              }
 
               if(value != null) {
                 val typeClass = value.getClass().toString.split('.').last;
@@ -347,8 +359,30 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         )
         schemaDocument = new ItemSchema(schemaCols.toArray, schemaType);
         val schemaDoc = new Document(JacksonWrapper.serialize(schemaDocument))
-        schemaDoc.setId("__schema__" + schemaType)
-        connection.upsertDocument(connection.collectionLink, schemaDoc, null);
+        schemaDoc.set(partitionKeyProperty,"__schema__" + schemaType)
+        try {
+          connection.insertDocument(connection.collectionLink, schemaDoc, null);
+        }
+        catch {
+          // In case, the schema document already exists, then read the existing schema document
+
+          case ex : DocumentClientException =>  if (ex.getStatusCode == 409){
+            schemaDocument = null
+
+            val maxSchemaReadTime = 5000
+            var startTime = System.currentTimeMillis()
+            var elapsed : Long = 0
+
+            while(schemaDocument == null && elapsed < maxSchemaReadTime){
+              schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+              elapsed = System.currentTimeMillis() - startTime
+            }
+
+            if(schemaDocument == null){
+                throw new Exception("Unable to fetch schemaDocument after multiple attempts")
+            }
+          }
+        }
         schemaWriteRequired = false
       }
 

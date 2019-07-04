@@ -119,6 +119,7 @@ object CosmosDBConfig {
   val ApplicationName = "application_name"
 
   val SchemaType = "schemaType"
+  val KnownDefaultValues = "knownDefaultValues"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
