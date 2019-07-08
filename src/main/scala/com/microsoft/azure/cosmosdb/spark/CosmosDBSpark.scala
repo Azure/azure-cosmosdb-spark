@@ -315,6 +315,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         // Create the schema document by reading columns from the first document
         // This needs to be done only once
 
+
         val schemaType =  config.get[String](CosmosDBConfig.SchemaType).get
         var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
         val keys = document.getHashMap().keySet().toArray;
@@ -359,9 +360,13 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         )
         schemaDocument = new ItemSchema(schemaCols.toArray, schemaType);
         val schemaDoc = new Document(JacksonWrapper.serialize(schemaDocument))
+
         schemaDoc.set(partitionKeyProperty,"__schema__" + schemaType)
         try {
+          logInfo("Writing schema")
           connection.insertDocument(connection.collectionLink, schemaDoc, null);
+
+          logInfo("Successfully wrote schema" + schemaDoc)
         }
         catch {
           // In case, the schema document already exists, then read the existing schema document
@@ -374,6 +379,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             var elapsed : Long = 0
 
             while(schemaDocument == null && elapsed < maxSchemaReadTime){
+              logInfo("Schema already present. Retrieving from collection.")
               schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
               elapsed = System.currentTimeMillis() - startTime
             }
@@ -381,7 +387,15 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             if(schemaDocument == null){
                 throw new Exception("Unable to fetch schemaDocument after multiple attempts")
             }
+
+            logInfo("Successfully retrieved schema from collection" + new Document(JacksonWrapper.serialize(schemaDocument)))
           }
+          else {
+            throw new Exception("Unable to insert the schemaDocument", ex)
+          }
+
+          case _ : Throwable =>   throw _
+
         }
         schemaWriteRequired = false
       }
