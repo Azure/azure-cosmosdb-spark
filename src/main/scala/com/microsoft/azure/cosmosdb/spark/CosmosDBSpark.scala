@@ -272,7 +272,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                       upsert: Boolean,
                                       maxConcurrencyPerPartitionRange: Integer,
                                       config: Config,
-                                      executePreSave: (ItemSchema, Document) => Unit): Unit = {
+                                      executePreSave: (ItemSchema, String, Option[String], Document) => Unit): Unit = {
 
     // Set retry options high for initialization (default values)
     connection.setDefaultClientRetryPolicy
@@ -336,7 +336,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           key => {
             // Don't add system properties to the schema
 
-            val systemProperties = List("_rid", "id", "_self", "_etag", "_attachments", "_ts", "documentSchema");
+            var documentSchemaProperty = config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
+
+            var systemProperties = List("_rid", "id", "_self", "_etag", "_attachments", "_ts");
+            systemProperties = documentSchemaProperty :: systemProperties
 
             if(!systemProperties.contains(key)) {
 
@@ -394,14 +397,14 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             throw new Exception("Unable to insert the schemaDocument", ex)
           }
 
-          case _ : Throwable =>   throw _
-
+          case ex : Throwable =>  throw ex
         }
+
         schemaWriteRequired = false
       }
 
       if(config.get[String](CosmosDBConfig.SchemaType).isDefined){
-        executePreSave(schemaDocument, document);
+        executePreSave(schemaDocument, config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn), config.get[String](CosmosDBConfig.IgnoreSchemaDefaults), document);
       }
 
       documents.add(document.toJson())
@@ -521,22 +524,29 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
   }
 
 
-  private def executePreSave(schemaDocument : ItemSchema, item : Document): Unit =
+  private def executePreSave(schemaDocument : ItemSchema, documentSchemaProperty: String,  ignoreDefaults : Option[String], item : Document): Unit =
   {
     // Add the schema property to the document
-    item.set("documentSchema", schemaDocument.schemaType)
-    var docColumns = item.getHashMap().keySet().toArray();
-    var schemaColumns = schemaDocument.columns.map(col => (col.name, col.defaultValue));
+    item.set(documentSchemaProperty, schemaDocument.schemaType)
+    var skipDefaults = false
 
-    //Remove columns from the document which have the same value as the defaultValue
-    schemaColumns.foreach(
-      col => if(docColumns.contains(col._1)){
-        if(item.get(col._1) == col._2)
-        {
-          item.remove(col._1)
+    if(ignoreDefaults.isDefined && ignoreDefaults.get.toBoolean){
+      skipDefaults = true
+    }
+
+    if(!skipDefaults) {
+      var docColumns = item.getHashMap().keySet().toArray();
+      var schemaColumns = schemaDocument.columns.map(col => (col.name, col.defaultValue));
+
+      //Remove columns from the document which have the same value as the defaultValue
+      schemaColumns.foreach(
+        col => if (docColumns.contains(col._1)) {
+          if (item.get(col._1) == col._2) {
+            item.remove(col._1)
+          }
         }
-      }
-    )
+      )
+    }
   }
 
   private def savePartition[D: ClassTag](connection: CosmosDBConnection,
@@ -576,6 +586,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       toInt
     val partitionKeyDefinition = config
       .get[String](CosmosDBConfig.PartitionKeyDefinition)
+    val documentSchemaProperty = config
+      .getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
 
     val maxConcurrencyPerPartitionRangeStr = config.get[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange)
     val maxConcurrencyPerPartitionRange = if (maxConcurrencyPerPartitionRangeStr.nonEmpty)

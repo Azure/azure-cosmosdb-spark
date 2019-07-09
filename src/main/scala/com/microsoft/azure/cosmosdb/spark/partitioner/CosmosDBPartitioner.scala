@@ -88,7 +88,9 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
     } else {
       // CosmosDB source
       val schemaTypeName = config.get[String](CosmosDBConfig.SchemaType)
-      var query: String = FilterConverter.createQueryString(requiredColumns, filters, schemaTypeName)
+      val documentSchemaProperty = config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
+
+      var query: String = FilterConverter.createQueryString(requiredColumns, filters, schemaTypeName, documentSchemaProperty)
       var partitionKeyRanges = connection.getAllPartitions(query)
       logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
       Array.tabulate(partitionKeyRanges.length) {

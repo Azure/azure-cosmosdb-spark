@@ -199,9 +199,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       CosmosDBRDDIterator.lastFeedOptions = feedOpts
       val schemaTypeName = config.get[String](CosmosDBConfig.SchemaType)
 
+      val documentSchemaProperty = config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
+
       val queryString = config
         .get[String](CosmosDBConfig.QueryCustom)
-        .getOrElse(FilterConverter.createQueryString(requiredColumns, filters, schemaTypeName))
+        .getOrElse(FilterConverter.createQueryString(requiredColumns, filters, schemaTypeName, documentSchemaProperty))
       logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
 
       if(schemaTypeName.isDefined) {
