@@ -118,6 +118,11 @@ object CosmosDBConfig {
 
   val ApplicationName = "application_name"
 
+  val SchemaType = "schemaType"
+  val KnownDefaultValues = "knownDefaultValues"
+  val SchemaPropertyColumn = "schemapropertycolumn"
+  val IgnoreSchemaDefaults = "ignoreschemadefaults"
+
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
   // returns no results and therefore no information on the next continuation token set is available.
   // In those cases, the connector gives a delay and then trigger the next batch.
@@ -168,6 +173,8 @@ object CosmosDBConfig {
   val DefaultInferStreamSchema = true
 
   val DefaultMaxConnectionPoolSize = 500
+
+  val DefaultSchemaPropertyColumn = "documentSchema"
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }

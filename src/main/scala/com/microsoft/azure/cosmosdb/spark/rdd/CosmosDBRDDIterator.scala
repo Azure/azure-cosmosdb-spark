@@ -29,8 +29,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.{HdfsUtils, JacksonWrapper}
+import com.microsoft.azure.cosmosdb.spark.{ CosmosDBConnection, CosmosDBLoggingTrait, ItemColumn, ItemSchema}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
@@ -44,6 +45,9 @@ object CosmosDBRDDIterator {
   var lastFeedOptions: FeedOptions = _
 
   var hdfsUtils: HdfsUtils = _
+
+  var schemaCheckRequired = false
+
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
     if (hdfsUtils == null) {
@@ -138,6 +142,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private var initialized = false
   private var itemCount: Long = 0
 
+  private var schemaDocument : ItemSchema = _
+
   lazy val reader: Iterator[Document] = {
     initialized = true
     var connection: CosmosDBConnection = new CosmosDBConnection(config)
@@ -191,11 +197,20 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       feedOpts.setPartitionKeyRangeIdInternal(partition.partitionKeyRangeId.toString)
       CosmosDBRDDIterator.lastFeedOptions = feedOpts
+      val schemaTypeName = config.get[String](CosmosDBConfig.SchemaType)
+
+      val documentSchemaProperty = config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
 
       val queryString = config
         .get[String](CosmosDBConfig.QueryCustom)
-        .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
+        .getOrElse(FilterConverter.createQueryString(requiredColumns, filters, schemaTypeName, documentSchemaProperty))
       logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
+
+      if(schemaTypeName.isDefined) {
+        schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+        if(schemaDocument != null)
+          CosmosDBRDDIterator.schemaCheckRequired = true
+      }
 
       if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
@@ -339,6 +354,29 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     }
   }
 
+  private def executePostRead(item : Document): Unit =
+  {
+    if(schemaDocument != null) {
+
+      // Check if the document which is read has all the columns defined in the schema and add the default value if it is not defined
+      var newColumns = Map[String, ItemColumn]();
+      var docColumns = item.getHashMap().keySet().toArray();
+      var schemaColumns = schemaDocument.columns.map(col => (col.name, col));
+
+      schemaColumns.foreach(
+        col => if (!docColumns.contains(col._1)) {
+          newColumns += (col._1 -> col._2);
+        }
+      )
+
+      newColumns.foreach(
+        col => {
+          item.set(col._1, col._2.defaultValue)
+        }
+      );
+    }
+  }
+
   // Register an on-task-completion callback to close the input stream.
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
 
@@ -354,7 +392,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       throw new NoSuchElementException("End of stream")
     }
     itemCount = itemCount + 1
-    reader.next()
+    var doc = reader.next()
+    if (CosmosDBRDDIterator.schemaCheckRequired) {
+      executePostRead(doc)
+    }
+    doc
   }
 
   def closeIfNeeded(): Unit = {

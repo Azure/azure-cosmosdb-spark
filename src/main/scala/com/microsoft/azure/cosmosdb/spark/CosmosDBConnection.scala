@@ -23,7 +23,10 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
+import java.util.Collection
+
 import com.microsoft.azure.cosmosdb.spark.config._
+import com.microsoft.azure.cosmosdb.spark.util.JacksonWrapper
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
@@ -192,6 +195,22 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     feedResponse.getQueryIterable.iterator()
   }
 
+  def readSchema(schemaType : String) = {
+    val partitionKeyDefinition = getCollection.getPartitionKey
+    val partitionKeyPath = partitionKeyDefinition.getPaths
+    val partitionKeyProperty = partitionKeyPath.iterator.next.replaceFirst("^/", "")
+
+    val feedOptions = new FeedOptions()
+    feedOptions.setEnableCrossPartitionQuery(true)
+    var schemaDocument : ItemSchema = null
+    val response = documentClient.queryDocuments(collectionLink, new SqlQuerySpec("Select * from c where c.schemaType = '" + schemaType + "' and c." + partitionKeyProperty + " = '__schema__" + schemaType + "'"), feedOptions);
+    val schemaResponse = response.getQueryIterable.fetchNextBlock()
+    if(schemaResponse != null && !schemaResponse.isEmpty) {
+      schemaDocument = JacksonWrapper.deserialize[ItemSchema](schemaResponse.get(0).toJson());
+    }
+    schemaDocument
+  }
+
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
@@ -233,6 +252,14 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     logTrace(s"Upserting document $document")
     documentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
+
+  def insertDocument(collectionLink: String,
+                     document: Document,
+                     requestOptions: RequestOptions): Unit = {
+    logTrace(s"Inserting document $document")
+    documentClient.createDocument(collectionLink, document, requestOptions, false)
+  }
+
 
   def isDocumentCollectionEmpty: Boolean = {
     logDebug(s"Reading collection $collectionLink")

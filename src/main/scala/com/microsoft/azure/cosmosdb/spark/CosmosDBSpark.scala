@@ -25,9 +25,11 @@ package com.microsoft.azure.cosmosdb.spark
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
+import com.microsoft.azure.cosmosdb.spark.util.{HdfsUtils, JacksonWrapper}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import rx.Observable
 import com.microsoft.azure.documentdb._
@@ -38,6 +40,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.execution.datasources.FilePartition
 import org.apache.spark.sql.types.StructType
+import org.json4s.jackson.Json
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -45,6 +48,7 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.util.Random
+import scala.util.parsing.json.JSONObject
 
 /**
   * The CosmosDBSpark allow fast creation of RDDs, DataFrames or Datasets from CosmosDBSpark.
@@ -190,6 +194,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       else
         savePartition(iter, writeConfig, numPartitions, offerThroughput), preservesPartitioning = true)
+
     mapRdd.collect()
 
 //    // All tasks have been completed, clean up the file checkpoints
@@ -265,7 +270,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                       rootPropertyToSave: Option[String],
                                       partitionKeyDefinition: Option[String],
                                       upsert: Boolean,
-                                      maxConcurrencyPerPartitionRange: Integer): Unit = {
+                                      maxConcurrencyPerPartitionRange: Integer,
+                                      config: Config,
+                                      executePreSave: (ItemSchema, String, Option[String], Document) => Unit): Unit = {
 
     // Set retry options high for initialization (default values)
     connection.setDefaultClientRetryPolicy
@@ -275,6 +282,16 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
+    var schemaDocument : ItemSchema = null;
+    var schemaWriteRequired= false;
+    if(config.get[String](CosmosDBConfig.SchemaType).isDefined) {
+      schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+      if(schemaDocument == null){
+
+        // This means that we are writing data with a schema which is not defined yet
+        schemaWriteRequired = true
+      }
+    }
 
     val documents = new java.util.ArrayList[String](writingBatchSize)
 
@@ -293,6 +310,103 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       if (document.getId == null) {
         document.setId(UUID.randomUUID().toString)
       }
+
+      if(schemaWriteRequired) {
+        // Create the schema document by reading columns from the first document
+        // This needs to be done only once
+
+
+        val schemaType =  config.get[String](CosmosDBConfig.SchemaType).get
+        var schemaCols : ListBuffer[ItemColumn] = new ListBuffer[ItemColumn]();
+        val keys = document.getHashMap().keySet().toArray;
+
+        val partitionKeyDefinition = connection.getCollection.getPartitionKey
+        val partitionKeyPath = partitionKeyDefinition.getPaths
+        val partitionKeyProperty = partitionKeyPath.iterator.next.replaceFirst("^/", "")
+
+        var knownDefaults  = List("", " ", 0)
+        var fixedDefaults = List("000000000000000000", "00000000000000000", "0000000000000000", "000000000000000", "00000000000000", "0000000000000","000000000000", "00000000000" ,"0000000000", "000000000" ,"00000000", "0000000", "000000","00000","0000","000","00","0")
+        knownDefaults =  knownDefaults ::: fixedDefaults
+        if(config.get[String](CosmosDBConfig.KnownDefaultValues).isDefined) {
+          val customDefaults = config.get[String](CosmosDBConfig.KnownDefaultValues).get.split('|').toList
+          knownDefaults =  knownDefaults ::: customDefaults
+        }
+
+        keys.foreach(
+          key => {
+            // Don't add system properties to the schema
+
+            var documentSchemaProperty = config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
+
+            var systemProperties = List("_rid", "id", "_self", "_etag", "_attachments", "_ts");
+            systemProperties = documentSchemaProperty :: systemProperties
+
+            if(!systemProperties.contains(key)) {
+
+              var defaultVal : Object = null
+              var schemaType = "String"
+              val value = document.get(key.toString)
+             // defaultVal = value
+
+              if(knownDefaults.contains(value) || value == null) {
+                // Currently adding only known default values
+                defaultVal = value
+              }
+
+              if(value != null) {
+                val typeClass = value.getClass().toString.split('.').last;
+                schemaType = typeClass
+              }
+              schemaCols += new ItemColumn(key.toString, schemaType, defaultVal);
+            }
+          }
+        )
+        schemaDocument = new ItemSchema(schemaCols.toArray, schemaType);
+        val schemaDoc = new Document(JacksonWrapper.serialize(schemaDocument))
+
+        schemaDoc.set(partitionKeyProperty,"__schema__" + schemaType)
+        try {
+          logInfo("Writing schema")
+          connection.insertDocument(connection.collectionLink, schemaDoc, null);
+
+          logInfo("Successfully wrote schema" + schemaDoc)
+        }
+        catch {
+          // In case, the schema document already exists, then read the existing schema document
+
+          case ex : DocumentClientException =>  if (ex.getStatusCode == 409){
+            schemaDocument = null
+
+            val maxSchemaReadTime = 5000
+            var startTime = System.currentTimeMillis()
+            var elapsed : Long = 0
+
+            while(schemaDocument == null && elapsed < maxSchemaReadTime){
+              logInfo("Schema already present. Retrieving from collection.")
+              schemaDocument = connection.readSchema(config.get[String](CosmosDBConfig.SchemaType).get);
+              elapsed = System.currentTimeMillis() - startTime
+            }
+
+            if(schemaDocument == null){
+                throw new Exception("Unable to fetch schemaDocument after multiple attempts")
+            }
+
+            logInfo("Successfully retrieved schema from collection" + new Document(JacksonWrapper.serialize(schemaDocument)))
+          }
+          else {
+            throw new Exception("Unable to insert the schemaDocument", ex)
+          }
+
+          case ex : Throwable =>  throw ex
+        }
+
+        schemaWriteRequired = false
+      }
+
+      if(config.get[String](CosmosDBConfig.SchemaType).isDefined){
+        executePreSave(schemaDocument, config.getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn), config.get[String](CosmosDBConfig.IgnoreSchemaDefaults), document);
+      }
+
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
         bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
@@ -400,12 +514,39 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     iterator
   }
 
+
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
                                          partitionCount: Int,
                                          offerThroughput: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
     savePartition(connection, iter, config, partitionCount, offerThroughput)
+  }
+
+
+  private def executePreSave(schemaDocument : ItemSchema, documentSchemaProperty: String,  ignoreDefaults : Option[String], item : Document): Unit =
+  {
+    // Add the schema property to the document
+    item.set(documentSchemaProperty, schemaDocument.schemaType)
+    var skipDefaults = false
+
+    if(ignoreDefaults.isDefined && ignoreDefaults.get.toBoolean){
+      skipDefaults = true
+    }
+
+    if(!skipDefaults) {
+      var docColumns = item.getHashMap().keySet().toArray();
+      var schemaColumns = schemaDocument.columns.map(col => (col.name, col.defaultValue));
+
+      //Remove columns from the document which have the same value as the defaultValue
+      schemaColumns.foreach(
+        col => if (docColumns.contains(col._1)) {
+          if (item.get(col._1) == col._2) {
+            item.remove(col._1)
+          }
+        }
+      )
+    }
   }
 
   private def savePartition[D: ClassTag](connection: CosmosDBConnection,
@@ -445,6 +586,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       toInt
     val partitionKeyDefinition = config
       .get[String](CosmosDBConfig.PartitionKeyDefinition)
+    val documentSchemaProperty = config
+      .getOrElse[String](CosmosDBConfig.SchemaPropertyColumn, CosmosDBConfig.DefaultSchemaPropertyColumn)
 
     val maxConcurrencyPerPartitionRangeStr = config.get[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange)
     val maxConcurrencyPerPartitionRange = if (maxConcurrencyPerPartitionRangeStr.nonEmpty)
@@ -465,7 +608,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       } else if (isBulkImporting) {
         logDebug(s"Writing partition with bulk import")
         bulkImport(iter, connection, offerThroughput, writingBatchSize, rootPropertyToSave,
-          partitionKeyDefinition, upsert, maxConcurrencyPerPartitionRange)
+          partitionKeyDefinition, upsert, maxConcurrencyPerPartitionRange, config, executePreSave)
+
       } else {
         logDebug(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
