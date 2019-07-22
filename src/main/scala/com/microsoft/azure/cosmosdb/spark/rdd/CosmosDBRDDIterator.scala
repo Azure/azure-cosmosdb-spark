@@ -351,34 +351,40 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .toBoolean
 
       var iteratorDocument: Iterator[Document] = Iterator()
+      var isGone: Boolean = false
+      var successReadChangeFeed: Boolean = false
 
-      // Query for change feed
-      try{
-        val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
-        iteratorDocument = response._1
-        val nextToken = response._2
+      while(!successReadChangeFeed && retryCount < maxRetryCountOnServiceUnavailable && !isGone) {
+        // Query for change feed
+        try {
+          val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
+          successReadChangeFeed = true
+          iteratorDocument = response._1
+          val nextToken = response._2
 
-        updateTokens(currentToken, nextToken, partitionId)
+          updateTokens(currentToken, nextToken, partitionId)
 
-        logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
-      }
-      catch {
-        case ex: IllegalStateException =>  logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partitionId} was split or gone");
-          logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
-          if(ex.getCause.isInstanceOf[DocumentClientException]) {
-            val docex = ex.getCause.asInstanceOf[DocumentClientException]
-            handleGoneException(docex);
-          }
-          else if(ex.getCause.isInstanceOf[ServiceUnavailableException]) {
-              if(retryCount < maxRetryCountOnServiceUnavailable){
+          logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+        }
+        catch {
+          case ex: IllegalStateException => logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partitionId} was split or gone");
+            logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
+            if (ex.getCause.isInstanceOf[DocumentClientException]) {
+              val docex = ex.getCause.asInstanceOf[DocumentClientException]
+              handleGoneException(docex);
+              isGone = true
+            }
+            else if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
+              if (retryCount < maxRetryCountOnServiceUnavailable) {
                 logWarning(s"Service Unavailable exception thrown. Going to retry. Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable}")
                 retryCount += 1
               }
-              else{
+              else {
                 logError("Exhausted all retries on Service Unavailable exception")
                 throw ex
               }
-          }
+            }
+        }
       }
       iteratorDocument
     }
