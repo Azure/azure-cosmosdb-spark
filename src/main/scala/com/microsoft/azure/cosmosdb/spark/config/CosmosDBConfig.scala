@@ -126,7 +126,6 @@ object CosmosDBConfig {
   // Mandatory
   val required = List(
     Endpoint,
-    Masterkey,
     Database,
     Collection
   )

@@ -26,12 +26,14 @@ import java.util
 import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.microsoft.azure.cosmosdb.internal.directconnectivity.GoneException
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.internal.HttpConstants.SubStatusCodes
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
@@ -197,12 +199,25 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
       logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
 
-      if (queryString == FilterConverter.defaultQuery) {
-        // If there is no filters, read feed should be used
-        connection.readDocuments(feedOpts)
-      } else {
-        connection.queryDocuments(queryString, feedOpts)
+      var iteratorDocument: Iterator[Document] = Iterator()
+
+      try {
+        if (queryString == FilterConverter.defaultQuery) {
+          // If there is no filters, read feed should be used
+          iteratorDocument = connection.readDocuments(feedOpts)
+        } else {
+          iteratorDocument = connection.queryDocuments(queryString, feedOpts)
+        }
       }
+      catch {
+        case ex: IllegalStateException =>  logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partition.partitionKeyRangeId} was split or gone");
+          logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
+          if(ex.getCause.isInstanceOf[DocumentClientException]) {
+            val docex = ex.getCause.asInstanceOf[DocumentClientException]
+            handleGoneException(docex);
+          }
+      }
+      iteratorDocument
     }
 
     /**
@@ -222,6 +237,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .get[String](CosmosDBConfig.ChangeFeedQueryName)
         .get
       val partitionId = partition.partitionKeyRangeId.toString
+      var parentPartitionId = ""
+
+      if(!partition.parents.isEmpty()) {
+        parentPartitionId = partition.parents.iterator().next()
+      }
+
       val collectionLink = connection.collectionLink
 
       // Initialize the static tokens cache or read it from checkpoint
@@ -231,11 +252,28 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           queryName,
           collectionLink,
           partitionId)
+
         cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           CosmosDBRDDIterator.getNextTokenPath(queryName),
           collectionLink,
           partitionId)
+
+        if(cfCurrentToken.isEmpty() && !parentPartitionId.isEmpty()) {
+          cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+            changeFeedCheckpointLocation,
+            queryName,
+            collectionLink,
+            parentPartitionId)
+        }
+
+        if(cfNextToken.isEmpty() && !parentPartitionId.isEmpty()) {
+          cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+            changeFeedCheckpointLocation,
+            CosmosDBRDDIterator.getNextTokenPath(queryName),
+            collectionLink,
+            parentPartitionId)
+        }
       }
 
       // Get continuation token for the partition with provided partitionId
@@ -309,7 +347,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         changeFeedOptions.setRequestContinuation(currentToken)
       }
       changeFeedOptions.setPageSize(pageSize)
-
+      
       val structuredStreaming: Boolean = config
         .get[String](CosmosDBConfig.StructuredStreaming)
         .getOrElse(CosmosDBConfig.DefaultStructuredStreaming.toString)
@@ -320,15 +358,26 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(CosmosDBConfig.DefaultInferStreamSchema.toString)
         .toBoolean
 
+      var iteratorDocument: Iterator[Document] = Iterator()
+
       // Query for change feed
-      val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
-      val iteratorDocument = response._1
-      val nextToken = response._2
+      try{
+        val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
+        iteratorDocument = response._1
+        val nextToken = response._2
 
-      updateTokens(currentToken, nextToken, partitionId)
+        updateTokens(currentToken, nextToken, partitionId)
 
-      logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
-
+        logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+      }
+      catch {
+        case ex: IllegalStateException =>  logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partitionId} was split or gone");
+          logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
+          if(ex.getCause.isInstanceOf[DocumentClientException]) {
+            val docex = ex.getCause.asInstanceOf[DocumentClientException]
+            handleGoneException(docex);
+          }
+      }
       iteratorDocument
     }
 
@@ -341,6 +390,15 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
   // Register an on-task-completion callback to close the input stream.
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
+
+  def handleGoneException(exception: DocumentClientException): Unit = {
+    if(exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT){
+      logWarning(s"Partition ${partition.partitionKeyRangeId} does not exist")
+    }
+    else{
+      throw exception
+    }
+  }
 
   override def hasNext: Boolean = {
     if (maxItems != null && maxItems.isDefined && maxItems.get <= itemCount) {

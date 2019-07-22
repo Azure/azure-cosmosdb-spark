@@ -27,6 +27,7 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
+import com.microsoft.azure.documentdb.Permission
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -36,7 +37,9 @@ import scala.language.implicitConversions
 case class ClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
-                               consistencyLevel: ConsistencyLevel)
+                               consistencyLevel: ConsistencyLevel,
+                               resourceLink: String)
+
 object CosmosDBConnection extends CosmosDBLoggingTrait {
   // For verification purpose
   var lastConnectionPolicy: ConnectionPolicy = _
@@ -44,18 +47,36 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
   var clients: scala.collection.mutable.Map[String, DocumentClient] = scala.collection.mutable.Map[String,DocumentClient]()
 
   def getClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
-      val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
-      if (!clients.contains(cacheKey)) {
-          logInfo(s"Initializing new client for host ${clientConfiguration.host}")
+    if(clientConfiguration.key.isEmpty) {
+      throw new IllegalArgumentException("Master key/Resource token are missing")
+    }
+    val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
+    if (!clients.contains(cacheKey)) {
+      logInfo(s"Initializing new client for host ${clientConfiguration.host}")
+      if(clientConfiguration.resourceLink.isEmpty) {
           clients(cacheKey) = new DocumentClient(
           clientConfiguration.host,
           clientConfiguration.key,
           clientConfiguration.connectionPolicy,
           clientConfiguration.consistencyLevel)
-          CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
       }
+      else {
+        val collectionSelfLink = getCollectionSelfLink(clientConfiguration)
+        val permission = new Permission()
+        permission.set("_token", clientConfiguration.key)
+        permission.setResourceLink(collectionSelfLink)
+        val permissions = List(permission)
+        clients(cacheKey) = new DocumentClient(
+          clientConfiguration.host,
+          permissions,
+          clientConfiguration.connectionPolicy,
+          clientConfiguration.consistencyLevel
+        )
+      }
+      CosmosDBConnection.lastConsistencyLevel = Some(clientConfiguration.consistencyLevel)
+    }
 
-      clients.get(cacheKey).get
+    clients.get(cacheKey).get
    }
 
    def reinitializeClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
@@ -69,6 +90,23 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
 
      getClient(connectionMode, clientConfiguration)
    }
+
+  def getCollectionSelfLink(clientConfiguration: ClientConfiguration): String = {
+      val permission = new Permission()
+      permission.set("_token", clientConfiguration.key)
+      permission.setResourceLink(clientConfiguration.resourceLink)
+      val permissions = List(permission)
+      val client = new DocumentClient(
+        clientConfiguration.host,
+        permissions,
+        clientConfiguration.connectionPolicy,
+        clientConfiguration.consistencyLevel
+      )
+      val collection = client.readCollection(clientConfiguration.resourceLink, null);
+      val collectionSelfLink = collection.getResource().getSelfLink();
+      client.close()
+      return collectionSelfLink
+  }
  }
 
 private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
@@ -290,11 +328,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
+    //Check if resource token exists
+    val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
+    var resourceLink: String = ""
+    if(!resourceToken.isEmpty) {
+      resourceLink = "dbs/" + config.get[String](CosmosDBConfig.Database).get + "/colls/" + config.get[String](CosmosDBConfig.Collection).get
+    }
+
     ClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
-      config.get[String](CosmosDBConfig.Masterkey).get,
+      config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken),
       connectionPolicy,
-      consistencyLevel
-    )
+      consistencyLevel,
+      resourceLink)
   }
 }
+
