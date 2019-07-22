@@ -26,7 +26,7 @@ import java.util
 import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.microsoft.azure.cosmosdb.internal.directconnectivity.GoneException
+import com.microsoft.azure.cosmosdb.internal.directconnectivity.{GoneException, ServiceUnavailableException}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -139,6 +139,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private var closed = false
   private var initialized = false
   private var itemCount: Long = 0
+  private var retryCount: Int = 0
+  private val maxRetryCountOnServiceUnavailable: Int = 100
 
   lazy val reader: Iterator[Document] = {
     initialized = true
@@ -201,21 +203,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       var iteratorDocument: Iterator[Document] = Iterator()
 
-      try {
-        if (queryString == FilterConverter.defaultQuery) {
-          // If there is no filters, read feed should be used
-          iteratorDocument = connection.readDocuments(feedOpts)
-        } else {
-          iteratorDocument = connection.queryDocuments(queryString, feedOpts)
-        }
-      }
-      catch {
-        case ex: IllegalStateException =>  logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partition.partitionKeyRangeId} was split or gone");
-          logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
-          if(ex.getCause.isInstanceOf[DocumentClientException]) {
-            val docex = ex.getCause.asInstanceOf[DocumentClientException]
-            handleGoneException(docex);
-          }
+      if (queryString == FilterConverter.defaultQuery) {
+        // If there is no filters, read feed should be used
+        iteratorDocument = connection.readDocuments(feedOpts)
+      } else {
+        iteratorDocument = connection.queryDocuments(queryString, feedOpts)
       }
       iteratorDocument
     }
@@ -376,6 +368,16 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           if(ex.getCause.isInstanceOf[DocumentClientException]) {
             val docex = ex.getCause.asInstanceOf[DocumentClientException]
             handleGoneException(docex);
+          }
+          else if(ex.getCause.isInstanceOf[ServiceUnavailableException]) {
+              if(retryCount < maxRetryCountOnServiceUnavailable){
+                logWarning(s"Service Unavailable exception thrown. Going to retry. Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable}")
+                retryCount += 1
+              }
+              else{
+                logError("Exhausted all retries on Service Unavailable exception")
+                throw ex
+              }
           }
       }
       iteratorDocument

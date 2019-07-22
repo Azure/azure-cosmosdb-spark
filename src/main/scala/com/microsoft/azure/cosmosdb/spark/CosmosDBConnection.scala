@@ -91,7 +91,7 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
      getClient(connectionMode, clientConfiguration)
    }
 
-  def getCollectionSelfLink(clientConfiguration: ClientConfiguration): String = {
+  private def getCollectionSelfLink(clientConfiguration: ClientConfiguration): String = {
       val permission = new Permission()
       permission.set("_token", clientConfiguration.key)
       permission.setResourceLink(clientConfiguration.resourceLink)
@@ -332,7 +332,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
     var resourceLink: String = ""
     if(!resourceToken.isEmpty) {
-      resourceLink = "dbs/" + config.get[String](CosmosDBConfig.Database).get + "/colls/" + config.get[String](CosmosDBConfig.Collection).get
+      resourceLink = s"dbs/${config.get[String](CosmosDBConfig.Database).get}/colls/${config.get[String](CosmosDBConfig.Collection).get}"
     }
 
     ClientConfiguration(
