@@ -66,8 +66,17 @@ object CosmosDBRowConverter extends RowConverter[Document]
   with CosmosDBLoggingTrait {
 
   def asRow(schema: StructType, rdd: RDD[Document]): RDD[Row] = {
-    rdd.map { record =>
-      recordAsRow(documentToMap(record), schema)
+      rdd.map { record => {
+        try {
+          recordAsRow(documentToMap(record), schema)
+        } catch {
+          case e: Exception => {
+            logInfo(s"record is ${record}")
+            throw e
+          }
+        }
+
+      }
     }
   }
 
@@ -101,11 +110,13 @@ object CosmosDBRowConverter extends RowConverter[Document]
         case (list: List[AnyRef@unchecked], ArrayType(elementType, _)) =>
           null
         case (_, struct: StructType) =>
-          val jsonMap: Map[String, AnyRef] = value match {
-            case doc: Document => documentToMap(doc)
-            case hm: util.HashMap[_, _] => hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap
-          }
-          recordAsRow(jsonMap, struct)
+            if(JSONObject.NULL.equals(value)) return null
+
+            val jsonMap: Map[String, AnyRef] = value match {
+              case doc: Document => documentToMap(doc)
+              case hm: util.HashMap[_, _] => hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap
+            }
+            recordAsRow(jsonMap, struct)
         case (_, map: MapType) =>
           (value match {
             case document: Document => documentToMap(document)
