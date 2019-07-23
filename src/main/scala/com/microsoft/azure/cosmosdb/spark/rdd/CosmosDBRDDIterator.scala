@@ -367,8 +367,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
         }
         catch {
-          case ex: IllegalStateException => logWarning(s"Received IllegalStateException PartitionKeyRangeId ${partitionId} was split or gone");
-            logWarning(s"Inner exception: ${ex.getCause().getClass().getCanonicalName()}");
+          case docex: DocumentClientException => handleGoneException(docex)
+          case ex: IllegalStateException =>
             if (ex.getCause.isInstanceOf[DocumentClientException]) {
               val docex = ex.getCause.asInstanceOf[DocumentClientException]
               handleGoneException(docex);
@@ -383,6 +383,9 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
                 logError("Exhausted all retries on Service Unavailable exception")
                 throw ex
               }
+            }
+            else {
+              logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
             }
         }
       }
