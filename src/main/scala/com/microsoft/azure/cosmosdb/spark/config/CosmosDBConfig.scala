@@ -38,6 +38,7 @@ object CosmosDBConfig {
   val Database = "database"
   val Collection = "collection"
   val Masterkey = "masterkey"
+  val ResourceToken = "resourcetoken"
 
   val PreferredRegionsList = "preferredregions"
   val ConsistencyLevel = "consistencylevel"
@@ -126,7 +127,6 @@ object CosmosDBConfig {
   // Mandatory
   val required = List(
     Endpoint,
-    Masterkey,
     Database,
     Collection
   )

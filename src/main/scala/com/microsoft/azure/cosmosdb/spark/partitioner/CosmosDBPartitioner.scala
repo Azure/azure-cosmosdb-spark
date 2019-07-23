@@ -42,7 +42,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
     var partitionKeyRanges = connection.getAllPartitions
     logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length){
-      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
     }
   }
 
@@ -91,7 +91,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
       var partitionKeyRanges = connection.getAllPartitions(query)
       logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
       Array.tabulate(partitionKeyRanges.length) {
-        i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt)
+        i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
       }
     }
   }

@@ -26,12 +26,15 @@ import java.util
 import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.microsoft.azure.cosmosdb.internal.HttpConstants.StatusCodes
+import com.microsoft.azure.cosmosdb.internal.directconnectivity.{GoneException, ServiceUnavailableException}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
 import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.internal.HttpConstants.SubStatusCodes
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
@@ -137,6 +140,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private var closed = false
   private var initialized = false
   private var itemCount: Long = 0
+  private var retryCount: Int = 0
+  private val maxRetryCountOnServiceUnavailable: Int = 100
 
   lazy val reader: Iterator[Document] = {
     initialized = true
@@ -197,12 +202,15 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(FilterConverter.createQueryString(requiredColumns, filters))
       logInfo(s"CosmosDBRDDIterator::LazyReader, created query string: $queryString")
 
+      var iteratorDocument: Iterator[Document] = Iterator()
+
       if (queryString == FilterConverter.defaultQuery) {
         // If there is no filters, read feed should be used
-        connection.readDocuments(feedOpts)
+        iteratorDocument = connection.readDocuments(feedOpts)
       } else {
-        connection.queryDocuments(queryString, feedOpts)
+        iteratorDocument = connection.queryDocuments(queryString, feedOpts)
       }
+      iteratorDocument
     }
 
     /**
@@ -222,6 +230,12 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .get[String](CosmosDBConfig.ChangeFeedQueryName)
         .get
       val partitionId = partition.partitionKeyRangeId.toString
+      var parentPartitionId = ""
+
+      if(!partition.parents.isEmpty()) {
+        parentPartitionId = partition.parents.iterator().next()
+      }
+
       val collectionLink = connection.collectionLink
 
       // Initialize the static tokens cache or read it from checkpoint
@@ -231,11 +245,28 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           queryName,
           collectionLink,
           partitionId)
+
         cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           CosmosDBRDDIterator.getNextTokenPath(queryName),
           collectionLink,
           partitionId)
+
+        if(cfCurrentToken.isEmpty() && !parentPartitionId.isEmpty()) {
+          cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+            changeFeedCheckpointLocation,
+            queryName,
+            collectionLink,
+            parentPartitionId)
+        }
+
+        if(cfNextToken.isEmpty() && !parentPartitionId.isEmpty()) {
+          cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
+            changeFeedCheckpointLocation,
+            CosmosDBRDDIterator.getNextTokenPath(queryName),
+            collectionLink,
+            parentPartitionId)
+        }
       }
 
       // Get continuation token for the partition with provided partitionId
@@ -309,7 +340,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         changeFeedOptions.setRequestContinuation(currentToken)
       }
       changeFeedOptions.setPageSize(pageSize)
-
+      
       val structuredStreaming: Boolean = config
         .get[String](CosmosDBConfig.StructuredStreaming)
         .getOrElse(CosmosDBConfig.DefaultStructuredStreaming.toString)
@@ -320,15 +351,46 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .getOrElse(CosmosDBConfig.DefaultInferStreamSchema.toString)
         .toBoolean
 
-      // Query for change feed
-      val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
-      val iteratorDocument = response._1
-      val nextToken = response._2
+      var iteratorDocument: Iterator[Document] = Iterator()
+      var isGone: Boolean = false
+      var successReadChangeFeed: Boolean = false
 
-      updateTokens(currentToken, nextToken, partitionId)
+      while(!successReadChangeFeed && retryCount < maxRetryCountOnServiceUnavailable && !isGone) {
+        // Query for change feed
+        try {
+          val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
+          successReadChangeFeed = true
+          iteratorDocument = response._1
+          val nextToken = response._2
 
-      logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+          updateTokens(currentToken, nextToken, partitionId)
 
+          logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
+        }
+        catch {
+          case docex: DocumentClientException => handleGoneException(docex)
+          case ex: IllegalStateException =>
+            if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
+              if (retryCount < maxRetryCountOnServiceUnavailable) {
+                logWarning(s"Service Unavailable exception thrown. Going to retry. Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable}")
+                retryCount += 1
+              } else {
+                logError("Exhausted all retries on Service Unavailable exception")
+                throw ex
+              }
+            } else if (ex.getCause.isInstanceOf[DocumentClientException]) {
+              val docex = ex.getCause.asInstanceOf[DocumentClientException]
+              handleGoneException(docex);
+              isGone = true
+            } else {
+              logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
+            }
+          case ex: Throwable => {
+            logError(s"UNHANDLED EXCEPTION: ${ex.getMessage}")
+            throw ex
+          }
+        }
+      }
       iteratorDocument
     }
 
@@ -341,6 +403,18 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
   // Register an on-task-completion callback to close the input stream.
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
+
+  def handleGoneException(exception: DocumentClientException): Unit = {
+    if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
+      || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
+      || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT) {
+      logWarning(
+        s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode}")
+    } else {
+      logWarning(s"UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} ${exception.getStatusCode} ${exception.getSubStatusCode}")
+      throw exception
+    }
+  }
 
   override def hasNext: Boolean = {
     if (maxItems != null && maxItems.isDefined && maxItems.get <= itemCount) {

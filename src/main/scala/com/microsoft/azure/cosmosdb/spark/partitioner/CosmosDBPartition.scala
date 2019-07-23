@@ -22,8 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark.partitioner
 
+import java.util
+
 import org.apache.spark.Partition
 
 case class CosmosDBPartition(index: Int,
                              partitionCount: Int,
-                             partitionKeyRangeId: Int) extends Partition
+                             partitionKeyRangeId: Int,
+                             parents: util.Collection[String]) extends Partition
