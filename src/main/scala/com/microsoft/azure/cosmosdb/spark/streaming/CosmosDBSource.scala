@@ -28,6 +28,7 @@ import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import org.apache.commons.lang3.StringUtils
+import org.apache.spark.sql.cosmosdb.util.StreamingUtils
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -145,7 +146,11 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       currentDf
     } else {
       logDebug(s"Skipping this batch")
-      sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema)
+      StreamingUtils.createDataFrameStreaming(
+        sqlContext.createDataFrame(sqlContext.emptyDataFrame.rdd, schema),
+        schema,
+        sqlContext)
+
     }
   }
 

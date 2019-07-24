@@ -26,6 +26,7 @@ import java.util
 import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.microsoft.azure.cosmosdb.internal.HttpConstants.StatusCodes
 import com.microsoft.azure.cosmosdb.internal.directconnectivity.{GoneException, ServiceUnavailableException}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
@@ -369,24 +370,25 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         catch {
           case docex: DocumentClientException => handleGoneException(docex)
           case ex: IllegalStateException =>
-            if (ex.getCause.isInstanceOf[DocumentClientException]) {
-              val docex = ex.getCause.asInstanceOf[DocumentClientException]
-              handleGoneException(docex);
-              isGone = true
-            }
-            else if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
+            if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
               if (retryCount < maxRetryCountOnServiceUnavailable) {
                 logWarning(s"Service Unavailable exception thrown. Going to retry. Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable}")
                 retryCount += 1
-              }
-              else {
+              } else {
                 logError("Exhausted all retries on Service Unavailable exception")
                 throw ex
               }
-            }
-            else {
+            } else if (ex.getCause.isInstanceOf[DocumentClientException]) {
+              val docex = ex.getCause.asInstanceOf[DocumentClientException]
+              handleGoneException(docex);
+              isGone = true
+            } else {
               logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
             }
+          case ex: Throwable => {
+            logError(s"UNHANDLED EXCEPTION: ${ex.getMessage}")
+            throw ex
+          }
         }
       }
       iteratorDocument
@@ -403,10 +405,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
 
   def handleGoneException(exception: DocumentClientException): Unit = {
-    if(exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT){
-      logWarning(s"Partition ${partition.partitionKeyRangeId} does not exist")
-    }
-    else{
+    if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
+      || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
+      || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT) {
+      logWarning(
+        s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode}")
+    } else {
+      logWarning(s"UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} ${exception.getStatusCode} ${exception.getSubStatusCode}")
       throw exception
     }
   }
