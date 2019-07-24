@@ -368,7 +368,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
         }
         catch {
-          case docex: DocumentClientException => handleGoneException(docex)
+          case docex: DocumentClientException => handleGoneException(connection, docex)
           case ex: IllegalStateException =>
             if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
               if (retryCount < maxRetryCountOnServiceUnavailable) {
@@ -380,7 +380,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
               }
             } else if (ex.getCause.isInstanceOf[DocumentClientException]) {
               val docex = ex.getCause.asInstanceOf[DocumentClientException]
-              handleGoneException(docex);
+              handleGoneException(connection, docex);
               isGone = true
             } else {
               logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
@@ -404,12 +404,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   // Register an on-task-completion callback to close the input stream.
   taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
 
-  def handleGoneException(exception: DocumentClientException): Unit = {
+  private def handleGoneException(connection: CosmosDBConnection, exception: DocumentClientException): Unit = {
     if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
       || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
       || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT) {
+
       logWarning(
         s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode}")
+      connection.reinitializeClient()
     } else {
       logWarning(s"UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} ${exception.getStatusCode} ${exception.getSubStatusCode}")
       throw exception
