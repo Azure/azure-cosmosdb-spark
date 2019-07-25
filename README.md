@@ -121,14 +121,7 @@ flights.write.mode(SaveMode.Overwrite).cosmosDB(writeConfig)
 
 &nbsp;
 
-See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tree/master/samples/notebooks) and [Databricks]() notebooks as well as [PySpark]() and [Spark]() scripts.
-
-
-&nbsp;
-
 ## Requirements
-
-`azure-cosmosdb-spark` has been regularly tested using Azure Databricks Runtime 3.5 (Spark 2.2.1), 4.0 (Spark 2.3.0), HDInsight 3.6 (Spark 2.1), and 3.7 (Spark 2.2).
 
 <em>Review <strong>supported</strong> component versions</em>
 
@@ -137,8 +130,6 @@ See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tre
 | Apache Spark | 2.2.1, 2.3.X, 2.4.X |
 | Scala | 2.11 |
 | Python | 2.7, 3.6 |
-| Azure Cosmos DB Java SDK | 1.16.1, 1.16.2 |
-
 
 &nbsp;
 
@@ -146,7 +137,6 @@ See other sample [Jupyter](https://github.com/dennyglee/azure-cosmosdb-spark/tre
 You can build and/or use the maven coordinates to work with `azure-cosmosdb-spark`.
 
 <em>Review the connector's <strong>maven versions</strong></em>
-
 
 | Spark | Scala | Latest version |
 |---|---|---|
@@ -158,7 +148,7 @@ You can build and/or use the maven coordinates to work with `azure-cosmosdb-spar
 ### Using Databricks notebooks
 Please create a library using within your Databricks workspace by following the guidance within the Azure Databricks Guide > [Use the Azure Cosmos DB Spark connector](https://docs.azuredatabricks.net/spark/latest/data-sources/azure/cosmosdb-connector.html)
 
-> Note, the **Use the Azure Cosmos DB Spark Connector** page is currently not up-to-date; issue is assigned to @dennyglee.  Instead of downloading the six separate JARs into six different libraries, you can download the uber jar from maven at https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.4.0_2.11/1.3.5/jar) and install this one jar/library.
+> Note, the Databricks documentation at docs.azuredatabricks.net is not up to date.  Instead of downloading the six separate jars into six different libraries, you can download the uber jar from maven at https://search.maven.org/artifact/com.microsoft.azure/azure-cosmosdb-spark_2.4.0_2.11/1.3.5/jar) and install this one jar/library.
 
 
 ### Using spark-cli
