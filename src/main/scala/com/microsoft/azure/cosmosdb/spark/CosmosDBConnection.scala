@@ -23,9 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
-
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.documentdb
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
@@ -64,16 +62,10 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
       }
       else {
         val collectionSelfLink = getCollectionSelfLink(clientConfiguration)
-        val permissionWithSelfLink = new Permission()
-        permissionWithSelfLink.set("_token", clientConfiguration.key)
-        permissionWithSelfLink.setResourceLink(collectionSelfLink)
-
-        val permissionWithNamedResourceLink = new Permission()
-        permissionWithNamedResourceLink.set("_token", clientConfiguration.key)
-        permissionWithNamedResourceLink.setResourceLink(clientConfiguration.resourceLink)
-
-        val permissions = List(permissionWithSelfLink, permissionWithNamedResourceLink)
-
+        val permission = new Permission()
+        permission.set("_token", clientConfiguration.key)
+        permission.setResourceLink(collectionSelfLink)
+        val permissions = List(permission)
         clients(cacheKey) = new DocumentClient(
           clientConfiguration.host,
           permissions,
