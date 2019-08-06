@@ -30,6 +30,7 @@ import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
 import com.microsoft.azure.documentdb.Permission
+import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -87,13 +88,17 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
     clients.get(cacheKey).get
    }
 
-   def reinitializeClient(connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
+   def reinitializeClient(collection: DocumentCollection, connectionMode: ConnectionMode, clientConfiguration: ClientConfiguration): DocumentClient = synchronized {
+     logInfo("re-initializing client")
      val cacheKey = clientConfiguration.host + "-" + clientConfiguration.key
-     if(clients.get(cacheKey).nonEmpty) {
+     if (clients.get(cacheKey).nonEmpty) {
        logInfo(s"Reinitializing client for host ${clientConfiguration.host}")
        val client = clients.get(cacheKey).get
-       client.close()
-       CosmosDBConnection.clients.remove(cacheKey)
+       val field = client.getClass.getDeclaredField("partitionKeyRangeCache")
+       field.setAccessible(true)
+       val partitionKeyRangeCache = field.get(client).asInstanceOf[PartitionKeyRangeCache]
+       val range = new com.microsoft.azure.documentdb.internal.routing.Range[String]("00", "FF", true, true)
+       partitionKeyRangeCache.getOverlappingRanges(collection.getSelfLink, range, true)
      }
 
      getClient(connectionMode, clientConfiguration)
@@ -199,9 +204,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def getAllPartitions(query: String): Array[PartitionKeyRange] = {
-    var ranges: java.util.Collection[PartitionKeyRange] =
-      documentClient.readPartitionKeyRanges(collectionLink, query)
-    ranges.toArray[PartitionKeyRange](new Array[PartitionKeyRange](ranges.size()))
+    getAllPartitions
   }
 
   def getCollectionThroughput: Int = {
@@ -223,7 +226,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def reinitializeClient () = {
-    documentClient = CosmosDBConnection.reinitializeClient(connectionMode, getClientConfiguration(config))
+    documentClient = CosmosDBConnection.reinitializeClient(getCollection, connectionMode, getClientConfiguration(config))
   }
 
   def queryDocuments (queryString : String,

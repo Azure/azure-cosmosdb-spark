@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.internal.HttpConstants.StatusCodes
-import com.microsoft.azure.cosmosdb.internal.directconnectivity.{GoneException, ServiceUnavailableException}
+import com.microsoft.azure.cosmosdb.internal.directconnectivity.{ ServiceUnavailableException}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -394,6 +394,31 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       iteratorDocument
     }
 
+    taskContext.addTaskFailureListener((context: TaskContext, ex: Throwable) => {
+      logError("Handling Task Failure")
+      if (ex.isInstanceOf[DocumentClientException]) {
+        val dcx: DocumentClientException = ex.asInstanceOf[DocumentClientException]
+        if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
+          logError("Service Unavailable")
+          connection.reinitializeClient()
+        }
+      } else if (ex.isInstanceOf[IllegalStateException]
+        && ex.getCause != null
+        && ex.getCause.isInstanceOf[DocumentClientException]){
+        logError("Illegal State Exception with Service Unavailable")
+        val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
+        if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
+          connection.reinitializeClient()
+        }
+      }
+    })
+
+    // Register an on-task-completion callback to close the input stream.
+    taskContext.addTaskCompletionListener((context: TaskContext) => {
+      connection.reinitializeClient()
+      closeIfNeeded()
+    })
+
     if (!readingChangeFeed) {
       queryDocuments
     } else {
@@ -401,14 +426,10 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     }
   }
 
-  // Register an on-task-completion callback to close the input stream.
-  taskContext.addTaskCompletionListener((context: TaskContext) => closeIfNeeded())
-
   private def handleGoneException(connection: CosmosDBConnection, exception: DocumentClientException): Unit = {
     if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
       || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
       || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT) {
-
       logWarning(
         s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode}")
       connection.reinitializeClient()

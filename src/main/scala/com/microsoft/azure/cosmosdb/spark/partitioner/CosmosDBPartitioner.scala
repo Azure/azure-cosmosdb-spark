@@ -53,7 +53,6 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
     val adlImport = config.get(CosmosDBConfig.adlAccountFqdn).isDefined
     var connection: CosmosDBConnection = new CosmosDBConnection(config)
     connection.reinitializeClient()
-
     if (adlImport) {
       // ADL source
       val hdfsUtils = new HdfsUtils(hadoopConfig.toMap)
@@ -89,7 +88,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
       // CosmosDB source
       var query: String = FilterConverter.createQueryString(requiredColumns, filters)
       var partitionKeyRanges = connection.getAllPartitions(query)
-      logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
+      logInfo(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
       Array.tabulate(partitionKeyRanges.length) {
         i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
       }

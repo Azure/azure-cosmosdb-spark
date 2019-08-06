@@ -69,8 +69,7 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
   // Cosmos DB Java Async SDK supports Gateway mode
-  private val connectionMode = ConnectionMode.valueOf(config.get[String](CosmosDBConfig.ConnectionMode)
-    .getOrElse(com.microsoft.azure.documentdb.ConnectionMode.Gateway.toString))
+  private var connectionMode = ConnectionMode.Direct
 
   def importWithRxJava[D: ClassTag](iter: Iterator[D],
                                     connection: AsyncCosmosDBConnection,
@@ -131,6 +130,8 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
   private def getClientConfiguration(config: Config): AsyncClientConfiguration = {
     // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
+    val mode = config.get[String](CosmosDBConfig.ConnectionMode).get
+    if("gateway".equalsIgnoreCase(mode)) connectionMode = ConnectionMode.Gateway
 
     connectionPolicy.setConnectionMode(connectionMode)
 
