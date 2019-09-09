@@ -291,6 +291,35 @@ limitations under the License.
                         <configuration>
                             <relocations>
                                 <relocation>
+                                    <pattern>com.microsoft.azure.cosmosdb</pattern>
+                                    <shadedPattern>cosmosdb_connector_shaded.com.microsoft.azure.cosmosdb</shadedPattern>
+                                    <excludes>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.schema.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.streaming.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.config.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.gremlin.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.partitioner.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.query.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.rdd.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.spark.util.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.internal.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.internal.caches.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.internal.directconnectivity.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.internal.query.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.rx.internal.routing.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.directconnectivity.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.directconnectivity.rntbd.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.query.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.query.aggregation.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.query.metrics.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.query.orderbyquery.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.internal.routing.*</exclude>
+                                    </excludes>
+                                </relocation>
+                                <relocation>
                                     <pattern>edu.umd.cs</pattern>
                                     <shadedPattern>cosmosdb_connector_shaded.edu.umd.cs</shadedPattern>
                                 </relocation>
