@@ -35,6 +35,7 @@ import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
+import scala.util.control.Breaks._
 
 
 case class ClientConfiguration(host: String,
@@ -125,6 +126,8 @@ object CosmosDBConnection extends CosmosDBLoggingTrait {
 private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
 
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
+  private val maxPagesPerBatch =
+    config.getOrElse[String](CosmosDBConfig.ChangeFeedMaxPagesPerBatch, CosmosDBConfig.DefaultChangeFeedMaxPagesPerBatch.toString).toInt
   private val databaseLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName"
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
@@ -246,33 +249,147 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean, shouldInferStreamSchema: Boolean): Tuple2[Iterator[Document], String] = {
+    logDebug("--> readChangeFeed, PageSize: " + changeFeedOptions.getPageSize().toString() + ", ContinuationToken: " + changeFeedOptions.getRequestContinuation() + ", PartitionId: " + changeFeedOptions.getPartitionKeyRangeId() + ", ShouldInferSchema: " + shouldInferStreamSchema.toString())
+    
+    // The ChangeFeed API in the SDK allows accessing the continuation token
+    // from the latest HTTP Response
+    // This is not sufficient to build a correct continuation token when
+    // the "ChangeFeedMaxPagesPerBatch" limit is reached, because "blocks" that
+    // can be retrieved from the SDK can span two or more underlying pages. So the first records in 
+    // the block can only be retrieved with the previous continuation token - the last
+    // records would have the continuation token of the latest HTTP response that is retrievable
+    // The variables below are used to store context necessary to form a continuation token
+    // that allows bookmarking an individual record within the changefeed
+    // The continuation token that would need to be used to safely allow retrieving changerecords
+    // after a bookmark in the form of <blockStartContinuation>|<lastProcessedIdBookmark>
+    // Meaning the <blockStartContinuation> needs to be at a previous or the same page as the change record
+    // document with Id <lastProcessedIdBookmark>
+
+    // Indicator whether we found the first not yet processed change record
+    var foundBookmark = true
+
+    // The id of the last document that has been processed and returned to the caller
+    var lastProcessedIdBookmark = ""
+
+    // The original continuation that has been passed to this method by the caller
+    var originalContinuation = changeFeedOptions.getRequestContinuation()
+
+    // The next continuation token that is returned to the caller to continue
+    // processing the change feed
+    var nextContinuation = changeFeedOptions.getRequestContinuation()
+    if (originalContinuation != null && 
+        originalContinuation.contains("|"))
+    {
+      val continuationFragments = originalContinuation.split('|')
+      originalContinuation = continuationFragments(0)
+      changeFeedOptions.setRequestContinuation(originalContinuation)
+      lastProcessedIdBookmark = continuationFragments(1)
+      foundBookmark = false
+    }
+
+    // The continuation token that would need to be used to safely allow retrieving changerecords
+    // after a bookmark in the form of <blockStartContinuation>|<lastProcessedIdBookmark>
+    // Meaning the <blockStartContinuation> needs to be at a previous or the same page as the change record
+    // document with Id <lastProcessedIdBookmark>
+    var previousBlockStartContinuation = originalContinuation
+
+    // The continuation token that would need to be used to retrive the next block
+    var blockStartContinuation = originalContinuation
+
+    // This method can result in reading the next page of the changefeed and changing the continuation token header
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
+    logDebug("    readChangeFeed.InitialResponseContinuation: " + feedResponse.getResponseContinuation())
+
+    // If processing from the beginning (no continuation token passed into this method)
+    // it is safe to increase previousBlockStartContinuation here because we always at least return
+    // one page
+    if (Option(originalContinuation).getOrElse("").isEmpty)
+    {
+      blockStartContinuation = feedResponse.getResponseContinuation()
+      previousBlockStartContinuation = blockStartContinuation
+    }
+
     if (isStreaming) {
+      var pageCount = 0;
+
+      var isFirstBlock = true;
       // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
       val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
-      while (feedResponse.getQueryIterator.hasNext) {
-        val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
-        if (shouldInferStreamSchema)
+      breakable { 
+        // hasNext can result in reading the next page of the changefeed and changing the continuation token header
+        while (feedResponse.getQueryIterator.hasNext)
         {
-          cfDocuments.addAll(feedItems)
-        } else {
-          for (feedItem <- feedItems) {
-            val streamDocument: Document = new Document()
-            streamDocument.set("body", feedItem.toJson)
-            streamDocument.set("id", feedItem.get("id"))
-            streamDocument.set("_rid", feedItem.get("_rid"))
-            streamDocument.set("_self", feedItem.get("_self"))
-            streamDocument.set("_etag", feedItem.get("_etag"))
-            streamDocument.set("_attachments", feedItem.get("_attachments"))
-            streamDocument.set("_ts", feedItem.get("_ts"))
-            cfDocuments.add(streamDocument)
+          logDebug("    readChangeFeed.InWhile ContinuationToken: " + blockStartContinuation)
+          // fetchNextBlock can result in reading the next page of the changefeed and changing the continuation token header
+          val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
+
+          for (feedItem <- feedItems)
+          {
+            if (!foundBookmark)
+            {
+              if (feedItem.get("id") == lastProcessedIdBookmark)
+              {
+                logDebug("    readChangeFeed.FoundBookmarkDueToIdMatch")
+                foundBookmark = true
+              }
+            }
+            else
+            {
+              if (shouldInferStreamSchema)
+              {
+                cfDocuments.add(feedItem)
+              }
+              else
+              {
+                val streamDocument: Document = new Document()
+                streamDocument.set("body", feedItem.toJson)
+                streamDocument.set("id", feedItem.get("id"))
+                streamDocument.set("_rid", feedItem.get("_rid"))
+                streamDocument.set("_self", feedItem.get("_self"))
+                streamDocument.set("_etag", feedItem.get("_etag"))
+                streamDocument.set("_attachments", feedItem.get("_attachments"))
+                streamDocument.set("_ts", feedItem.get("_ts"))
+
+                cfDocuments.add(streamDocument)
+              }
+            }
+          }
+          logDebug(s"Receving " + cfDocuments.length.toString() + " change feed items ${if (cfDocuments.nonEmpty) cfDocuments(0)}")
+          
+          if (cfDocuments.length > 0)
+          {
+            pageCount += 1;
+          }
+
+          if (pageCount >= maxPagesPerBatch)
+          {
+            nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
+
+            logDebug("    readChangeFeed.MaxPageCountExceeded NextContinuation: " + nextContinuation)
+            break;
+          }
+          else
+          {
+            // next Continuation Token is plain and simple the same as the latest HTTP response
+            // Expected when all records of the current page have been processed
+            // Will only get returned to the caller when the changefeed has been processed completely
+            // as a continuation token that the caller can use afterwards to see whether the changefeed 
+            // contains new change record documents
+            nextContinuation = feedResponse.getResponseContinuation()
+
+            previousBlockStartContinuation = blockStartContinuation
+            blockStartContinuation = nextContinuation
+
+            logDebug("    readChangeFeed.EndInWhile NextContinuation: " + nextContinuation + ", blockStartContinuation: " + blockStartContinuation + ", previousBlockStartContinuation: " + previousBlockStartContinuation)
           }
         }
-        logDebug(s"Receving change feed items ${if (feedItems.nonEmpty) feedItems(0)}")
       }
-      Tuple2.apply(cfDocuments.iterator(), feedResponse.getResponseContinuation)
-    } else {
-      Tuple2.apply(feedResponse.getQueryIterator, feedResponse.getResponseContinuation)
+      
+      logDebug("<-- readChangeFeed, Count: " + cfDocuments.length.toString() + ", NextContinuation: " + nextContinuation)
+      Tuple2.apply(cfDocuments.iterator(), nextContinuation)
+    } else 
+    {
+      Tuple2.apply(feedResponse.getQueryIterator, nextContinuation)
     }
   }
 
