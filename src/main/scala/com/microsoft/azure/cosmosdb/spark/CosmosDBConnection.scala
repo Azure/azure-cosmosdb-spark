@@ -249,7 +249,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean, shouldInferStreamSchema: Boolean): Tuple2[Iterator[Document], String] = {
-    logDebug("--> readChangeFeed, PageSize: " + changeFeedOptions.getPageSize().toString() + ", ContinuationToken: " + changeFeedOptions.getRequestContinuation() + ", PartitionId: " + changeFeedOptions.getPartitionKeyRangeId() + ", ShouldInferSchema: " + shouldInferStreamSchema.toString())
+    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize().toString()}, ContinuationToken: ${changeFeedOptions.getRequestContinuation()}, PartitionId: ${changeFeedOptions.getPartitionKeyRangeId()}, ShouldInferSchema: ${shouldInferStreamSchema.toString()}")
     
     // The ChangeFeed API in the SDK allows accessing the continuation token
     // from the latest HTTP Response
@@ -293,12 +293,14 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     // document with Id <lastProcessedIdBookmark>
     var previousBlockStartContinuation = originalContinuation
 
-    // The continuation token that would need to be used to retrive the next block
+    // blockStartContinuation is used as a place holder to store the feedResponse.getResponseContinuation()
+    // of the previous HTTP response to be able to apply it to previousBlockStartContinuation
+    // accordingly
     var blockStartContinuation = originalContinuation
 
     // This method can result in reading the next page of the changefeed and changing the continuation token header
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
-    logDebug("    readChangeFeed.InitialResponseContinuation: " + feedResponse.getResponseContinuation())
+    logDebug(s"    readChangeFeed.InitialResponseContinuation: ${feedResponse.getResponseContinuation()}")
 
     // If processing from the beginning (no continuation token passed into this method)
     // it is safe to increase previousBlockStartContinuation here because we always at least return
@@ -319,7 +321,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
         // hasNext can result in reading the next page of the changefeed and changing the continuation token header
         while (feedResponse.getQueryIterator.hasNext)
         {
-          logDebug("    readChangeFeed.InWhile ContinuationToken: " + blockStartContinuation)
+          logDebug(s"    readChangeFeed.InWhile ContinuationToken: ${blockStartContinuation}")
           // fetchNextBlock can result in reading the next page of the changefeed and changing the continuation token header
           val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
 
@@ -354,7 +356,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
               }
             }
           }
-          logDebug(s"Receving " + cfDocuments.length.toString() + " change feed items ${if (cfDocuments.nonEmpty) cfDocuments(0)}")
+          logDebug(s"Receving ${cfDocuments.length.toString()} change feed items ${if (cfDocuments.nonEmpty) cfDocuments(0)}")
           
           if (cfDocuments.length > 0)
           {
@@ -365,7 +367,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           {
             nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
 
-            logDebug("    readChangeFeed.MaxPageCountExceeded NextContinuation: " + nextContinuation)
+            logDebug(s"    readChangeFeed.MaxPageCountExceeded NextContinuation: ${nextContinuation}")
             break;
           }
           else
@@ -380,12 +382,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
             previousBlockStartContinuation = blockStartContinuation
             blockStartContinuation = nextContinuation
 
-            logDebug("    readChangeFeed.EndInWhile NextContinuation: " + nextContinuation + ", blockStartContinuation: " + blockStartContinuation + ", previousBlockStartContinuation: " + previousBlockStartContinuation)
+            logDebug(s"    readChangeFeed.EndInWhile NextContinuation: ${nextContinuation}, blockStartContinuation: ${blockStartContinuation}, previousBlockStartContinuation: ${previousBlockStartContinuation}")
           }
         }
       }
       
-      logDebug("<-- readChangeFeed, Count: " + cfDocuments.length.toString() + ", NextContinuation: " + nextContinuation)
+      logDebug(s"<-- readChangeFeed, Count: ${cfDocuments.length.toString()}, NextContinuation: ${nextContinuation}")
       Tuple2.apply(cfDocuments.iterator(), nextContinuation)
     } else 
     {
