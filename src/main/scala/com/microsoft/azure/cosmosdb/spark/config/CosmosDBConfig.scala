@@ -71,6 +71,7 @@ object CosmosDBConfig {
   val ChangeFeedStartFromTheBeginning = "changefeedstartfromthebeginning"
   val ChangeFeedUseNextToken = "changefeedusenexttoken"
   val ChangeFeedContinuationToken = "changefeedcontinuationtoken"
+  val ChangeFeedMaxPagesPerBatch = "changefeedmaxpagesperbatch"
   val IncrementalView = "incrementalview"
   val StructuredStreaming = "structuredstreaming"
   val CachingModeParam = "cachingmode"
@@ -144,6 +145,7 @@ object CosmosDBConfig {
   val DefaultRollingChangeFeed = false
   val DefaultChangeFeedStartFromTheBeginning = false
   val DefaultChangeFeedUseNextToken = false
+  val DefaultChangeFeedMaxPagesPerBatch = Integer.MAX_VALUE
   val DefaultIncrementalView = false
   val DefaultCacheMode = CachingMode.NONE
   val DefaultChangeFeedNewQuery = false

@@ -267,7 +267,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
             collectionLink,
             parentPartitionId)
         }
-      }
+     }
 
       // Get continuation token for the partition with provided partitionId
       def getContinuationToken(partitionId: String): String = {
@@ -340,7 +340,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         changeFeedOptions.setRequestContinuation(currentToken)
       }
       changeFeedOptions.setPageSize(pageSize)
-      
+
       val structuredStreaming: Boolean = config
         .get[String](CosmosDBConfig.StructuredStreaming)
         .getOrElse(CosmosDBConfig.DefaultStructuredStreaming.toString)

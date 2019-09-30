@@ -341,3 +341,9 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 
+.settings/org.eclipse.core.resources.prefs
+.project
+.settings/org.eclipse.jdt.core.prefs
+.settings/org.eclipse.m2e.core.prefs
+.classpath
+.vscode/settings.json
