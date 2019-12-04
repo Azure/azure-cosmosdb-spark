@@ -366,7 +366,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           updateTokens(currentToken, nextToken, partitionId)
 
           logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
-          System.out.println(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
         }
         catch {
           case docex: DocumentClientException => handleGoneException(connection, docex)
