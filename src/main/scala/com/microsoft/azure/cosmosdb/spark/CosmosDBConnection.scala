@@ -391,6 +391,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       Tuple2.apply(cfDocuments.iterator(), nextContinuation)
     } else 
     {
+      // next Continuation Token is plain and simple when not using Streaming because
+      // all records will be processed. The parameter 'maxPagesPerBatch' is irrelevant
+      // in this case - so there doesn't need to be any suffix in the continutaion token returned
+      nextContinuation = feedResponse.getResponseContinuation()
+      logDebug(s"<-- readChangeFeed, Non-Streaming, NextContinuation: ${nextContinuation}")
       Tuple2.apply(feedResponse.getQueryIterator, nextContinuation)
     }
   }
