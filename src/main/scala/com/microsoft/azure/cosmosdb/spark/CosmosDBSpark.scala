@@ -36,7 +36,6 @@ import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
-import org.apache.spark.sql.execution.datasources.FilePartition
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.JavaConverters._
@@ -147,25 +146,13 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       case _: Throwable => // no op
     }
 
-    // Check if we're writing ADLPartition/FilePartition
-    var isWritingAdlPartition = false
-    var isWritingFilePartition = false
     var partitionMap = mutable.Map[Int, Partition]()
     try {
       // The .partitions call can throw NullRef for non-parallel RDD
       val partitions = rdd.partitions
-      isWritingAdlPartition = partitions.length > 0 && partitions(0).isInstanceOf[ADLFilePartition]
-      isWritingFilePartition = partitions.length > 0 && partitions(0).isInstanceOf[FilePartition]
-      if (isWritingAdlPartition || isWritingFilePartition) {
-        partitions.foreach(p => {
-          partitionMap = partitionMap + (p.index -> p)
-        })
-      }
     } catch {
       case _: Throwable => // no op
     }
-
-    val hadoopConfig = HdfsUtils.getConfigurationMap(rdd.sparkContext.hadoopConfiguration).toMap
 
     // Use min(writeThroughputBudget, collectionThroughput) - utilized only in bulk import
     val connection: CosmosDBConnection = new CosmosDBConnection(writeConfig)
@@ -181,23 +168,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     logInfo("Write config: " + writeConfig.toString)
 
     val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
-      if (isWritingAdlPartition) {
-        val adlPartition = partitionMap(partitionId).asInstanceOf[ADLFilePartition]
-        saveAdlPartition(iter, writeConfig, numPartitions, adlPartition.adlFilePath, hadoopConfig, offerThroughput)
-      } else if (isWritingFilePartition) {
-        val filePartition = partitionMap(partitionId).asInstanceOf[FilePartition]
-        saveFilePartition(iter, writeConfig, numPartitions, filePartition, hadoopConfig, offerThroughput)
-      }
-      else
         savePartition(iter, writeConfig, numPartitions, offerThroughput), preservesPartitioning = true)
     mapRdd.collect()
-
-//    // All tasks have been completed, clean up the file checkpoints
-//    val adlCheckpointPath = writeConfig.get[String](CosmosDBConfig.adlFileCheckpointPath)
-//    if (adlCheckpointPath.isDefined) {
-//      val hdfsUtils = new HdfsUtils(hadoopConfig)
-//      ADLConnection.cleanUpProgress(hdfsUtils, adlCheckpointPath.get)
-//    }
   }
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
@@ -314,90 +286,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
       }
     }
-  }
-
-
-  private def saveFilePartition[D: ClassTag](iter: Iterator[D],
-                                              config: Config,
-                                              partitionCount: Int,
-                                              filePartition: FilePartition,
-                                              hadoopConfig: Map[String, String],
-                                              offerThroughput: Int): Iterator[D] = {
-    val connection = new CosmosDBConnection(config)
-
-    // Check the status of the files
-    val writingBatchId = config.get[String](CosmosDBConfig.WritingBatchId)
-    val adlCheckpointPath = config.get[String](CosmosDBConfig.adlFileCheckpointPath)
-    var hdfsUtils: HdfsUtils = null
-    if (adlCheckpointPath.isDefined) {
-      hdfsUtils = new HdfsUtils(hadoopConfig)
-    }
-    val fileStoreCollection = config.get[String](CosmosDBConfig.CosmosDBFileStoreCollection)
-    var dbName: String = null
-    var collectionLink: String = null
-    if (fileStoreCollection.isDefined) {
-      dbName = config.get[String](CosmosDBConfig.Database).get
-      collectionLink = s"/dbs/$dbName/colls/${fileStoreCollection.get}"
-    }
-
-    var processedFileCount = 0
-    filePartition.files.foreach(file => {
-      var isProcessed = false
-      if (adlCheckpointPath.isDefined) {
-        isProcessed = ADLConnection.isAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, file.filePath, writingBatchId.get)
-      } else if (fileStoreCollection.isDefined) {
-        isProcessed = ADLConnection.isAdlFileProcessed(connection, collectionLink, file.filePath, writingBatchId.get)
-      }
-      processedFileCount = processedFileCount + (if (isProcessed) 1 else 0)
-    })
-    if (processedFileCount == filePartition.files.size) {
-      new ListBuffer().iterator
-    } else {
-      val iterator = savePartition(connection, iter, config, partitionCount, offerThroughput)
-
-      // Mark the file on this partition as processed
-      // Todo: refactor this part
-
-      if (adlCheckpointPath.isDefined) {
-        filePartition.files.foreach(file =>
-          ADLConnection.markAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, file.filePath, writingBatchId.get))
-      } else {
-        if (fileStoreCollection.isDefined) {
-          filePartition.files.foreach(file =>
-            ADLConnection.markAdlFileStatus(connection, collectionLink, file.filePath, writingBatchId.get, isInProgress = false, isComplete = true))
-        }
-      }
-
-      iterator
-    }
-  }
-
-  private def saveAdlPartition[D: ClassTag](iter: Iterator[D],
-                                            config: Config,
-                                            partitionCount: Int,
-                                            adlFilePath: String,
-                                            hadoopConfig: Map[String, String],
-                                            offerThroughput: Int): Iterator[D] = {
-    val connection = new CosmosDBConnection(config)
-    val iterator = savePartition(connection, iter, config, partitionCount, offerThroughput)
-
-    // Mark the adlFile on this partition as processed
-    // Todo: refactor this part
-    val adlCheckpointPath = config.get[String](CosmosDBConfig.adlFileCheckpointPath)
-    val writingBatchId = config.get[String](CosmosDBConfig.WritingBatchId)
-    if (adlCheckpointPath.isDefined) {
-      val hdfsUtils = new HdfsUtils(hadoopConfig)
-      ADLConnection.markAdlFileProcessed(hdfsUtils, adlCheckpointPath.get, adlFilePath, writingBatchId.get)
-    } else {
-      val aldFileStoreCollection = config.get[String](CosmosDBConfig.CosmosDBFileStoreCollection)
-      if (aldFileStoreCollection.isDefined) {
-        val dbName = config.get[String](CosmosDBConfig.Database).get
-        val collectionLink = s"/dbs/$dbName/colls/${aldFileStoreCollection.get}"
-        ADLConnection.markAdlFileStatus(connection, collectionLink, adlFilePath, writingBatchId.get, isInProgress = false, isComplete = true)
-      }
-    }
-
-    iterator
   }
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
