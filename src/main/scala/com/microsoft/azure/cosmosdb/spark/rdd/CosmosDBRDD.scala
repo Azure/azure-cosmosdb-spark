@@ -57,7 +57,7 @@ class CosmosDBRDD(
   override def toJavaRDD(): JavaCosmosDBRDD = JavaCosmosDBRDD(this)
 
   override def getPartitions: Array[Partition] = {
-    partitioner.computePartitions(config)
+    partitioner.computePartitions(config, requiredColumns, filters)
   }
 
   /**

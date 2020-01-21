@@ -45,4 +45,19 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
       i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
     }
   }
+
+  def computePartitions(config: Config,
+                        requiredColumns: Array[String] = Array(),
+                        filters: Array[Filter] = Array()): Array[Partition] = {
+    var connection: CosmosDBConnection = new CosmosDBConnection(config)
+    connection.reinitializeClient()
+   
+    // CosmosDB source
+    var query: String = FilterConverter.createQueryString(requiredColumns, filters)
+    var partitionKeyRanges = connection.getAllPartitions(query)
+    logInfo(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
+    Array.tabulate(partitionKeyRanges.length) {
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
+    }
+  }
 }
