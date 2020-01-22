@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.rdd
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.{CosmosDBPartition, CosmosDBPartitioner}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.{ADLFilePartition, ADLPartitionIterator, CosmosDBSpark}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBSpark}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
@@ -49,7 +49,6 @@ class CosmosDBRDD(
   // It's a Map because Configuration is not serializable
   private val hadoopConfig: mutable.Map[String, String] = HdfsUtils.getConfigurationMap(sparkContext.hadoopConfiguration)
 
-  private val adlImport = config.get(CosmosDBConfig.adlAccountFqdn).isDefined
 
   private def cosmosDBSpark = {
     CosmosDBSpark(spark, config)
@@ -58,7 +57,7 @@ class CosmosDBRDD(
   override def toJavaRDD(): JavaCosmosDBRDD = JavaCosmosDBRDD(this)
 
   override def getPartitions: Array[Partition] = {
-    partitioner.computePartitions(config, requiredColumns, filters, hadoopConfig)
+    partitioner.computePartitions(config, requiredColumns, filters)
   }
 
   /**
@@ -112,7 +111,6 @@ class CosmosDBRDD(
                         context: TaskContext): Iterator[Document] = {
 
     partition match {
-
       case cosmosDBPartition: CosmosDBPartition =>
         var cosmosDBPartition: CosmosDBPartition = partition.asInstanceOf[CosmosDBPartition]
         logInfo(s"CosmosDBRDD:compute: Start CosmosDBRDD compute task for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
@@ -129,12 +127,6 @@ class CosmosDBRDD(
           maxItems,
           requiredColumns,
           filters)
-
-      case adlFilePartition: ADLFilePartition =>
-        new ADLPartitionIterator(
-          config,
-          adlFilePartition
-        )
     }
   }
 }
