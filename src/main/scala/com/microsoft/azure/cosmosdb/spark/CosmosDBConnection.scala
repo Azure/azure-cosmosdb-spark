@@ -141,7 +141,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   private var documentClient: DocumentClient = CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
 
 
-  def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String]): DocumentBulkExecutor = {
+  def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String], maxMiniBatchUpdateCount: Int, maxMiniBatchImportSizeKB: Int): DocumentBulkExecutor = {
     if (bulkImporter == null) {
       val initializationRetryOptions = new RetryOptions()
       initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
@@ -158,7 +158,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           collectionName,
           pkDefinition,
           collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions).build()
+        ).withInitializationRetryOptions(initializationRetryOptions)
+          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
+          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
       }
       else {
         bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
@@ -166,7 +168,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           collectionName,
           getCollection.getPartitionKey,
           collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions).build()
+        ).withInitializationRetryOptions(initializationRetryOptions)
+          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
+          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
       }
     }
 

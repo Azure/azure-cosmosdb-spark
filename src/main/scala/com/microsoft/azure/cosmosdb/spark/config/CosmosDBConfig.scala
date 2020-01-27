@@ -96,6 +96,7 @@ object CosmosDBConfig {
   val PartitionKeyDefinition = "partitionkeydefinition"
   val WriteThroughputBudget = "writethroughputbudget"
   val BulkImportMaxConcurrencyPerPartitionRange = "bulkimport_maxconcurrencyperpartitionrange"
+  val MaxMiniBatchImportSizeKB = "maxminibatchimportsizekb"
 
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
@@ -170,6 +171,10 @@ object CosmosDBConfig {
   val DefaultInferStreamSchema = true
 
   val DefaultMaxConnectionPoolSize = 500
+
+  val DefaultMaxMiniBatchImportSizeKB = 100
+
+  val DefaultBulkImportMaxConcurrencyPerPartitionRange = 1
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     return parameters.map { case (x, v) => x -> v }
