@@ -44,6 +44,7 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.util.Random
+import scala.collection.JavaConversions._
 
 /**
   * The CosmosDBSpark allow fast creation of RDDs, DataFrames or Datasets from CosmosDBSpark.
@@ -205,27 +206,47 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       if (updateItems.size() >= writingBatchSize) {
         bulkUpdateResponse = updater.updateAll(updateItems, null)
-        if (!bulkUpdateResponse.getErrors.isEmpty) {
-          throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
-        }
         updateItems.clear()
       }
       if (updatePatchItems.size() >= writingBatchSize) {
         bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
+        updatePatchItems.clear()
+      }
+
+      if (bulkUpdateResponse != null) {
+        if (bulkUpdateResponse.getFailedUpdates.size() > 0) {
+          val failedUpdateIds = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getId)
+          val failedUpdatePKValues = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getPartitionKeyValue)
+
+          val failedUpdateIdPKValuesList = failedUpdateIds.zip(failedUpdatePKValues).toList.mkString(", ")
+          throw new Exception("Errors encountered in bulk update API execution. Number of failures corresponding to exception of type: "
+            + bulkUpdateResponse.getFailedUpdates.get(0).getBulkUpdateFailureException.getClass.getName + " = " + bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.size
+            + ". The global identifier (id, pk) tuples of the failed updates are: " + failedUpdateIdPKValuesList)
+        }
+
         if (!bulkUpdateResponse.getErrors.isEmpty) {
           throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
         }
-        updatePatchItems.clear()
       }
     })
     if (updateItems.size() > 0) {
       bulkUpdateResponse = updater.updateAll(updateItems, null)
-      if (!bulkUpdateResponse.getErrors.isEmpty) {
-        throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
-      }
     }
     if (updatePatchItems.size() > 0) {
       bulkUpdateResponse = updater.mergeAll(updatePatchItems, null)
+    }
+
+    if (bulkUpdateResponse != null) {
+      if (bulkUpdateResponse.getFailedUpdates.size() > 0) {
+        val failedUpdateIds = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getId)
+        val failedUpdatePKValues = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getPartitionKeyValue)
+
+        val failedUpdateIdPKValuesList = failedUpdateIds.zip(failedUpdatePKValues).toList.mkString(", ")
+        throw new Exception("Errors encountered in bulk update API execution. Number of failures corresponding to exception of type: "
+          + bulkUpdateResponse.getFailedUpdates.get(0).getBulkUpdateFailureException.getClass.getName + " = " + bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.size
+          + ". The global identifier (id, pk) tuples of the failed updates are: " + failedUpdateIdPKValuesList)
+      }
+
       if (!bulkUpdateResponse.getErrors.isEmpty) {
         throw new Exception("Errors encountered in bulk update API execution. Exceptions observed:\n" + bulkUpdateResponse.getErrors.toString)
       }
@@ -278,6 +299,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         if (!bulkImportResponse.getBadInputDocuments.isEmpty) {
           throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
         }
+        if (bulkImportResponse.getFailedImports.size() > 0) {
+          val failedImportDocs = bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.mkString(", ")
+          throw new Exception("Errors encountered in bulk import API execution. Number of failures corresponding to exception of type: "
+            + bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size()
+            + ". The failed import docs are: " + failedImportDocs)
+        }
         documents.clear()
       }
     })
@@ -288,6 +315,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       if (!bulkImportResponse.getBadInputDocuments.isEmpty) {
         throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
+      }
+      if (bulkImportResponse.getFailedImports.size() > 0) {
+        val failedImportDocs = bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.mkString(", ")
+        throw new Exception("Errors encountered in bulk import API execution. Number of failures corresponding to exception of type: "
+          + bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size()
+          + ". The failed import docs are: " + failedImportDocs)
       }
     }
   }
