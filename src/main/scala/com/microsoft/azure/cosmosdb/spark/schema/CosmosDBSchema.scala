@@ -82,8 +82,7 @@ case class CosmosDBSchema[T <: RDD[Document]](
 
   private def convertToStruct(dataType: Any): DataType = dataType match {
     case array: util.ArrayList[_] =>
-      val arrayType: immutable.Seq[DataType] = array.asScala.toList.map(x => convertToStruct(x)).distinct
-      ArrayType(if (arrayType.nonEmpty) arrayType.head else NullType, arrayType.contains(NullType))
+      typeOfArray(array.asScala.toSeq)
     case hm: util.HashMap[_, _] =>
       val fields = hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap.map {
         case (k, v) => StructField(k, convertToStruct(v))
