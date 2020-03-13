@@ -80,6 +80,20 @@ object CosmosDBConfig {
   val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
   val InferStreamSchema = "inferstreamschema"
 
+  // Structured Streaming WriteStream retry policy related
+  val WriteStreamRetryPolicyKind = "writestreamretrypolicy.kind"
+  val MaxTransientRetryCount = "writestreamretrypolicy.maxtransientretrycount"
+  val MaxTransientRetryDurationInMs = "writestreamretrypolicy.maxtransientretrydurationinms"
+  val MaxTransientRetryDelayInMs = "writestreamretrypolicy.maxtransientretrydelayinms"
+  val PoisonMessageLocation = "writestreamretrypolicy.poisonmessagelocation"
+  val TreatUnknownExceptionsAsTransient = "writestreamretrypolicy.treatunknownexceptionsastransient"
+  val DefaultWriteStreamRetryPolicyKind = "NoRetries"
+  val DefaultMaxTransientRetryCount = Int.MaxValue
+  val DefaultMaxTransientRetryDurationInMs = 1000 * 60 * 60 // 1 hour
+  val DefaultMaxTransientRetryDelayInMs = 1000 // 1 second
+  val DefaultPoisonMessageLocation = ""
+  val DefaultTreatUnknownExceptionsAsTransient = true
+  
   // Not a config, constant
   val StreamingTimestampToken = "tsToken"
 

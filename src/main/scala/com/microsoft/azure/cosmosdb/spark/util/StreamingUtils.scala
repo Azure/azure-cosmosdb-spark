@@ -30,6 +30,7 @@ import com.microsoft.azure.cosmosdb.spark._
 import com.microsoft.azure.cosmosdb.{Document, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
+import com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBWriteStreamRetryPolicy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -53,7 +54,11 @@ object StreamingUtils extends Serializable {
 
 class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
 
-  def importStreamingData[D: ClassTag](iter: Iterator[D], schemaOutput: Seq[Attribute], config: Config) = {
+  def importStreamingData[D: ClassTag](
+    iter: Iterator[D],
+    schemaOutput: Seq[Attribute],
+    config: Config,
+    retryPolicy: CosmosDBWriteStreamRetryPolicy) = {
 
     val schema = StructType.fromAttributes(schemaOutput)
 
@@ -82,13 +87,14 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
         case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
       }
       if (upsert)
-        createDocumentObs = asyncConnection.upsertDocument(document, null)
+        createDocumentObs = retryPolicy.process(document, null, asyncConnection.upsertDocument)
       else
-        createDocumentObs = asyncConnection.createDocument(document, null)
+        createDocumentObs = retryPolicy.process(document, null, asyncConnection.createDocument)
       observables.add(createDocumentObs)
       batchSize = batchSize + 1
       if (batchSize % writingBatchSize == 0) {
-        Observable.merge(observables).toBlocking.last()
+        Observable.merge(observables).toBlocking().lastOrDefault(null)
+        
         if (writingBatchDelayMs > 0) {
           TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
         }
@@ -99,10 +105,10 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
     })
     if (!observables.isEmpty) {
       numberOfBatchesWritten+=1
-      Observable.merge(observables).toBlocking.last()
+      Observable.merge(observables).toBlocking.lastOrDefault(null)
     }
 
     var latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
-    logInfo(s"Number of batches written is ${numberOfBatchesWritten} with latency ${latency} milliseconds")
+    logError(s"Number of batches written is ${numberOfBatchesWritten} with latency ${latency} milliseconds")
   }
 }
