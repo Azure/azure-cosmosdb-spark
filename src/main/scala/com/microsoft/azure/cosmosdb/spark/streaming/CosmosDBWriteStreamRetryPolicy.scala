@@ -25,11 +25,19 @@ package com.microsoft.azure.cosmosdb.spark.streaming
 import com.microsoft.azure.cosmosdb.{Document, ResourceResponse, RequestOptions}
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.types.StructType
 import java.time.Instant;
 import java.time.temporal.ChronoField;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
 import rx.Observable
+import scala.reflect.ClassTag
+import scala.collection
+import scala.collection.JavaConverters
 
 class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String]) 
     extends CosmosDBLoggingTrait
@@ -65,24 +73,38 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
         new DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap)
     }
 
-    def process(document: Document,
+    def process[D: ClassTag](iter: Iterator[D],
+                schema: StructType,
                 requestOptions: RequestOptions,
-                task: Function2[Document, RequestOptions, Observable[ResourceResponse[Document]]]): Observable[ResourceResponse[Document]] = {
+                maxWriteConcurrency: Integer,
+                task: Function2[Document, RequestOptions, Observable[ResourceResponse[Document]]]): Observable[ResourceResponse[Document]] =
+    {
         val maxRetries = this.config.getMaxTransientRetryCount()
         val maxRetryDelayInMs = this.config.getMaxTransientRetryDelayInMs()
+
         val retryUntil = Instant.now().get(ChronoField.MILLI_OF_SECOND) + this.config.getMaxTransientRetryDurationInMs();
         val attempts = new AtomicLong(0L);
 
-        CosmosDBWriteStreamRetryPolicyUtil.ProcessWithRetries(
-            document,
+        val itemConversionFunc = (item: D) => item match
+        {
+            case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
+            case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
+        }
+
+        val scalaItems : Iterable[D] = iter.toIterable
+
+        CosmosDBWriteStreamRetryPolicyUtil.ProcessWithRetries[D](
+            scalaItems,
+            itemConversionFunc,
             requestOptions,
             task,
-            this.config.isTransient,
+            this.config.isTransient _,
             (msg: String) => logError(msg),
             (throwable: Throwable, document: Document) => this.notificationHandler.onPoisonMessage(throwable, document),
             this.rnd,
             maxRetries,
             maxRetryDelayInMs,
+            maxWriteConcurrency,
             retryUntil,
             attempts)
     } 

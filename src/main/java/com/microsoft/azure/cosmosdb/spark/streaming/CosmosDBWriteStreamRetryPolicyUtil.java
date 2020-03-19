@@ -25,16 +25,24 @@ package com.microsoft.azure.cosmosdb.spark.streaming;
 import com.microsoft.azure.cosmosdb.Document;
 import com.microsoft.azure.cosmosdb.RequestOptions;
 import com.microsoft.azure.cosmosdb.ResourceResponse;
+
+import akka.actor.DeadLetterActorRef;
+import akka.dispatch.sysmsg.DeathWatchNotification;
 import rx.Observable;
 import java.time.Instant;
 import java.time.temporal.ChronoField;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
+
+import scala.reflect.ClassTag;
 import scala.util.Random;
+import scala.collection.JavaConverters;
+import scala.collection.JavaConverters$;
 
 public final class CosmosDBWriteStreamRetryPolicyUtil {
-    public static Observable<ResourceResponse<Document>> ProcessWithRetries(
-        final Document document,
+    public static <D> Observable<ResourceResponse<Document>> ProcessWithRetries(
+        final scala.collection.Iterable<D> scalaItems,
+        final scala.Function1<D, Document> itemConversionFunc,
         final RequestOptions requestOptions,
         final scala.Function2<Document, RequestOptions, Observable<ResourceResponse<Document>>> task,
         final scala.Function1<Throwable, Boolean> isTransientFunc,
@@ -43,15 +51,25 @@ public final class CosmosDBWriteStreamRetryPolicyUtil {
         final Random rnd,
         final int maxRetries,
         final int maxRetryDelayInMs,
+        final int maxWriteConcurrency,
         final int retryUntil,
         final AtomicLong attempts)
     {
-        return task.apply(document, requestOptions)
+        Iterable<D> items = JavaConverters.asJavaIterableConverter(scalaItems).asJava();
+
+        return Observable.just(items)
+        .flatMapIterable(i -> i)
+        .flatMap(i -> {
+            loggingAction.apply("Item --> Document");
+            Document document =  itemConversionFunc.apply(i);
+            loggingAction.apply("Item --> Document completed. " + document.getId());
+
+            return task.apply(document, requestOptions)
             .retryWhen(errors -> errors.<Long>flatMap(t -> {
-                Long attempt = attempts.incrementAndGet();
-                Boolean isTransient = isTransientFunc.apply(t);
-                Integer now = Instant.now().get(ChronoField.MILLI_OF_SECOND);
-                Long delay = (long)rnd.nextInt(maxRetryDelayInMs);
+                final Long attempt = attempts.incrementAndGet();
+                final Boolean isTransient = isTransientFunc.apply(t);
+                final Integer now = Instant.now().get(ChronoField.MILLI_OF_SECOND);
+                final Long delay = (long) rnd.nextInt(maxRetryDelayInMs);
 
                 loggingAction.apply("PROCESSWITHRETRIES attempt: " + attempt.toString() + ", isTransient: " + isTransient.toString() + ", Now: " + now.toString() + ", Delay: " + delay.toString());
 
@@ -70,6 +88,7 @@ public final class CosmosDBWriteStreamRetryPolicyUtil {
                 // add default handler to config
                 onPoisonMessageAction.apply(t, document);
                 return Observable.<ResourceResponse<Document>>empty();
-            });
+            }).doOnNext((r) -> loggingAction.apply("Document " + document.getId() + " Statsu Code: " + r.getStatusCode() + " successfully ingested."));
+        }, maxWriteConcurrency);
     }
 }
