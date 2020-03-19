@@ -90,7 +90,7 @@ object CosmosDBConfig {
   val DefaultWriteStreamRetryPolicyKind = "NoRetries"
   val DefaultMaxTransientRetryCount = Int.MaxValue
   val DefaultMaxTransientRetryDurationInMs = 1000 * 60 * 60 // 1 hour
-  val DefaultMaxTransientRetryDelayInMs = 1000 // 1 second
+  val DefaultMaxTransientRetryDelayInMs = 100 // 0.1 second
   val DefaultPoisonMessageLocation = ""
   val DefaultTreatUnknownExceptionsAsTransient = true
   

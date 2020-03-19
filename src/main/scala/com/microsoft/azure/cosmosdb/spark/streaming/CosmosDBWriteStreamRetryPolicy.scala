@@ -62,8 +62,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
             case _ => new NoRetriesCosmosDBWriteStreamRetryPolicyConfig()
         }
 
-        logError("Retry policy kind '" + retryPolicyKind + "' --> " + retryPolicyConfig)
-        // TODO logDebug("Retry policy kind '" + retryPolicyKind + "' --> " + retryPolicyConfig)
+        logDebug("Retry policy kind '" + retryPolicyKind + "' --> " + retryPolicyConfig)
 
         retryPolicyConfig
     }
@@ -99,7 +98,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
             requestOptions,
             task,
             this.config.isTransient _,
-            (msg: String) => logError(msg),
+            loggingAction = (msg: String) => logDebug(msg),
             (throwable: Throwable, document: Document) => this.notificationHandler.onPoisonMessage(throwable, document),
             this.rnd,
             maxRetries,

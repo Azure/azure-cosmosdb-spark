@@ -186,13 +186,13 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
 
   def upsertDocument(document: Document,
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logDebug(s"Upserting document $document")
+    logTrace(s"Upserting document $document")
     asyncDocumentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
 
   def createDocument(document: Document,
                      requestOptions: RequestOptions): Observable[ResourceResponse[Document]] = {
-    logDebug(s"Creating document $document")
+    logTrace(s"Creating document $document")
     asyncDocumentClient.createDocument(collectionLink, document, requestOptions, false)
   }
 

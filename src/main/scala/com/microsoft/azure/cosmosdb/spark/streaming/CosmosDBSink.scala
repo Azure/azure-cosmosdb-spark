@@ -38,9 +38,9 @@ private[spark] class CosmosDBSink(sqlContext: SQLContext,
   
   override def addBatch(batchId: Long, data: DataFrame): Unit = {
     if (batchId <= lastBatchId) {
-      logError(s"Rerun batchId $batchId")
+      logDebug(s"Rerun batchId $batchId")
     } else {
-      logError(s"Run batchId $batchId")
+      logDebug(s"Run batchId $batchId")
       lastBatchId = batchId
     }
 
@@ -48,10 +48,9 @@ private[spark] class CosmosDBSink(sqlContext: SQLContext,
     val schemaOutput = queryExecution.analyzed.output
     val config = Config(configMap)
     val rdd = queryExecution.toRdd
-    logError(s"Partition Count:" + rdd.partitions.size)
+    logTrace(s"Partition Count:" + rdd.partitions.size)
 
     rdd.foreachPartition( iter => {
-      logError(s"Creating StreamingWriteTask")
       val writeTask = new StreamingWriteTask()
       writeTask.importStreamingData(iter, schemaOutput, config, retryPolicy)
     })

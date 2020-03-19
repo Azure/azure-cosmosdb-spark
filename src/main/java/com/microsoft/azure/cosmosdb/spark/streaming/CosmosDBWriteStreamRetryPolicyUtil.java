@@ -25,19 +25,13 @@ package com.microsoft.azure.cosmosdb.spark.streaming;
 import com.microsoft.azure.cosmosdb.Document;
 import com.microsoft.azure.cosmosdb.RequestOptions;
 import com.microsoft.azure.cosmosdb.ResourceResponse;
-
-import akka.actor.DeadLetterActorRef;
-import akka.dispatch.sysmsg.DeathWatchNotification;
-import rx.Observable;
 import java.time.Instant;
 import java.time.temporal.ChronoField;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
-
-import scala.reflect.ClassTag;
+import rx.Observable;
 import scala.util.Random;
 import scala.collection.JavaConverters;
-import scala.collection.JavaConverters$;
 
 public final class CosmosDBWriteStreamRetryPolicyUtil {
     public static <D> Observable<ResourceResponse<Document>> ProcessWithRetries(
@@ -60,9 +54,7 @@ public final class CosmosDBWriteStreamRetryPolicyUtil {
         return Observable.just(items)
         .flatMapIterable(i -> i)
         .flatMap(i -> {
-            loggingAction.apply("Item --> Document");
             Document document =  itemConversionFunc.apply(i);
-            loggingAction.apply("Item --> Document completed. " + document.getId());
 
             return task.apply(document, requestOptions)
             .retryWhen(errors -> errors.<Long>flatMap(t -> {
@@ -71,7 +63,14 @@ public final class CosmosDBWriteStreamRetryPolicyUtil {
                 final Integer now = Instant.now().get(ChronoField.MILLI_OF_SECOND);
                 final Long delay = (long) rnd.nextInt(maxRetryDelayInMs);
 
-                loggingAction.apply("PROCESSWITHRETRIES attempt: " + attempt.toString() + ", isTransient: " + isTransient.toString() + ", Now: " + now.toString() + ", Delay: " + delay.toString());
+                loggingAction.apply(
+                    String.format(
+                        "Retry attempt: %d, isTransient: %s, Now: %d, RetryUntil: %d, Delay: %d",
+                        attempt,
+                        isTransient.toString(),
+                        now,
+                        retryUntil,
+                        delay));
 
                 if (isTransient && 
                     attempt < maxRetries &&
@@ -88,7 +87,11 @@ public final class CosmosDBWriteStreamRetryPolicyUtil {
                 // add default handler to config
                 onPoisonMessageAction.apply(t, document);
                 return Observable.<ResourceResponse<Document>>empty();
-            }).doOnNext((r) -> loggingAction.apply("Document " + document.getId() + " Statsu Code: " + r.getStatusCode() + " successfully ingested."));
+            }).doOnNext((r) -> loggingAction.apply(
+                String.format(
+                    "Ingestion of document '%s' completed with status code: %d",
+                    document.getId(),
+                    r.getStatusCode())));
         }, maxWriteConcurrency);
     }
 }

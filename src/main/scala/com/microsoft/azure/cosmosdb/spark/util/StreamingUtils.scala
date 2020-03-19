@@ -87,6 +87,6 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
     val count = result.count().toBlocking().last()
 
     var latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
-    logError(s"Batch of ${count} records written with latency ${latency} milliseconds")
+    logInfo(s"Batch of ${count} records written with latency ${latency} milliseconds")
   }
 }

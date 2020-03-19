@@ -56,18 +56,18 @@ class DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap: Map[
         lastError.printStackTrace(new PrintWriter(sw))
 
         val callstack = sw.toString()
-        val error = lastError.getMessage() + System.lineSeparator + callstack
+        val error = s"${lastError.getMessage()}${System.lineSeparator}${callstack}"
         val id = document.getId() 
 
         val payload = document.toJson()
 
-        logError(s"POSION MESSAGE Id: ${id}, Error: ${error}, Document payload: ${payload}")
+        logWarning(s"POSION MESSAGE Id: ${id}, Error: ${error}, Document payload: ${payload}")
 
         if (this.poisonMessageLocation != "")
         {
-            val prefix = DateTimeFormatter.ISO_INSTANT.format(Instant.now()) + "_" + sequenceNumber.incrementAndGet().toString()
-            val errorFile = prefix + "_" + id + "_Error.txt"
-            val payloadFile = prefix + "_" + id + "_Payload.json"   
+            val prefix = s"${DateTimeFormatter.ISO_INSTANT.format(Instant.now())}_${sequenceNumber.incrementAndGet().toString()}"
+            val errorFile = s"${prefix}_${id}_Error.txt"
+            val payloadFile = s"${prefix}_${id}_Payload.json"   
 
             this.hdfsUtils.write(this.poisonMessageLocation, errorFile, error)
             this.hdfsUtils.write(this.poisonMessageLocation, payloadFile, payload)

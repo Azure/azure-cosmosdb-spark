@@ -64,8 +64,7 @@ class DefaultCosmosDBWriteStreamRetryPolicyConfig(configMap: Map[String, String]
 
         if (treatUnknownExceptionsAsTransient)
         {
-            //logWarning(s"TRANSIENT error: ${t.getMessage}, CallStack: ${sw.toString}")
-            logError(s"TRANSIENT error: ${t.getMessage}, CallStack: ${sw.toString}")
+            logWarning(s"TRANSIENT error: ${t.getMessage}, CallStack: ${sw.toString}")
             true
         }
         else
