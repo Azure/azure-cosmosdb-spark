@@ -33,6 +33,7 @@ import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.ContinuationTokenTrackingIterator
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal.HttpConstants.SubStatusCodes
 import org.apache.commons.lang3.StringUtils
@@ -358,14 +359,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       while(!successReadChangeFeed && retryCount < maxRetryCountOnServiceUnavailable && !isGone) {
         // Query for change feed
         try {
-          val response = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema)
+          iteratorDocument = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema, updateTokens _)
           successReadChangeFeed = true
-          iteratorDocument = response._1
-          val nextToken = response._2
-
-          updateTokens(currentToken, nextToken, partitionId)
-
-          logDebug(s"changeFeedOptions.partitionKeyRangeId = ${changeFeedOptions.getPartitionKeyRangeId}, continuation = $currentToken, new token = ${response._2}, iterator.hasNext = ${response._1.hasNext}")
         }
         catch {
           case docex: DocumentClientException => handleGoneException(connection, docex)
