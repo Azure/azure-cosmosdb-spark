@@ -323,12 +323,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
-        logDebug("Documents to be ingested: " + getDocumentsDebugString(
-            connection,
-            documents,
-            partitionKeyDefinition
-          ))
-
         bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
         if (!bulkImportResponse.getErrors.isEmpty) {
           throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
@@ -355,11 +349,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
     })
     if (documents.size() > 0) {
-      logDebug("Documents to be ingested: " + getDocumentsDebugString(
-          connection,
-          documents,
-          partitionKeyDefinition
-        ))
       bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
       if (!bulkImportResponse.getErrors.isEmpty) {
         throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
