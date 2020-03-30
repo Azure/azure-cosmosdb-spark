@@ -253,6 +253,37 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     }
   }
 
+  private def getDocumentsDebugString(
+    connection: CosmosDBConnection,
+    docs: java.util.List[String],
+    partitionKeyDefinition: Option[String]): String =
+  {
+    val pkDefinitionModel = connection.getPartitionKeyDefinition(partitionKeyDefinition)
+
+    logDebug(s"PartitionKeyDefinition: Kind: ${pkDefinitionModel.getKind().toString()}")
+    val version = pkDefinitionModel.getVersion()
+    if (version != null)
+    {
+      logDebug(s"PartitionKeyDefinition: Version: ${version.toString()}")
+    }
+    logDebug(s"PartitionKeyDefinition: Paths - ${pkDefinitionModel.getPaths().mkString("|")}")
+
+    val sb = new StringBuilder()
+    docs.foreach((d) =>
+      {
+        val doc = d.toString()
+        val internalPK = com.microsoft.azure.documentdb.bulkexecutor.internal.DocumentAnalyzer
+          .extractPartitionKeyValue(doc, pkDefinitionModel)
+        val effectivePK = internalPK
+          .getEffectivePartitionKeyString(pkDefinitionModel, true)
+        val jsonPK = internalPK
+          .toJson()
+        sb.append(jsonPK).append("(").append(effectivePK).append(") --> ").append(doc).append(", ")
+      }
+    )
+    sb.toString()
+  }
+
   private def bulkImport[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
                                       offerThroughput: Int,
@@ -292,6 +323,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
       documents.add(document.toJson())
       if (documents.size() >= writingBatchSize) {
+        logDebug("Documents to be ingested: " + getDocumentsDebugString(
+            connection,
+            documents,
+            partitionKeyDefinition
+          ))
+
         bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
         if (!bulkImportResponse.getErrors.isEmpty) {
           throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
@@ -300,15 +337,29 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
         }
         if (bulkImportResponse.getFailedImports.size() > 0) {
-          val failedImportDocs = bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.mkString(", ")
-          throw new Exception("Errors encountered in bulk import API execution. Number of failures corresponding to exception of type: "
-            + bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size()
-            + ". The failed import docs are: " + failedImportDocs)
+          val failedImportDocs = getDocumentsDebugString(
+            connection,
+            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport,
+            partitionKeyDefinition
+          )
+
+          throw new Exception(
+            "Errors encountered in bulk import API execution. " +
+            "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
+            "Number of failures corresponding to exception of type: " +
+            bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + 
+            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
+            ". The failed import docs are: " + failedImportDocs)
         }
         documents.clear()
       }
     })
     if (documents.size() > 0) {
+      logDebug("Documents to be ingested: " + getDocumentsDebugString(
+          connection,
+          documents,
+          partitionKeyDefinition
+        ))
       bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
       if (!bulkImportResponse.getErrors.isEmpty) {
         throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
@@ -317,10 +368,19 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
       }
       if (bulkImportResponse.getFailedImports.size() > 0) {
-        val failedImportDocs = bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.mkString(", ")
-        throw new Exception("Errors encountered in bulk import API execution. Number of failures corresponding to exception of type: "
-          + bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size()
-          + ". The failed import docs are: " + failedImportDocs)
+        val failedImportDocs = getDocumentsDebugString(
+          connection,
+          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport,
+          partitionKeyDefinition
+        )
+
+        throw new Exception(
+          "Errors encountered in bulk import API execution. " +
+          "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
+          "Number of failures corresponding to exception of type: " +
+          bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + 
+          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
+          ". The failed import docs are: " + failedImportDocs)
       }
     }
   }

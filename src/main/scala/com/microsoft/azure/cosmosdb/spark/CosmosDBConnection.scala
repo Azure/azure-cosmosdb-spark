@@ -140,6 +140,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   private var documentClient: DocumentClient = CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
 
+  def getPartitionKeyDefinition(partitionKeyDefinition: Option[String]) : PartitionKeyDefinition = {
+    if (partitionKeyDefinition.isDefined) {
+        val pkDefinition = new PartitionKeyDefinition()
+        val paths: ListBuffer[String] = new ListBuffer[String]()
+        paths.add(partitionKeyDefinition.get)
+        pkDefinition.setPaths(paths)  
+
+        pkDefinition
+    }
+    else {
+      getCollection.getPartitionKey
+    }
+  }
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String], maxMiniBatchUpdateCount: Int, maxMiniBatchImportSizeKB: Int): DocumentBulkExecutor = {
     if (bulkImporter == null) {
@@ -147,31 +160,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
       initializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
 
-      if (partitionKeyDefinition.isDefined) {
-        val pkDefinition = new PartitionKeyDefinition()
-        val paths: ListBuffer[String] = new ListBuffer[String]()
-        paths.add(partitionKeyDefinition.get)
-        pkDefinition.setPaths(paths)
+      val pkDefinition = getPartitionKeyDefinition(partitionKeyDefinition)
 
-        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
-          databaseName,
-          collectionName,
-          pkDefinition,
-          collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions)
-          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
-          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
-      }
-      else {
-        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
-          databaseName,
-          collectionName,
-          getCollection.getPartitionKey,
-          collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions)
-          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
-          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
-      }
+      bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
+        databaseName,
+        collectionName,
+        pkDefinition,
+        collectionThroughput
+      ).withInitializationRetryOptions(initializationRetryOptions)
+        .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
+        .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
     }
 
     bulkImporter
