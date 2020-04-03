@@ -140,6 +140,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   private var documentClient: DocumentClient = CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
 
+  def getPartitionKeyDefinition(partitionKeyDefinition: Option[String]) : PartitionKeyDefinition = {
+    if (partitionKeyDefinition.isDefined) {
+        val pkDefinition = new PartitionKeyDefinition()
+        val paths: ListBuffer[String] = new ListBuffer[String]()
+        paths.add(partitionKeyDefinition.get)
+        pkDefinition.setPaths(paths)  
+
+        pkDefinition
+    }
+    else {
+      getCollection.getPartitionKey
+    }
+  }
 
   def getDocumentBulkImporter(collectionThroughput: Int, partitionKeyDefinition: Option[String], maxMiniBatchUpdateCount: Int, maxMiniBatchImportSizeKB: Int): DocumentBulkExecutor = {
     if (bulkImporter == null) {
@@ -147,31 +160,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       initializationRetryOptions.setMaxRetryAttemptsOnThrottledRequests(1000)
       initializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
 
-      if (partitionKeyDefinition.isDefined) {
-        val pkDefinition = new PartitionKeyDefinition()
-        val paths: ListBuffer[String] = new ListBuffer[String]()
-        paths.add(partitionKeyDefinition.get)
-        pkDefinition.setPaths(paths)
+      val pkDefinition = getPartitionKeyDefinition(partitionKeyDefinition)
 
-        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
-          databaseName,
-          collectionName,
-          pkDefinition,
-          collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions)
-          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
-          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
-      }
-      else {
-        bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
-          databaseName,
-          collectionName,
-          getCollection.getPartitionKey,
-          collectionThroughput
-        ).withInitializationRetryOptions(initializationRetryOptions)
-          .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
-          .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
-      }
+      bulkImporter = DocumentBulkExecutor.builder.from(documentClient,
+        databaseName,
+        collectionName,
+        pkDefinition,
+        collectionThroughput
+      ).withInitializationRetryOptions(initializationRetryOptions)
+        .withMaxUpdateMiniBatchCount(maxMiniBatchUpdateCount)
+        .withMaxMiniBatchSize(maxMiniBatchImportSizeKB * 1024).build()
     }
 
     bulkImporter
@@ -252,8 +250,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
 
-  def readChangeFeed(changeFeedOptions: ChangeFeedOptions, isStreaming: Boolean, shouldInferStreamSchema: Boolean): Tuple2[Iterator[Document], String] = {
-    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize().toString()}, ContinuationToken: ${changeFeedOptions.getRequestContinuation()}, PartitionId: ${changeFeedOptions.getPartitionKeyRangeId()}, ShouldInferSchema: ${shouldInferStreamSchema.toString()}")
+  def readChangeFeed(
+    changeFeedOptions: ChangeFeedOptions,
+    isStreaming: Boolean,
+    shouldInferStreamSchema: Boolean,
+    updateTokenFunc: Function3[String, String, String, Unit]
+    ): Iterator[Document] = {
+
+    val partitionId = changeFeedOptions.getPartitionKeyRangeId()
+
+    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize().toString()}, ContinuationToken: ${changeFeedOptions.getRequestContinuation()}, PartitionId: ${partitionId}, ShouldInferSchema: ${shouldInferStreamSchema.toString()}")
     
     // The ChangeFeed API in the SDK allows accessing the continuation token
     // from the latest HTTP Response
@@ -276,17 +282,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     var lastProcessedIdBookmark = ""
 
     // The original continuation that has been passed to this method by the caller
-    var originalContinuation = changeFeedOptions.getRequestContinuation()
+    val originalContinuation = changeFeedOptions.getRequestContinuation()
+    var currentContinuation = originalContinuation
 
     // The next continuation token that is returned to the caller to continue
     // processing the change feed
     var nextContinuation = changeFeedOptions.getRequestContinuation()
-    if (originalContinuation != null && 
-        originalContinuation.contains("|"))
+    if (currentContinuation != null && 
+        currentContinuation.contains("|"))
     {
-      val continuationFragments = originalContinuation.split('|')
-      originalContinuation = continuationFragments(0)
-      changeFeedOptions.setRequestContinuation(originalContinuation)
+      val continuationFragments = currentContinuation.split('|')
+      currentContinuation = continuationFragments(0)
+      changeFeedOptions.setRequestContinuation(currentContinuation)
       lastProcessedIdBookmark = continuationFragments(1)
       foundBookmark = false
     }
@@ -295,12 +302,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     // after a bookmark in the form of <blockStartContinuation>|<lastProcessedIdBookmark>
     // Meaning the <blockStartContinuation> needs to be at a previous or the same page as the change record
     // document with Id <lastProcessedIdBookmark>
-    var previousBlockStartContinuation = originalContinuation
+    var previousBlockStartContinuation = currentContinuation
 
     // blockStartContinuation is used as a place holder to store the feedResponse.getResponseContinuation()
     // of the previous HTTP response to be able to apply it to previousBlockStartContinuation
     // accordingly
-    var blockStartContinuation = originalContinuation
+    var blockStartContinuation = currentContinuation
 
     // This method can result in reading the next page of the changefeed and changing the continuation token header
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
@@ -309,7 +316,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     // If processing from the beginning (no continuation token passed into this method)
     // it is safe to increase previousBlockStartContinuation here because we always at least return
     // one page
-    if (Option(originalContinuation).getOrElse("").isEmpty)
+    if (Option(currentContinuation).getOrElse("").isEmpty)
     {
       blockStartContinuation = feedResponse.getResponseContinuation()
       previousBlockStartContinuation = blockStartContinuation
@@ -392,7 +399,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       }
       
       logDebug(s"<-- readChangeFeed, Count: ${cfDocuments.length.toString()}, NextContinuation: ${nextContinuation}")
-      Tuple2.apply(cfDocuments.iterator(), nextContinuation)
+      
+      updateTokenFunc(originalContinuation, nextContinuation, partitionId)
+      logDebug(s"changeFeedOptions.partitionKeyRangeId = ${partitionId}, continuation = $originalContinuation, new token = ${nextContinuation}")
+      cfDocuments.iterator()
     } else 
     {
       // next Continuation Token is plain and simple when not using Streaming because
@@ -400,7 +410,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       // in this case - so there doesn't need to be any suffix in the continutaion token returned
       nextContinuation = feedResponse.getResponseContinuation()
       logDebug(s"<-- readChangeFeed, Non-Streaming, NextContinuation: ${nextContinuation}")
-      Tuple2.apply(feedResponse.getQueryIterator, nextContinuation)
+      new ContinuationTokenTrackingIterator[Document](
+            feedResponse,
+            updateTokenFunc,
+            (msg:String) => logDebug(msg),
+            partitionId
+          )
     }
   }
 

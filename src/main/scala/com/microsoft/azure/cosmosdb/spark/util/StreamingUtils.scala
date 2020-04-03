@@ -27,9 +27,10 @@ import java.time.{LocalDate, LocalDateTime, Period}
 import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark._
-import com.microsoft.azure.cosmosdb.{Document, ResourceResponse}
+import com.microsoft.azure.cosmosdb.{Document, RequestOptions, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
+import com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBWriteStreamRetryPolicy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -53,56 +54,39 @@ object StreamingUtils extends Serializable {
 
 class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
 
-  def importStreamingData[D: ClassTag](iter: Iterator[D], schemaOutput: Seq[Attribute], config: Config) = {
-
-    val schema = StructType.fromAttributes(schemaOutput)
+  def importStreamingData[D: ClassTag](
+    iter: Iterator[D],
+    schemaOutput: Seq[Attribute],
+    config: Config,
+    retryPolicy: CosmosDBWriteStreamRetryPolicy) = {
 
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
       .toBoolean
-    val writingBatchSize = config
+    val maxWriteConcurrency = config
       .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
       .toInt
-    val writingBatchDelayMs = config
-      .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
-      .toInt
+
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
-    var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
-    var createDocumentObs: Observable[ResourceResponse[Document]] = null
-    var batchSize = 0
-    var numberOfBatchesWritten = 0
     var startTime = LocalDateTime.now()
 
-    logInfo(s"Writing batch size is ${writingBatchSize}")
+    logError(s"Max. write concurrency is ${maxWriteConcurrency}")
 
-    iter.foreach(item => {
-      val document: Document = item match {
-        case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
-        case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
-      }
+    val defaultRequestOptions : RequestOptions = null
+
+    val schema = StructType.fromAttributes(schemaOutput)
+
+    val result : Observable[ResourceResponse[Document]] = {
       if (upsert)
-        createDocumentObs = asyncConnection.upsertDocument(document, null)
+        retryPolicy.process(iter, schema, defaultRequestOptions, maxWriteConcurrency, asyncConnection.upsertDocument)
       else
-        createDocumentObs = asyncConnection.createDocument(document, null)
-      observables.add(createDocumentObs)
-      batchSize = batchSize + 1
-      if (batchSize % writingBatchSize == 0) {
-        Observable.merge(observables).toBlocking.last()
-        if (writingBatchDelayMs > 0) {
-          TimeUnit.MILLISECONDS.sleep(writingBatchDelayMs)
-        }
-        observables.clear()
-        batchSize = 0
-        numberOfBatchesWritten+=1
-      }
-    })
-    if (!observables.isEmpty) {
-      numberOfBatchesWritten+=1
-      Observable.merge(observables).toBlocking.last()
+        retryPolicy.process(iter, schema, defaultRequestOptions, maxWriteConcurrency, asyncConnection.createDocument)
     }
 
+    val count = result.count().toBlocking().last()
+
     var latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
-    logInfo(s"Number of batches written is ${numberOfBatchesWritten} with latency ${latency} milliseconds")
+    logInfo(s"Batch of ${count} records written with latency ${latency} milliseconds")
   }
 }
