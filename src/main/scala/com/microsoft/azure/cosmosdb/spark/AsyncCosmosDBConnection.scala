@@ -57,7 +57,7 @@ object AsyncCosmosDBConnection {
   def getClientConfiguration(config: Config): AsyncClientConfiguration = {
     // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
-    val mode = config.get[String](CosmosDBConfig.ConnectionMode).get
+    val mode = config.getOrElse[String](CosmosDBConfig.ConnectionMode, ConnectionMode.Direct.toString())
     var connectionMode: ConnectionMode = ConnectionMode.Direct
     if("gateway".equalsIgnoreCase(mode)) {
       connectionMode = ConnectionMode.Gateway
