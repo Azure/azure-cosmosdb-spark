@@ -103,9 +103,11 @@ object AsyncCosmosDBConnection {
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
+    val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
+
     AsyncClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
-      config.get[String](CosmosDBConfig.Masterkey).get,
+      config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken),
       connectionPolicy,
       consistencyLevel
     )

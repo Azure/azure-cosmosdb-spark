@@ -156,20 +156,20 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     }
 
     // Use min(writeThroughputBudget, collectionThroughput) - utilized only in bulk import
-    val connection: CosmosDBConnection = new CosmosDBConnection(writeConfig)
-    var collectionThroughput: Int = 0
-    collectionThroughput = connection.getCollectionThroughput
-
-    val writeThroughputBudget = writeConfig.get[String](CosmosDBConfig.WriteThroughputBudget)
-    var offerThroughput: Int = collectionThroughput
-    if (writeThroughputBudget.isDefined) {
-      offerThroughput = Math.min(writeThroughputBudget.get.toInt, collectionThroughput)
-    }
+//    val connection: CosmosDBConnection = new CosmosDBConnection(writeConfig)
+//    var collectionThroughput: Int = 0
+//    collectionThroughput = connection.getCollectionThroughput
+//
+//    val writeThroughputBudget = writeConfig.get[String](CosmosDBConfig.WriteThroughputBudget)
+//    var offerThroughput: Int = collectionThroughput
+//    if (writeThroughputBudget.isDefined) {
+//      offerThroughput = Math.min(writeThroughputBudget.get.toInt, collectionThroughput)
+//    }
 
     logInfo("Write config: " + writeConfig.toString)
 
     val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
-        savePartition(iter, writeConfig, numPartitions, offerThroughput), preservesPartitioning = true)
+        savePartition(iter, writeConfig, numPartitions), preservesPartitioning = true)
     mapRdd.collect()
   }
 
@@ -376,17 +376,15 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
-                                         partitionCount: Int,
-                                         offerThroughput: Int): Iterator[D] = {
+                                         partitionCount: Int): Iterator[D] = {
     val connection = new CosmosDBConnection(config)
-    savePartition(connection, iter, config, partitionCount, offerThroughput)
+    savePartition(connection, iter, config, partitionCount)
   }
 
   private def savePartition[D: ClassTag](connection: CosmosDBConnection,
                                           iter: Iterator[D],
                                           config: Config,
-                                          partitionCount: Int,
-                                          offerThroughput: Int): Iterator[D] = {
+                                          partitionCount: Int): Iterator[D] = {
 
     val connection:CosmosDBConnection = new CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
@@ -438,6 +436,16 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
+
+    var offerThroughput: Int = 0
+    if (isBulkImporting || isBulkUpdating){
+      // Use min(writeThroughputBudget, collectionThroughput) - utilized only in bulk import and not used in async mode
+      offerThroughput = connection.getCollectionThroughput
+      val writeThroughputBudget = config.get[String](CosmosDBConfig.WriteThroughputBudget)
+      if (writeThroughputBudget.isDefined) {
+        offerThroughput = Math.min(writeThroughputBudget.get.toInt, offerThroughput)
+      }
+    }
 
     if (iter.nonEmpty) {
       if (isBulkUpdating) {
