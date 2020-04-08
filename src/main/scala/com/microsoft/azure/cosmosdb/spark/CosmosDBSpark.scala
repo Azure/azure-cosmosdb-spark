@@ -147,29 +147,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       case _: Throwable => // no op
     }
 
-    var partitionMap = mutable.Map[Int, Partition]()
-    try {
-      // The .partitions call can throw NullRef for non-parallel RDD
-      val partitions = rdd.partitions
-    } catch {
-      case _: Throwable => // no op
-    }
-
-    // Use min(writeThroughputBudget, collectionThroughput) - utilized only in bulk import
-//    val connection: CosmosDBConnection = new CosmosDBConnection(writeConfig)
-//    var collectionThroughput: Int = 0
-//    collectionThroughput = connection.getCollectionThroughput
-//
-//    val writeThroughputBudget = writeConfig.get[String](CosmosDBConfig.WriteThroughputBudget)
-//    var offerThroughput: Int = collectionThroughput
-//    if (writeThroughputBudget.isDefined) {
-//      offerThroughput = Math.min(writeThroughputBudget.get.toInt, collectionThroughput)
-//    }
-
     logInfo("Write config: " + writeConfig.toString)
 
-    val mapRdd = rdd.mapPartitionsWithIndex((partitionId, iter) =>
-        savePartition(iter, writeConfig, numPartitions), preservesPartitioning = true)
+    val mapRdd = rdd.mapPartitions(savePartition(_, writeConfig, numPartitions), preservesPartitioning = true)
     mapRdd.collect()
   }
 
@@ -341,7 +321,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
             "Errors encountered in bulk import API execution. " +
             "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
             "Number of failures corresponding to exception of type: " +
-            bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + 
+            bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
             bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
             ". The failed import docs are: " + failedImportDocs)
         }
@@ -367,7 +347,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           "Errors encountered in bulk import API execution. " +
           "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
           "Number of failures corresponding to exception of type: " +
-          bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " + 
+          bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
           bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
           ". The failed import docs are: " + failedImportDocs)
       }
@@ -377,16 +357,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
                                          partitionCount: Int): Iterator[D] = {
-    val connection = new CosmosDBConnection(config)
-    savePartition(connection, iter, config, partitionCount)
-  }
-
-  private def savePartition[D: ClassTag](connection: CosmosDBConnection,
-                                          iter: Iterator[D],
-                                          config: Config,
-                                          partitionCount: Int): Iterator[D] = {
-
-    val connection:CosmosDBConnection = new CosmosDBConnection(config)
+    val connection: CosmosDBConnection = new CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
     val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
@@ -431,8 +402,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     // Delay the start as the number of tasks grow to avoid throttling at initialization
     val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
-    if (maxDelaySec > 0)
-      TimeUnit.SECONDS.sleep(random.nextInt(maxDelaySec))
+    if (maxDelaySec > 0) {
+      val seconds = random.nextInt(maxDelaySec)
+      logInfo(s"Delaying operation by ${seconds}s to stagger partitions.")
+      TimeUnit.SECONDS.sleep(seconds)
+    }
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
