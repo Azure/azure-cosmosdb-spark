@@ -347,3 +347,5 @@ ASALocalRun/
 .settings/org.eclipse.m2e.core.prefs
 .classpath
 .vscode/settings.json
+scalastyle-output.xml
+.settings/org.eclipse.jdt.apt.core.prefs
