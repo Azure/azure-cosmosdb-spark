@@ -47,12 +47,23 @@ public final class ContinuationTokenTrackingIterator<T extends Resource> impleme
     }
 
 	public boolean hasNext() {
-		return this.inner.hasNext();
+        final boolean hasNext = this.inner.hasNext();
+        
+        if (!hasNext) {
+            final String nextContinuationToken = this.feedResponse.getResponseContinuation();
+            
+            this.updateBookmarkFunc.apply(
+                this.currentContinuationToken,
+                nextContinuationToken,
+                this.partitionId);    
+        }
+
+        return hasNext;
 	}
 
 	public T next() {
         T returnValue = this.inner.next();
-        String nextContinuationToken = this.feedResponse.getResponseContinuation();
+        final String nextContinuationToken = this.feedResponse.getResponseContinuation();
 
         if (nextContinuationToken != null &&
             !nextContinuationToken.equals(this.currentContinuationToken))
