@@ -143,6 +143,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private var itemCount: Long = 0
   private var retryCount: Int = 0
   private val maxRetryCountOnServiceUnavailable: Int = 100
+  private val rnd = scala.util.Random
 
   lazy val reader: Iterator[Document] = {
     initialized = true
@@ -367,7 +368,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           case ex: IllegalStateException =>
             if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
               if (retryCount < maxRetryCountOnServiceUnavailable) {
-                logWarning(s"Service Unavailable exception thrown. Going to retry. Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable}")
+                val retryDelayInMs = rnd.nextInt(1000)
+                logWarning(s"""Service Unavailable exception thrown. Going to retry. 
+                |Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable} 
+                |Retry Delay (ms): ${retryDelayInMs}""")
+                Thread.sleep(retryDelayInMs)
                 retryCount += 1
               } else {
                 logError("Exhausted all retries on Service Unavailable exception")
@@ -424,12 +429,19 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private def handleGoneException(connection: CosmosDBConnection, exception: DocumentClientException): Unit = {
     if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
       || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
-      || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT) {
+      || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT)
+    {
+      val retryDelayInMs = rnd.nextInt(1000)
+                
       logWarning(
-        s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode}")
+        s"""STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, 
+        |status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode} 
+        |Retry delay (ms): ${retryDelayInMs}""")
+      Thread.sleep(retryDelayInMs)
       connection.reinitializeClient()
     } else {
-      logWarning(s"UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} ${exception.getStatusCode} ${exception.getSubStatusCode}")
+      logWarning(s"""UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} 
+      |${exception.getStatusCode} ${exception.getSubStatusCode}""")
       throw exception
     }
   }
