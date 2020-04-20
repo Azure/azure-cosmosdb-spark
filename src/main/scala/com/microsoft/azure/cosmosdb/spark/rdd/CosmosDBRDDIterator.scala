@@ -400,7 +400,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         val dcx: DocumentClientException = ex.asInstanceOf[DocumentClientException]
         if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
           logError("Service Unavailable")
-          connection.reinitializeClient()
+          connection.reinitializeClient(shouldReinitializeThroughput = false)
         }
       } else if (ex.isInstanceOf[IllegalStateException]
         && ex.getCause != null
@@ -408,14 +408,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         logError("Illegal State Exception with Service Unavailable")
         val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
         if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
-          connection.reinitializeClient()
+          connection.reinitializeClient(shouldReinitializeThroughput = false)
         }
       }
     })
 
     // Register an on-task-completion callback to close the input stream.
     taskContext.addTaskCompletionListener((context: TaskContext) => {
-      connection.reinitializeClient()
+      connection.reinitializeClient(shouldReinitializeThroughput = false)
       closeIfNeeded()
     })
 
@@ -438,7 +438,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         |status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode} 
         |Retry delay (ms): ${retryDelayInMs}""")
       Thread.sleep(retryDelayInMs)
-      connection.reinitializeClient()
+      connection.reinitializeClient(shouldReinitializeThroughput = true)
     } else {
       logWarning(s"""UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} 
       |${exception.getStatusCode} ${exception.getSubStatusCode}""")

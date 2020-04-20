@@ -23,6 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
+import java.util.{Timer, TimerTask}
 
 import com.microsoft.azure.cosmosdb.{CosmosResourceType}
 import com.microsoft.azure.cosmosdb.spark.config._
@@ -139,9 +140,29 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   private var database: Database = _
   private var collectionThroughput: Option[Int] = None
 
+  private val rnd = scala.util.Random
+
+  private val refreshDelay : Long = (10 * 60 * 1000) + rnd.nextInt(5 * 60 * 1000) // in 10 - 15 minutes
+  private val refreshPeriod : Long = 15 * 60 * 1000 // every 15 minutes
+
+  // main purpose of the time is to allow bulk operations to consume
+  // additional throughput when more RUs are getting provisioned
+  private val timerName = "collectionthroughput-refresh-timer"
+  private val timer: Timer = new Timer(timerName)
+
   @transient private var bulkImporter: DocumentBulkExecutor = _
 
   private var documentClient: DocumentClient = CosmosDBConnection.getClient(connectionMode, getClientConfiguration(config))
+
+  logInfo(s"${timerName}: scheduling timer - delay: ${refreshDelay} ms, period: ${refreshPeriod} ms")
+  timer.schedule(
+    new TimerTask { def run() = {
+      collectionThroughput = None
+      logInfo(s"${timerName}: Resetting cached collection throughput")
+    }},
+    refreshDelay, 
+    refreshPeriod
+  )
 
   def getPartitionKeyDefinition(partitionKeyDefinition: Option[String]) : PartitionKeyDefinition = {
     if (partitionKeyDefinition.isDefined) {
@@ -235,14 +256,20 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           offer.getContent.getInt("offerThroughput")
 
         this.collectionThroughput = Some(collectionThroughput)
+
+        logInfo(s"getCollectionThroughput: ${collectionThroughput}")        
         collectionThroughput
       }
     }  
   }
 
-  def reinitializeClient () = {
+  def reinitializeClient (shouldReinitializeThroughput: Boolean) = {
     documentClient = CosmosDBConnection.reinitializeClient(getCollection, connectionMode, getClientConfiguration(config))
-    collectionThroughput = None
+
+    if (shouldReinitializeThroughput) {
+      logInfo("reinitializeClient: Resetting cached collection throughput")
+      collectionThroughput = None
+    }
   }
 
   def queryDocuments (queryString : String,
