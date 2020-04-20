@@ -44,7 +44,7 @@ case class AsyncClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
                                consistencyLevel: ConsistencyLevel,
-                               tokenResolver: TokenResolver)
+                               tokenResolver: CosmosDBTokenResolver)
 
 object AsyncCosmosDBConnection {
   private lazy val clients: ConcurrentHashMap[Config, AsyncDocumentClient] = {
@@ -108,14 +108,12 @@ object AsyncCosmosDBConnection {
     val resourceKey = config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken)
 
     // Check Resource Token and Token Resolver
-    var tokenResolver: TokenResolver = null
+    var tokenResolver: CosmosDBTokenResolver = null
     val tokenResolverClassName = config.getOrElse[String](CosmosDBConfig.TokenResolver, "")
 
     if (!tokenResolverClassName.isEmpty) {
       tokenResolver = CosmosUtils.getTokenResolverFromClassName(tokenResolverClassName)
-      if (classOf[SparkTokenResolver].isAssignableFrom(tokenResolver.getClass)) {
-        tokenResolver.asInstanceOf[SparkTokenResolver].initialize(config)
-      }
+      tokenResolver.initialize(config)
     }
 
     AsyncClientConfiguration(

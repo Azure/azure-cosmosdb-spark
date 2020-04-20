@@ -44,7 +44,7 @@ case class ClientConfiguration(host: String,
                                connectionPolicy: ConnectionPolicy,
                                consistencyLevel: ConsistencyLevel,
                                resourceLink: String,
-                               tokenResolver: TokenResolver)
+                               tokenResolver: CosmosDBTokenResolver)
 
 object CosmosDBConnection extends CosmosDBLoggingTrait {
   // For verification purpose
@@ -497,15 +497,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     var resourceLink = s"dbs/${config.get[String](CosmosDBConfig.Database).get}/colls/${config.get[String](CosmosDBConfig.Collection).get}"
     var resourceToken = config.getOrElse(CosmosDBConfig.ResourceToken, "")
 
-    var tokenResolver: TokenResolver = null
+    var tokenResolver: CosmosDBTokenResolver = null
     val tokenResolverClassName = config.getOrElse[String](CosmosDBConfig.TokenResolver, "")
 
     if (!tokenResolverClassName.isEmpty) {
       tokenResolver = CosmosUtils.getTokenResolverFromClassName(tokenResolverClassName)
-      if (classOf[SparkTokenResolver].isAssignableFrom(tokenResolver.getClass)) {
-        tokenResolver.asInstanceOf[SparkTokenResolver].initialize(config)
-      }
-
+      tokenResolver.initialize(config)
       resourceToken = tokenResolver.getAuthorizationToken("GET", resourceLink, CosmosResourceType.DocumentCollection, config.asOptions)
     }
 

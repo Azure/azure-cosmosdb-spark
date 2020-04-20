@@ -1,12 +1,12 @@
 package com.microsoft.azure.cosmosdb.spark.util
 
-import com.microsoft.azure.cosmosdb.{TokenResolver}
+import com.microsoft.azure.cosmosdb.spark.CosmosDBTokenResolver
 
 object CosmosUtils extends Serializable {
 
-  def getTokenResolverFromClassName(className: String, constructorArgs: AnyRef*): TokenResolver = {
+  def getTokenResolverFromClassName(className: String, constructorArgs: AnyRef*): CosmosDBTokenResolver = {
     val argsClassSeq = constructorArgs.map(e => e.getClass)
-    Class.forName(className).getDeclaredConstructor(argsClassSeq:_*).newInstance(constructorArgs:_*).asInstanceOf[TokenResolver]
+    Class.forName(className).getDeclaredConstructor(argsClassSeq:_*).newInstance(constructorArgs:_*).asInstanceOf[CosmosDBTokenResolver]
   }
 
 }
