@@ -104,8 +104,7 @@ object AsyncCosmosDBConnection {
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
-    val resourceKey = config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken)
+    var resourceKey: String = null
 
     // Check Resource Token and Token Resolver
     var tokenResolver: CosmosDBTokenResolver = null
@@ -114,6 +113,9 @@ object AsyncCosmosDBConnection {
     if (!tokenResolverClassName.isEmpty) {
       tokenResolver = CosmosUtils.getTokenResolverFromClassName(tokenResolverClassName)
       tokenResolver.initialize(config)
+    } else {
+      val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
+      resourceKey = config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken)
     }
 
     AsyncClientConfiguration(

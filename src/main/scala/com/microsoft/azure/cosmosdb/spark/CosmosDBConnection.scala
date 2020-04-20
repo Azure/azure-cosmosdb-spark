@@ -24,7 +24,7 @@ package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
 
-import com.microsoft.azure.cosmosdb.{CosmosResourceType, TokenResolver}
+import com.microsoft.azure.cosmosdb.{CosmosResourceType}
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.util.CosmosUtils
 import com.microsoft.azure.documentdb._

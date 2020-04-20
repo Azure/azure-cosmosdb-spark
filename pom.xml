@@ -317,6 +317,8 @@ limitations under the License.
                                         <exclude>com.microsoft.azure.cosmosdb.internal.query.metrics.*</exclude>
                                         <exclude>com.microsoft.azure.cosmosdb.internal.query.orderbyquery.*</exclude>
                                         <exclude>com.microsoft.azure.cosmosdb.internal.routing.*</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.TokenResolver</exclude>
+                                        <exclude>com.microsoft.azure.cosmosdb.CosmosResourceType</exclude>
                                     </excludes>
                                 </relocation>
                                 <relocation>
