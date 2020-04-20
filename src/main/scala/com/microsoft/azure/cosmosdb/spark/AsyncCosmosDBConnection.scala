@@ -31,19 +31,20 @@ import com.microsoft.azure.cosmosdb._
 import com.microsoft.azure.cosmosdb.internal._
 import com.microsoft.azure.cosmosdb.rx.AsyncDocumentClient
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
-import com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBWriteStreamRetryPolicy
 import org.apache.spark.sql.Row
 
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
-
 import java.util.concurrent.ConcurrentHashMap
+
+import com.microsoft.azure.cosmosdb.spark.util.CosmosUtils
 
 case class AsyncClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
-                               consistencyLevel: ConsistencyLevel)
+                               consistencyLevel: ConsistencyLevel,
+                               tokenResolver: CosmosDBTokenResolver)
 
 object AsyncCosmosDBConnection {
   private lazy val clients: ConcurrentHashMap[Config, AsyncDocumentClient] = {
@@ -103,13 +104,26 @@ object AsyncCosmosDBConnection {
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
+    var resourceKey: String = null
+
+    // Check Resource Token and Token Resolver
+    var tokenResolver: CosmosDBTokenResolver = null
+    val tokenResolverClassName = config.getOrElse[String](CosmosDBConfig.TokenResolver, "")
+
+    if (!tokenResolverClassName.isEmpty) {
+      tokenResolver = CosmosUtils.getTokenResolverFromClassName(tokenResolverClassName)
+      tokenResolver.initialize(config)
+    } else {
+      val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
+      resourceKey = config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken)
+    }
 
     AsyncClientConfiguration(
       config.get[String](CosmosDBConfig.Endpoint).get,
-      config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken),
+      resourceKey,
       connectionPolicy,
-      consistencyLevel
+      consistencyLevel,
+      tokenResolver
     )
   }
 
@@ -126,6 +140,7 @@ object AsyncCosmosDBConnection {
           .withMasterKeyOrResourceToken(clientConfig.key)
           .withConnectionPolicy(clientConfig.connectionPolicy)
           .withConsistencyLevel(clientConfig.consistencyLevel)
+          .withTokenResolver(clientConfig.tokenResolver)
           .build()
   }
 }

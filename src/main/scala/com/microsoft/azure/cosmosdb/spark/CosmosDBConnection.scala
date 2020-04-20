@@ -25,8 +25,9 @@ package com.microsoft.azure.cosmosdb.spark
 import java.lang.management.ManagementFactory
 import java.util.{Timer, TimerTask}
 
+import com.microsoft.azure.cosmosdb.{CosmosResourceType}
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.documentdb
+import com.microsoft.azure.cosmosdb.spark.util.CosmosUtils
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal._
@@ -43,7 +44,8 @@ case class ClientConfiguration(host: String,
                                key: String,
                                connectionPolicy: ConnectionPolicy,
                                consistencyLevel: ConsistencyLevel,
-                               resourceLink: String)
+                               resourceLink: String,
+                               tokenResolver: CosmosDBTokenResolver)
 
 object CosmosDBConnection extends CosmosDBLoggingTrait {
   // For verification purpose
@@ -518,11 +520,21 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val consistencyLevel = ConsistencyLevel.valueOf(config.get[String](CosmosDBConfig.ConsistencyLevel)
       .getOrElse(CosmosDBConfig.DefaultConsistencyLevel))
 
-    //Check if resource token exists
-    val resourceToken = config.getOrElse[String](CosmosDBConfig.ResourceToken, "")
-    var resourceLink: String = ""
-    if(!resourceToken.isEmpty) {
-      resourceLink = s"dbs/${config.get[String](CosmosDBConfig.Database).get}/colls/${config.get[String](CosmosDBConfig.Collection).get}"
+    // check Token Resolver before checking resource token
+    var resourceLink = s"dbs/${config.get[String](CosmosDBConfig.Database).get}/colls/${config.get[String](CosmosDBConfig.Collection).get}"
+    var resourceToken = config.getOrElse(CosmosDBConfig.ResourceToken, "")
+
+    var tokenResolver: CosmosDBTokenResolver = null
+    val tokenResolverClassName = config.getOrElse[String](CosmosDBConfig.TokenResolver, "")
+
+    if (!tokenResolverClassName.isEmpty) {
+      tokenResolver = CosmosUtils.getTokenResolverFromClassName(tokenResolverClassName)
+      tokenResolver.initialize(config)
+      resourceToken = tokenResolver.getAuthorizationToken("GET", resourceLink, CosmosResourceType.DocumentCollection, config.asOptions)
+    }
+
+    if(resourceToken.isEmpty) {
+      resourceLink = ""
     }
 
     ClientConfiguration(
@@ -530,7 +542,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       config.getOrElse[String](CosmosDBConfig.Masterkey, resourceToken),
       connectionPolicy,
       consistencyLevel,
-      resourceLink)
+      resourceLink,
+      tokenResolver
+    )
   }
 }
 

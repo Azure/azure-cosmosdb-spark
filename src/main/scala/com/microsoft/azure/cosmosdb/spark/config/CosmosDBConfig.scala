@@ -39,6 +39,7 @@ object CosmosDBConfig {
   val Collection = "collection"
   val Masterkey = "masterkey"
   val ResourceToken = "resourcetoken"
+  val TokenResolver = "tokenresolver"
 
   val PreferredRegionsList = "preferredregions"
   val ConsistencyLevel = "consistencylevel"
