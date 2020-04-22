@@ -75,7 +75,7 @@ object CosmosDBRDDIterator {
     */
   def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
     val connection = new CosmosDBConnection(config)
-    val collectionLink = connection.collectionLink
+    val collectionLink = connection.getCollectionLink
     val queryName = config
       .get[String](CosmosDBConfig.ChangeFeedQueryName).get
     var tokenString: String = null
@@ -238,7 +238,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         parentPartitionId = partition.parents.iterator().next()
       }
 
-      val collectionLink = connection.collectionLink
+      val collectionLink = connection.getCollectionLink
 
       // Initialize the static tokens cache or read it from checkpoint
       def initializeToken(): Unit = {
@@ -369,9 +369,9 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
             if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
               if (retryCount < maxRetryCountOnServiceUnavailable) {
                 val retryDelayInMs = rnd.nextInt(1000)
-                logWarning(s"""Service Unavailable exception thrown. Going to retry. 
-                |Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable} 
-                |Retry Delay (ms): ${retryDelayInMs}""")
+                logWarning(s"Service Unavailable exception thrown. Going to retry. " +
+                  s"Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable} " +
+                  s"Retry Delay (ms): ${retryDelayInMs}")
                 Thread.sleep(retryDelayInMs)
                 retryCount += 1
               } else {
@@ -400,7 +400,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         val dcx: DocumentClientException = ex.asInstanceOf[DocumentClientException]
         if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
           logError("Service Unavailable")
-          connection.reinitializeClient(shouldReinitializeThroughput = false)
+          connection.reinitializeClient()
         }
       } else if (ex.isInstanceOf[IllegalStateException]
         && ex.getCause != null
@@ -408,14 +408,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         logError("Illegal State Exception with Service Unavailable")
         val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
         if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
-          connection.reinitializeClient(shouldReinitializeThroughput = false)
+          connection.reinitializeClient()
         }
       }
     })
 
     // Register an on-task-completion callback to close the input stream.
     taskContext.addTaskCompletionListener((context: TaskContext) => {
-      connection.reinitializeClient(shouldReinitializeThroughput = false)
+      connection.reinitializeClient()
       closeIfNeeded()
     })
 
@@ -434,14 +434,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       val retryDelayInMs = rnd.nextInt(1000)
                 
       logWarning(
-        s"""STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, 
-        |status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode} 
-        |Retry delay (ms): ${retryDelayInMs}""")
+        s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, " +
+        s"status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode} " +
+        s"Retry delay (ms): ${retryDelayInMs}")
       Thread.sleep(retryDelayInMs)
-      connection.reinitializeClient(shouldReinitializeThroughput = true)
+      connection.reinitializeClient()
     } else {
-      logWarning(s"""UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} 
-      |${exception.getStatusCode} ${exception.getSubStatusCode}""")
+      logWarning(s"UNHANDLED STREAMING EXCEPTION: ${exception.getMessage} " +
+        s"${exception.getStatusCode} ${exception.getSubStatusCode}")
       throw exception
     }
   }

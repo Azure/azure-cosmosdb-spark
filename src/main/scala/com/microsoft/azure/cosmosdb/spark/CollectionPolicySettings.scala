@@ -22,7 +22,14 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.0.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
-}
+import com.microsoft.azure.documentdb._
+
+case class ConnectionPolicySettings(
+    connectionMode: String,
+    userAgentSuffix: String,
+    maxPoolsize: Int,
+    requestTimeout: Option[Int],
+    connectionIdleTimeout: Option[Int],
+    maxRetryAttemptsOnThrottled: Int,
+    maxRetryWaitTimeSecs: Int,
+    preferredRegions: Option[String])

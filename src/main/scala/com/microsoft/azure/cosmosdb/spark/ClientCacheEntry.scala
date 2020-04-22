@@ -22,7 +22,12 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.0.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
-}
+import com.microsoft.azure.documentdb._
+import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
+
+case class ClientCacheEntry(
+    docClient: DocumentClient,
+    bulkExecutor: Option[DocumentBulkExecutor],
+    containerMetadata: Option[ContainerMetadata],
+    databaseMetadata: Option[DatabaseMetadata],
+    maxAvailableThroughput: Option[Int])

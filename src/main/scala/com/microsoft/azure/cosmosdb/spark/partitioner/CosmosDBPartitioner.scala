@@ -50,7 +50,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
                         requiredColumns: Array[String] = Array(),
                         filters: Array[Filter] = Array()): Array[Partition] = {
     var connection: CosmosDBConnection = new CosmosDBConnection(config)
-    connection.reinitializeClient(shouldReinitializeThroughput = false)
+    connection.reinitializeClient()
    
     // CosmosDB source
     var query: String = FilterConverter.createQueryString(requiredColumns, filters)

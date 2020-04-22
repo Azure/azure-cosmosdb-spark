@@ -22,7 +22,6 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.0.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
-}
+case class AuthConfig(
+    authKey: String,
+    resourceLink: Option[String])

@@ -155,21 +155,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
-                                      offerThroughput: Int,
-                                      writingBatchSize: Int,
-                                      partitionKeyDefinition: Option[String],
-                                      maxMiniBatchUpdateCount: Int,
-                                      maxMiniBatchImportSizeKB: Int)(implicit ev: ClassTag[D]): Unit = {
-
-    // Set retry options high for initialization (default values)
-    connection.setDefaultClientRetryPolicy
-
+                                      writingBatchSize: Int)(implicit ev: ClassTag[D]): Unit = {
     // Initialize BulkExecutor
-    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter(offerThroughput, partitionKeyDefinition, maxMiniBatchUpdateCount, maxMiniBatchImportSizeKB)
+    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter()
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
-
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
 
@@ -235,10 +226,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def getDocumentsDebugString(
     connection: CosmosDBConnection,
-    docs: java.util.List[String],
-    partitionKeyDefinition: Option[String]): String =
+    docs: java.util.List[String]): String =
   {
-    val pkDefinitionModel = connection.getPartitionKeyDefinition(partitionKeyDefinition)
+    val pkDefinitionModel = connection.getPartitionKeyDefinition()
 
     logDebug(s"PartitionKeyDefinition: Kind: ${pkDefinitionModel.getKind().toString()}")
     val version = pkDefinitionModel.getVersion()
@@ -266,20 +256,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def bulkImport[D: ClassTag](iter: Iterator[D],
                                       connection: CosmosDBConnection,
-                                      offerThroughput: Int,
                                       writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
-                                      partitionKeyDefinition: Option[String],
                                       upsert: Boolean,
-                                      maxConcurrencyPerPartitionRange: Integer,
-                                      maxMiniBatchUpdateCount: Int,
-                                      maxMiniBatchImportSizeKB:Int): Unit = {
-
-    // Set retry options high for initialization (default values)
-    connection.setDefaultClientRetryPolicy
-
+                                      maxConcurrencyPerPartitionRange: Integer): Unit = {
     // Initialize BulkExecutor
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter(offerThroughput, partitionKeyDefinition, maxMiniBatchUpdateCount, maxMiniBatchImportSizeKB)
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter()
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
@@ -313,13 +295,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         if (bulkImportResponse.getFailedImports.size() > 0) {
           val failedImportDocs = getDocumentsDebugString(
             connection,
-            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport,
-            partitionKeyDefinition
-          )
+            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport)
 
           throw new Exception(
             "Errors encountered in bulk import API execution. " +
-            "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
+            "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition().toString() + ", " +
             "Number of failures corresponding to exception of type: " +
             bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
             bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
@@ -339,13 +319,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       if (bulkImportResponse.getFailedImports.size() > 0) {
         val failedImportDocs = getDocumentsDebugString(
           connection,
-          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport,
-          partitionKeyDefinition
-        )
+          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport)
 
         throw new Exception(
           "Errors encountered in bulk import API execution. " +
-          "PartitionKeyDefinition: " + partitionKeyDefinition + ", " +
+          "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition() + ", " +
           "Number of failures corresponding to exception of type: " +
           bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
           bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
@@ -386,15 +364,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
       getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
       toInt
-    val partitionKeyDefinition = config
-      .get[String](CosmosDBConfig.PartitionKeyDefinition)
-
-    val maxMiniBatchUpdateCount = config
-      .getOrElse(CosmosDBConfig.MaxMiniBatchUpdateCount, String.valueOf(CosmosDBConfig.DefaultMaxMiniBatchUpdateCount))
-      .toInt
-    val maxMiniBatchImportSizeKB = config
-      .getOrElse(CosmosDBConfig.MaxMiniBatchImportSizeKB, String.valueOf(CosmosDBConfig.DefaultMaxMiniBatchImportSizeKB))
-      .toInt
 
     val maxConcurrencyPerPartitionRange = config
       .getOrElse[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange, String.valueOf(CosmosDBConfig.DefaultBulkImportMaxConcurrencyPerPartitionRange))
@@ -411,25 +380,19 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
 
-    var offerThroughput: Int = 0
-    if (isBulkImporting || isBulkUpdating){
-      // Use min(writeThroughputBudget, collectionThroughput) - utilized only in bulk import and not used in async mode
-      offerThroughput = connection.getCollectionThroughput
-      val writeThroughputBudget = config.get[String](CosmosDBConfig.WriteThroughputBudget)
-      if (writeThroughputBudget.isDefined) {
-        offerThroughput = Math.min(writeThroughputBudget.get.toInt, offerThroughput)
-      }
-    }
-
     if (iter.nonEmpty) {
       if (isBulkUpdating) {
         logDebug(s"Writing partition with bulk update")
-        bulkUpdate(iter, connection, offerThroughput, writingBatchSize, partitionKeyDefinition,
-          maxMiniBatchUpdateCount, maxMiniBatchImportSizeKB)
+        bulkUpdate(iter, connection, writingBatchSize)
       } else if (isBulkImporting) {
         logDebug(s"Writing partition with bulk import")
-        bulkImport(iter, connection, offerThroughput, writingBatchSize, rootPropertyToSave,
-          partitionKeyDefinition, upsert, maxConcurrencyPerPartitionRange, maxMiniBatchUpdateCount, maxMiniBatchImportSizeKB)
+        bulkImport(
+          iter,
+          connection,
+          writingBatchSize,
+          rootPropertyToSave,
+          upsert,
+          maxConcurrencyPerPartitionRange)
       } else {
         logDebug(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)

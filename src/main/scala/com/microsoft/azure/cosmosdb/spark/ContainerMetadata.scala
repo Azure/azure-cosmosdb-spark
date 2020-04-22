@@ -22,7 +22,10 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.0.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
-}
+import com.microsoft.azure.documentdb._
+
+case class ContainerMetadata(
+    id: String,
+    selfLink: String,
+    resourceId: String,
+    partitionKeyDefinition: PartitionKeyDefinition)
