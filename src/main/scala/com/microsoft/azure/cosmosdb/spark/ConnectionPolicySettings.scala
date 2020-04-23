@@ -22,14 +22,12 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import com.microsoft.azure.documentdb._
-
 case class ConnectionPolicySettings(
-   connectionMode: String,
-   userAgentSuffix: String,
-   maxPoolSize: Int,
-   requestTimeout: Option[Int],
-   connectionIdleTimeout: Option[Int],
-   maxRetryAttemptsOnThrottled: Int,
-   maxRetryWaitTimeSecs: Int,
-   preferredRegions: Option[String])
+                                     connectionMode: String,
+                                     userAgentSuffix: String,
+                                     maxPoolSize: Int,
+                                     requestTimeout: Option[Int],
+                                     connectionIdleTimeout: Option[Int],
+                                     maxRetryAttemptsOnThrottled: Int,
+                                     maxRetryWaitTimeSecs: Int,
+                                     preferredRegions: Option[String])

@@ -22,25 +22,21 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.util.concurrent.ConcurrentHashMap
+
 import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
-import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
 object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
-  private val nullRequestOptions: RequestOptions = null
   private lazy val clientCache
-      : ConcurrentHashMap[ClientConfiguration, ClientCacheEntry] =
+  : ConcurrentHashMap[ClientConfiguration, ClientCacheEntry] =
     new ConcurrentHashMap[ClientConfiguration, ClientCacheEntry]()
-  // For verification purpose
-  var lastConnectionPolicy: ConnectionPolicy = _
-  var lastConsistencyLevel: Option[ConsistencyLevel] = _
-
   private lazy val createClientFunc =
     new java.util.function.Function[ClientConfiguration, ClientCacheEntry]() {
       override def apply(config: ClientConfiguration): ClientCacheEntry = {
@@ -66,32 +62,22 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         clientCacheEntry
       }
     }
+  private val nullRequestOptions: RequestOptions = null
+  private val bulkExecutorInitializationRetryOptions: RetryOptions = {
+    val bulkExecutorInitializationRetryOptions = new RetryOptions()
+    bulkExecutorInitializationRetryOptions
+      .setMaxRetryAttemptsOnThrottledRequests(1000)
+    bulkExecutorInitializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
 
-  private val bulkExecutorInitializationRetryOptions =
-    createBulkExecutorInitializationRetryOptions()
-
-  def invalidate(config: ClientConfiguration): Unit = {
-    val oldClientCacheEntry: ClientCacheEntry = clientCache.remove(config)
-
-    if (oldClientCacheEntry != null) {
-      val bulkExecutorHash = if (oldClientCacheEntry.bulkExecutor.isDefined) {
-        oldClientCacheEntry.bulkExecutor.hashCode()
-      } else {
-        "n/a"
-      }
-
-      logInfo(
-        s"Invalidating ClientCacheEntry#${oldClientCacheEntry.hashCode()} " +
-          s"for ClientConfiguration#${config.hashCode()}" +
-          s"with DocumentClient#${oldClientCacheEntry.docClient.hashCode()} " +
-          s"with BulkExecutor#$bulkExecutorHash"
-      )
-    }
+    bulkExecutorInitializationRetryOptions
   }
+  // For verification purpose
+  var lastConnectionPolicy: ConnectionPolicy = _
+  var lastConsistencyLevel: Option[ConsistencyLevel] = _
 
   def getOrCreateBulkExecutor(
-      config: ClientConfiguration
-  ): DocumentBulkExecutor = {
+                               config: ClientConfiguration
+                             ): DocumentBulkExecutor = {
     val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
     if (clientCacheEntry.bulkExecutor.isDefined) {
       clientCacheEntry.bulkExecutor.get
@@ -142,62 +128,9 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     }
   }
 
-  def reinitializeClient(config: ClientConfiguration): AnyVal = {
-    val clientCacheEntry: ClientCacheEntry = clientCache.get(config)
-    if (clientCacheEntry != null) {
-      val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(
-        config
-      )
-      val docClient: DocumentClient = clientCacheEntry.docClient
-      logDebug(
-        s"Updating Partition key range cache for DocumentClient#${docClient.hashCode()} " +
-          s"of ClientConfiguration#${config.hashCode()}"
-      )
-      val field = docClient.getClass.getDeclaredField("partitionKeyRangeCache")
-      field.setAccessible(true)
-      val partitionKeyRangeCache =
-        field.get(docClient).asInstanceOf[PartitionKeyRangeCache]
-      val range =
-        new com.microsoft.azure.documentdb.internal.routing.Range[String](
-          "00",
-          "FF",
-          true,
-          true
-        )
-      partitionKeyRangeCache.getOverlappingRanges(
-        containerMetadata.selfLink,
-        range,
-        true
-      )
-      clientCache.replace(
-        config,
-        clientCacheEntry,
-        clientCacheEntry.copy(docClient = docClient)
-      )
-    }
-  }
-
-  def getOrCreateClient(config: ClientConfiguration): DocumentClient = {
-    logTrace(
-      s"--> getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
-        s"ClientCache#${clientCache.hashCode()} " +
-        s"- record count ${clientCache.size()}"
-    )
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
-    logTrace(
-      s"<-- getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
-        s"ClientCache#${clientCache.hashCode()} " +
-        s" - record count ${clientCache.size()} " +
-        s" with ClientCacheEntry#${clientCacheEntry.hashCode()}" +
-        s" with DocumentClient#${clientCacheEntry.docClient.hashCode()}"
-    )
-
-    clientCacheEntry.docClient
-  }
-
   def getPartitionKeyDefinition(
-      config: ClientConfiguration
-  ): PartitionKeyDefinition = {
+                                 config: ClientConfiguration
+                               ): PartitionKeyDefinition = {
     config.bulkConfig.partitionKeyOption match {
       case None =>
         val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(
@@ -214,8 +147,8 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   }
 
   private def getOrReadMaxAvailableThroughput(
-      config: ClientConfiguration
-  ): Int = {
+                                               config: ClientConfiguration
+                                             ): Int = {
     val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
     if (clientCacheEntry.maxAvailableThroughput.isDefined) {
       clientCacheEntry.maxAvailableThroughput.get
@@ -273,9 +206,9 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   }
 
   private def queryOffers(
-      documentClient: DocumentClient,
-      offerResourceId: String
-  ): Option[Int] = {
+                           documentClient: DocumentClient,
+                           offerResourceId: String
+                         ): Option[Int] = {
     val parameters = new SqlParameterCollection()
     parameters.add(new SqlParameter("@offerResourceId", offerResourceId))
 
@@ -303,15 +236,15 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   }
 
   def getOrReadContainerMetadata(
-      config: ClientConfiguration
-  ): ContainerMetadata = {
+                                  config: ClientConfiguration
+                                ): ContainerMetadata = {
     val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
     if (clientCacheEntry.containerMetadata.isDefined) {
       clientCacheEntry.containerMetadata.get
     } else {
       val documentClient: DocumentClient = clientCacheEntry.docClient
       val collectionLink: String =
-        ClientConfiguration.getCollectionLink(config.database, config.container)
+        config.getCollectionLink()
       val collection: DocumentCollection = documentClient
         .readCollection(collectionLink, nullRequestOptions)
         .getResource
@@ -350,15 +283,15 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   }
 
   private def getOrReadDatabaseMetadata(
-      config: ClientConfiguration
-  ): DatabaseMetadata = {
+                                         config: ClientConfiguration
+                                       ): DatabaseMetadata = {
     val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
     if (clientCacheEntry.databaseMetadata.isDefined) {
       clientCacheEntry.databaseMetadata.get
     } else {
       val documentClient: DocumentClient = clientCacheEntry.docClient
       val databaseLink: String =
-        ClientConfiguration.getDatabaseLink(config.database)
+        config.getDatabaseLink()
       val database: Database = documentClient
         .readDatabase(databaseLink, nullRequestOptions)
         .getResource
@@ -367,8 +300,10 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         DatabaseMetadata(config.database, database.getResourceId)
 
       logDebug(
-        s"Read database metadata '${databaseMetadata
-          .hashCode()}' for database '${databaseMetadata.id}' " +
+        s"Read database metadata '${
+          databaseMetadata
+            .hashCode()
+        }' for database '${databaseMetadata.id}' " +
           s"with DocumentClient#${documentClient.hashCode()}"
       )
 
@@ -382,18 +317,79 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     }
   }
 
-  private def createBulkExecutorInitializationRetryOptions(): RetryOptions = {
-    val bulkExecutorInitializationRetryOptions = new RetryOptions()
-    bulkExecutorInitializationRetryOptions
-      .setMaxRetryAttemptsOnThrottledRequests(1000)
-    bulkExecutorInitializationRetryOptions.setMaxRetryWaitTimeInSeconds(1000)
+  def reinitializeClient(config: ClientConfiguration): AnyVal = {
+    val clientCacheEntry: ClientCacheEntry = clientCache.get(config)
+    if (clientCacheEntry != null) {
+      val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(
+        config
+      )
+      val docClient: DocumentClient = clientCacheEntry.docClient
+      logDebug(
+        s"Updating Partition key range cache for DocumentClient#${docClient.hashCode()} " +
+          s"of ClientConfiguration#${config.hashCode()}"
+      )
+      val field = docClient.getClass.getDeclaredField("partitionKeyRangeCache")
+      field.setAccessible(true)
+      val partitionKeyRangeCache =
+        field.get(docClient).asInstanceOf[PartitionKeyRangeCache]
+      val range =
+        new com.microsoft.azure.documentdb.internal.routing.Range[String](
+          "00",
+          "FF",
+          true,
+          true
+        )
+      partitionKeyRangeCache.getOverlappingRanges(
+        containerMetadata.selfLink,
+        range,
+        true
+      )
+      clientCache.replace(
+        config,
+        clientCacheEntry,
+        clientCacheEntry.copy(docClient = docClient)
+      )
+    }
+  }
 
-    bulkExecutorInitializationRetryOptions
+  def getOrCreateClient(config: ClientConfiguration): DocumentClient = {
+    logTrace(
+      s"--> getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
+        s"ClientCache#${clientCache.hashCode()} " +
+        s"- record count ${clientCache.size()}"
+    )
+    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
+    logTrace(
+      s"<-- getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
+        s"ClientCache#${clientCache.hashCode()} " +
+        s" - record count ${clientCache.size()} " +
+        s" with ClientCacheEntry#${clientCacheEntry.hashCode()}" +
+        s" with DocumentClient#${clientCacheEntry.docClient.hashCode()}"
+    )
+
+    clientCacheEntry.docClient
+  }
+
+  private def createClientWithMasterKey(
+                                         config: ClientConfiguration
+                                       ): DocumentClient = {
+    lastConnectionPolicy = createConnectionPolicy(
+      config.connectionPolicySettings
+    )
+    val consistencyLevel = ConsistencyLevel.valueOf(config.consistencyLevel)
+    lastConsistencyLevel = Some(consistencyLevel)
+
+    new DocumentClient(
+      config.host,
+      config.key,
+      lastConnectionPolicy,
+      consistencyLevel
+    )
   }
 
   private def createConnectionPolicy(
-      settings: ConnectionPolicySettings
-  ): ConnectionPolicy = {
+                                      settings: ConnectionPolicySettings
+                                    ): ConnectionPolicy = {
     val connectionPolicy = new ConnectionPolicy()
 
     val connectionMode = ConnectionMode.valueOf(settings.connectionMode)
@@ -431,26 +427,9 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     connectionPolicy
   }
 
-  private def createClientWithMasterKey(
-      config: ClientConfiguration
-  ): DocumentClient = {
-    lastConnectionPolicy = createConnectionPolicy(
-      config.connectionPolicySettings
-    )
-    val consistencyLevel = ConsistencyLevel.valueOf(config.consistencyLevel)
-    lastConsistencyLevel = Some(consistencyLevel)
-
-    new DocumentClient(
-      config.host,
-      config.key,
-      lastConnectionPolicy,
-      consistencyLevel
-    )
-  }
-
   private def createClientWithResourceToken(
-      config: ClientConfiguration
-  ): DocumentClient = {
+                                             config: ClientConfiguration
+                                           ): DocumentClient = {
     val permissionWithNamedResourceLink = new Permission()
     permissionWithNamedResourceLink.set("_token", config.key)
     permissionWithNamedResourceLink.setResourceLink(config.resourceLink.get)

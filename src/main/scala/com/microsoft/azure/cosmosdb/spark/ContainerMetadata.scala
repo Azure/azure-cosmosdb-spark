@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark
 import com.microsoft.azure.documentdb._
 
 case class ContainerMetadata(
-    id: String,
-    selfLink: String,
-    resourceId: String,
-    partitionKeyDefinition: PartitionKeyDefinition)
+                              id: String,
+                              selfLink: String,
+                              resourceId: String,
+                              partitionKeyDefinition: PartitionKeyDefinition)

@@ -23,5 +23,5 @@
 package com.microsoft.azure.cosmosdb.spark
 
 case class DatabaseMetadata(
-    id: String,
-    resourceId: String)
+                             id: String,
+                             resourceId: String)

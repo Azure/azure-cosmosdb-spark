@@ -26,8 +26,8 @@ import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 
 case class ClientCacheEntry(
-    docClient: DocumentClient,
-    bulkExecutor: Option[DocumentBulkExecutor],
-    containerMetadata: Option[ContainerMetadata],
-    databaseMetadata: Option[DatabaseMetadata],
-    maxAvailableThroughput: Option[Int])
+                             docClient: DocumentClient,
+                             bulkExecutor: Option[DocumentBulkExecutor],
+                             containerMetadata: Option[ContainerMetadata],
+                             databaseMetadata: Option[DatabaseMetadata],
+                             maxAvailableThroughput: Option[Int])

@@ -23,5 +23,5 @@
 package com.microsoft.azure.cosmosdb.spark
 
 case class AuthConfig(
-    authKey: String,
-    resourceLink: Option[String])
+                       authKey: String,
+                       resourceLink: Option[String])

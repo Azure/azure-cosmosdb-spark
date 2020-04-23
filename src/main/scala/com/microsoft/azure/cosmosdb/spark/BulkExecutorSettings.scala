@@ -22,10 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import com.microsoft.azure.documentdb._
-
 case class BulkExecutorSettings(
-    partitionKeyOption: Option[String],
-    maxMiniBatchUpdateCount: Int,
-    maxMiniBatchImportSizeKB: Int,
-    maxThroughputForBulkOperations: Option[Int])
+                                 partitionKeyOption: Option[String],
+                                 maxMiniBatchUpdateCount: Int,
+                                 maxMiniBatchImportSizeKB: Int,
+                                 maxThroughputForBulkOperations: Option[Int])

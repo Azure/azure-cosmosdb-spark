@@ -40,7 +40,16 @@ case class ClientConfiguration(
     resourceLink: Option[String],
     database: String,
     container: String,
-    bulkConfig: BulkExecutorSettings)
+    bulkConfig: BulkExecutorSettings) {
+  
+  def getCollectionLink(): String = {
+    ClientConfiguration.getCollectionLink(database, container)
+  }
+
+  def getDatabaseLink() : String = {
+    ClientConfiguration.getDatabaseLink(database)
+  }
+}
 
 object ClientConfiguration extends CosmosDBLoggingTrait {
   def apply(config: Config): ClientConfiguration = {
@@ -151,11 +160,11 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
         preferredRegions)
   }
 
-  def getCollectionLink(database: String, collection: String): String = {
+  private def getCollectionLink(database: String, collection: String): String = {
     s"${getDatabaseLink(database)}/${Paths.COLLECTIONS_PATH_SEGMENT}/$collection"
   }
 
-  def getDatabaseLink(database: String) : String = {
+  private def getDatabaseLink(database: String) : String = {
     s"${Paths.DATABASES_PATH_SEGMENT}/$database"
   }
 }
