@@ -32,7 +32,7 @@ class DefaultCosmosDBWriteStreamRetryPolicyConfig(configMap: Map[String, String]
     with CosmosDBLoggingTrait
     with Serializable
  {
-    val config = Config(configMap)
+    val config: Config = Config(configMap)
 
     val maxTransientRetryCount: Int = config
         .getOrElse(

@@ -91,9 +91,10 @@ class CosmosDBRelation(private val config: Config,
 
   def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val dfw = data.write.format(classOf[DefaultSource].toString)
-    overwrite match {
-      case true  => dfw.mode(SaveMode.Overwrite).save()
-      case false => dfw.mode(SaveMode.ErrorIfExists).save()
+    if (overwrite) {
+      dfw.mode(SaveMode.Overwrite).save()
+    } else {
+      dfw.mode(SaveMode.ErrorIfExists).save()
     }
   }
 }
@@ -143,7 +144,7 @@ object CosmosDBRelation {
             mdataBuilder.putLong("idx", idx.toLong)
             mdataBuilder.putString("colname", name)
             //End of non-functional area
-            StructField(s"$name[$idx]", et, true, mdataBuilder.build())
+            StructField(s"$name[$idx]", et, nullable = true, mdataBuilder.build())
         }
       }
     )

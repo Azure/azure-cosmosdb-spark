@@ -86,7 +86,7 @@ private[spark] case class DataFrameReaderFunctions(@transient dfr: DataFrameRead
   private def createDataFrame(schema: Option[StructType], readConfig: Option[Config], sqlContext: Option[SQLContext]): DataFrame = {
     var cachingMode: CachingMode = CachingMode.NONE
     var database: String = StringUtils.EMPTY
-    var collection: String = StringUtils.EMPTY
+    val collection: String = StringUtils.EMPTY
     var collectionCacheKey: String = StringUtils.EMPTY
 
     if (readConfig.isDefined) {

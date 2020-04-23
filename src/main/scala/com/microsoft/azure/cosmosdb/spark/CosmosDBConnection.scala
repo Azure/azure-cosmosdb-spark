@@ -22,17 +22,9 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.lang.management.ManagementFactory
-import java.util.{Timer, TimerTask}
-import java.util.concurrent.ConcurrentHashMap
-
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.documentdb
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
-import com.microsoft.azure.documentdb.internal._
-import com.microsoft.azure.documentdb.Permission
-import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -50,25 +42,21 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     collectionLink
   }
 
-  def reinitializeClient() = {
+  def reinitializeClient(): AnyVal = {
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
   } 
 
   def getAllPartitions: Array[PartitionKeyRange] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    var ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
+    val ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
     ranges.getQueryIterator.toArray
   }
 
-  def getAllPartitions(query: String): Array[PartitionKeyRange] = {
-    getAllPartitions
-  }
-
-  def getDocumentBulkImporter(): DocumentBulkExecutor = {
+  def getDocumentBulkImporter: DocumentBulkExecutor = {
     CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig)
   }
 
-  def getPartitionKeyDefinition() : PartitionKeyDefinition = {
+  def getPartitionKeyDefinition: PartitionKeyDefinition = {
     CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig)
   }
 
@@ -97,13 +85,13 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     changeFeedOptions: ChangeFeedOptions,
     isStreaming: Boolean,
     shouldInferStreamSchema: Boolean,
-    updateTokenFunc: Function3[String, String, String, Unit]
+    updateTokenFunc: (String, String, String) => Unit
     ): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val partitionId = changeFeedOptions.getPartitionKeyRangeId()
+    val partitionId = changeFeedOptions.getPartitionKeyRangeId
 
-    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize().toString()}, ContinuationToken: ${changeFeedOptions.getRequestContinuation()}, PartitionId: ${partitionId}, ShouldInferSchema: ${shouldInferStreamSchema.toString()}")
+    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize.toString}, ContinuationToken: ${changeFeedOptions.getRequestContinuation}, PartitionId: $partitionId, ShouldInferSchema: ${shouldInferStreamSchema.toString}")
     
     // The ChangeFeed API in the SDK allows accessing the continuation token
     // from the latest HTTP Response
@@ -126,12 +114,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     var lastProcessedIdBookmark = ""
 
     // The original continuation that has been passed to this method by the caller
-    val originalContinuation = changeFeedOptions.getRequestContinuation()
+    val originalContinuation = changeFeedOptions.getRequestContinuation
     var currentContinuation = originalContinuation
 
     // The next continuation token that is returned to the caller to continue
     // processing the change feed
-    var nextContinuation = changeFeedOptions.getRequestContinuation()
+    var nextContinuation = changeFeedOptions.getRequestContinuation
     if (currentContinuation != null && 
         currentContinuation.contains("|"))
     {
@@ -155,28 +143,26 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
     // This method can result in reading the next page of the changefeed and changing the continuation token header
     val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
-    logDebug(s"    readChangeFeed.InitialResponseContinuation: ${feedResponse.getResponseContinuation()}")
+    logDebug(s"    readChangeFeed.InitialResponseContinuation: ${feedResponse.getResponseContinuation}")
 
     // If processing from the beginning (no continuation token passed into this method)
     // it is safe to increase previousBlockStartContinuation here because we always at least return
     // one page
     if (Option(currentContinuation).getOrElse("").isEmpty)
     {
-      blockStartContinuation = feedResponse.getResponseContinuation()
+      blockStartContinuation = feedResponse.getResponseContinuation
       previousBlockStartContinuation = blockStartContinuation
     }
 
     if (isStreaming) {
-      var pageCount = 0;
-
-      var isFirstBlock = true;
+      var pageCount = 0
       // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
       val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
       breakable { 
         // hasNext can result in reading the next page of the changefeed and changing the continuation token header
         while (feedResponse.getQueryIterator.hasNext)
         {
-          logDebug(s"    readChangeFeed.InWhile ContinuationToken: ${blockStartContinuation}")
+          logDebug(s"    readChangeFeed.InWhile ContinuationToken: $blockStartContinuation")
           // fetchNextBlock can result in reading the next page of the changefeed and changing the continuation token header
           val feedItems = feedResponse.getQueryIterable.fetchNextBlock()
 
@@ -211,19 +197,19 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
               }
             }
           }
-          logDebug(s"Receving ${cfDocuments.length.toString()} change feed items ${if (cfDocuments.nonEmpty) cfDocuments(0)}")
+          logDebug(s"Receiving ${cfDocuments.length.toString} change feed items ${if (cfDocuments.nonEmpty) cfDocuments.head}")
           
-          if (cfDocuments.length > 0)
+          if (cfDocuments.nonEmpty)
           {
-            pageCount += 1;
+            pageCount += 1
           }
 
           if (pageCount >= maxPagesPerBatch)
           {
             nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
 
-            logDebug(s"    readChangeFeed.MaxPageCountExceeded NextContinuation: ${nextContinuation}")
-            break;
+            logDebug(s"    readChangeFeed.MaxPageCountExceeded NextContinuation: $nextContinuation")
+            break
           }
           else
           {
@@ -232,28 +218,28 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
             // Will only get returned to the caller when the changefeed has been processed completely
             // as a continuation token that the caller can use afterwards to see whether the changefeed 
             // contains new change record documents
-            nextContinuation = feedResponse.getResponseContinuation()
+            nextContinuation = feedResponse.getResponseContinuation
 
             previousBlockStartContinuation = blockStartContinuation
             blockStartContinuation = nextContinuation
 
-            logDebug(s"    readChangeFeed.EndInWhile NextContinuation: ${nextContinuation}, blockStartContinuation: ${blockStartContinuation}, previousBlockStartContinuation: ${previousBlockStartContinuation}")
+            logDebug(s"    readChangeFeed.EndInWhile NextContinuation: $nextContinuation, blockStartContinuation: $blockStartContinuation, previousBlockStartContinuation: $previousBlockStartContinuation")
           }
         }
       }
       
-      logDebug(s"<-- readChangeFeed, Count: ${cfDocuments.length.toString()}, NextContinuation: ${nextContinuation}")
+      logDebug(s"<-- readChangeFeed, Count: ${cfDocuments.length.toString}, NextContinuation: $nextContinuation")
       
       updateTokenFunc(originalContinuation, nextContinuation, partitionId)
-      logDebug(s"changeFeedOptions.partitionKeyRangeId = ${partitionId}, continuation = $originalContinuation, new token = ${nextContinuation}")
+      logDebug(s"changeFeedOptions.partitionKeyRangeId = $partitionId, continuation = $originalContinuation, new token = $nextContinuation")
       cfDocuments.iterator()
     } else 
     {
       // next Continuation Token is plain and simple when not using Streaming because
       // all records will be processed. The parameter 'maxPagesPerBatch' is irrelevant
-      // in this case - so there doesn't need to be any suffix in the continutaion token returned
-      nextContinuation = feedResponse.getResponseContinuation()
-      logDebug(s"<-- readChangeFeed, Non-Streaming, NextContinuation: ${nextContinuation}")
+      // in this case - so there doesn't need to be any suffix in the continuation token returned
+      nextContinuation = feedResponse.getResponseContinuation
+      logDebug(s"<-- readChangeFeed, Non-Streaming, NextContinuation: $nextContinuation")
       new ContinuationTokenTrackingIterator[Document](
             feedResponse,
             updateTokenFunc,
@@ -273,7 +259,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def isDocumentCollectionEmpty: Boolean = {
     logDebug(s"Reading collection $collectionLink")
-    var requestOptions = new RequestOptions
+    val requestOptions = new RequestOptions
     requestOptions.setPopulateQuotaInfo(true)
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val response = documentClient.readCollection(collectionLink, requestOptions)

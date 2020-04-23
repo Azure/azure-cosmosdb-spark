@@ -115,7 +115,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
     val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid"
     val files = listFiles(location, path)
-    var tokens = new util.HashMap[String, String]()
+    val tokens = new util.HashMap[String, String]()
     if (files != null) {
       while (files.hasNext) {
         val file = files.next()
@@ -130,12 +130,11 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
     try {
       fn
     } catch {
-      case e if n > 1 => {
+      case e if n > 1 =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         logError(s"Exception during executing HDFS operation with message: ${e.getMessage} and stacktrace: ${sw.toString}, retrying .. ")
         retry(n - 1)(fn)
-      }
     }
   }
 }

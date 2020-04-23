@@ -113,8 +113,8 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
   }
 
   override def getOffset: Option[Offset] = {
-    var nextTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
-    var offset = CosmosDBOffset(nextTokens)
+    val nextTokens = CosmosDBRDDIterator.getCollectionTokens(Config(streamConfigMap))
+    val offset = CosmosDBOffset(nextTokens)
     logDebug(s"getOffset: $offset")
     Some(offset)
   }

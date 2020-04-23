@@ -61,9 +61,9 @@ class DefaultSource extends RelationProvider
                                parameters: Predef.Map[String, String],
                                data: DataFrame): BaseRelation = {
 
-    var config: Config = Config(sqlContext.sparkContext.getConf, parameters)
-    var connection: CosmosDBConnection = new CosmosDBConnection(config)
-    var isEmptyCollection: Boolean = connection.isDocumentCollectionEmpty
+    val config: Config = Config(sqlContext.sparkContext.getConf, parameters)
+    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val isEmptyCollection: Boolean = connection.isDocumentCollectionEmpty
     mode match{
       case Append =>
         CosmosDBSpark.save(data, config)

@@ -1,6 +1,6 @@
 /**
   * The MIT License (MIT)
-  * Copyright (c) 2016 Microsoft Corporation
+  * Copyright (c) 2020 Microsoft Corporation
   *
   * Permission is hereby granted, free of charge, to any person obtaining a copy
   * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark
 import com.microsoft.azure.documentdb._
 
 case class BulkExecutorSettings(
-    partitionKeyOption: Option[PartitionKeyDefinition],
+    partitionKeyOption: Option[String],
     maxMiniBatchUpdateCount: Int,
     maxMiniBatchImportSizeKB: Int,
     maxThroughputForBulkOperations: Option[Int])

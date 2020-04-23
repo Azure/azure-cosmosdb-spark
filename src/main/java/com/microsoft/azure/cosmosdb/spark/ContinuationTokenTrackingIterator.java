@@ -22,8 +22,9 @@
  */
 package com.microsoft.azure.cosmosdb.spark;
 
-import com.microsoft.azure.documentdb.Resource;
 import com.microsoft.azure.documentdb.FeedResponse;
+import com.microsoft.azure.documentdb.Resource;
+
 import java.util.Iterator;
 
 public final class ContinuationTokenTrackingIterator<T extends Resource> implements Iterator<T> {

@@ -37,8 +37,8 @@ import org.apache.spark.sql.Row
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
-
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function
 
 case class AsyncClientConfiguration(host: String,
                                key: String,
@@ -50,14 +50,14 @@ object AsyncCosmosDBConnection {
     new ConcurrentHashMap[Config, AsyncDocumentClient]
   }
 
-  val factoryMethod = new java.util.function.Function[Config, AsyncDocumentClient]() {
+  val factoryMethod: function.Function[Config, AsyncDocumentClient] = new java.util.function.Function[Config, AsyncDocumentClient]() {
       override def apply(c: Config): AsyncDocumentClient = createClient(c)
     }
 
   def getClientConfiguration(config: Config): AsyncClientConfiguration = {
     // Generate connection policy
     val connectionPolicy = new ConnectionPolicy()
-    val mode = config.getOrElse[String](CosmosDBConfig.ConnectionMode, ConnectionMode.Direct.toString())
+    val mode = config.getOrElse[String](CosmosDBConfig.ConnectionMode, ConnectionMode.Direct.toString)
     var connectionMode: ConnectionMode = ConnectionMode.Direct
     if("gateway".equalsIgnoreCase(mode)) {
       connectionMode = ConnectionMode.Gateway
@@ -68,10 +68,10 @@ object AsyncCosmosDBConnection {
     val applicationName = config.get[String](CosmosDBConfig.ApplicationName)
     if (applicationName.isDefined) {
       // Merging the Spark connector version with Spark executor process id and application name for user agent
-      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName() + " " + applicationName.get)
+      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean.getName + " " + applicationName.get)
     } else {
       // Merging the Spark connector version with Spark executor process id for user agent
-      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean().getName())
+      connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix + " " + ManagementFactory.getRuntimeMXBean.getName)
     }
 
     config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
@@ -149,7 +149,7 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
                                     rootPropertyToSave: Option[String],
                                     upsert: Boolean): Unit = {
 
-    var observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
+    val observables = new java.util.ArrayList[Observable[ResourceResponse[Document]]](writingBatchSize)
     var createDocumentObs: Observable[ResourceResponse[Document]] = null
     var batchSize = 0
     iter.foreach(item => {

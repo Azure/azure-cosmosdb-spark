@@ -128,7 +128,7 @@ trait Config extends Serializable {
   val properties: Map[Property, Any]
 
   def asOptions: collection.Map[String, String] = {
-    properties.map { case (x, v) => (x -> v.toString()) }
+    properties.map { case (x, v) => x -> v.toString() }
   }
 
   /** Returns the value associated with a key, or a default value if the key is not contained in the configuration object.
@@ -269,13 +269,13 @@ object Config {
       }
     }
 
-    var builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
+    val builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
 
     builder.build()
   }
 
   private def isEmpty(value: String): Boolean =
-    value == null || value.isEmpty()
+    value == null || value.isEmpty
 
 
   /**

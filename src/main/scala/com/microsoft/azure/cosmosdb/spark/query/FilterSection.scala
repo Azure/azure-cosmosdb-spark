@@ -28,7 +28,7 @@ import org.apache.spark.sql.sources._
 object FilterSection {
 
   implicit def srcFilArr2filSel(sFilters: Array[Filter])(implicit config: Config): FilterSection =
-    new SourceFilters(sFilters)
+    SourceFilters(sFilters)
 
   def apply(sFilters: Array[Filter])(implicit config: Config): FilterSection =
     srcFilArr2filSel(sFilters)

@@ -34,7 +34,7 @@ private [spark] object FilterConverter extends CosmosDBLoggingTrait {
                          requiredColumns: Array[String],
                          filters: Array[Filter]): String = {
 
-    var selectClause = "*"
+    val selectClause = "*"
     //Note: for small document, the projection will transport less data but it might be slower because server
     // need to process the projection.
     //if (requiredColumns.nonEmpty)   selectClause = requiredColumns.map(x => "c." + x).mkString(",")
@@ -72,7 +72,7 @@ private [spark] object FilterConverter extends CosmosDBLoggingTrait {
     val parts = field.split('.')
     val identifierBuilder = StringBuilder.newBuilder
 
-    for(part <- parts) identifierBuilder.append(s"""[\"${part}\"]""" )
+    for(part <- parts) identifierBuilder.append(s"""[\"$part\"]""" )
     identifierBuilder.toString()
   }
 

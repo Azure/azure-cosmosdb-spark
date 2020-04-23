@@ -38,26 +38,23 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
     * @param config Partition configuration
     */
   override def computePartitions(config: Config): Array[Partition] = {
-    var connection: CosmosDBConnection = new CosmosDBConnection(config)
-    var partitionKeyRanges = connection.getAllPartitions
+    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val partitionKeyRanges = connection.getAllPartitions
     logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length){
-      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents)
     }
   }
 
-  def computePartitions(config: Config,
-                        requiredColumns: Array[String] = Array(),
-                        filters: Array[Filter] = Array()): Array[Partition] = {
-    var connection: CosmosDBConnection = new CosmosDBConnection(config)
+  def computePartitions(config: Config, requiredColumns: Array[String] = Array()): Array[Partition] = {
+    val connection: CosmosDBConnection = CosmosDBConnection(config)
     connection.reinitializeClient()
-   
+
     // CosmosDB source
-    var query: String = FilterConverter.createQueryString(requiredColumns, filters)
-    var partitionKeyRanges = connection.getAllPartitions(query)
+    val partitionKeyRanges = connection.getAllPartitions
     logInfo(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length) {
-      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents())
+      i => CosmosDBPartition(i, partitionKeyRanges.length, partitionKeyRanges(i).getId.toInt, partitionKeyRanges(i).getParents)
     }
   }
 }

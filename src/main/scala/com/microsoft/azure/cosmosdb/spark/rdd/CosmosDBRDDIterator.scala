@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.microsoft.azure.cosmosdb.internal.HttpConstants.StatusCodes
-import com.microsoft.azure.cosmosdb.internal.directconnectivity.{ ServiceUnavailableException}
+import com.microsoft.azure.cosmosdb.internal.directconnectivity.ServiceUnavailableException
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.CosmosDBPartition
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -46,7 +46,6 @@ object CosmosDBRDDIterator {
 
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
-
   var hdfsUtils: HdfsUtils = _
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
@@ -74,7 +73,7 @@ object CosmosDBRDDIterator {
     * @return       the corresponding global continuation token
     */
   def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
-    val connection = new CosmosDBConnection(config)
+    val connection = CosmosDBConnection(config)
     val collectionLink = connection.getCollectionLink
     val queryName = config
       .get[String](CosmosDBConfig.ChangeFeedQueryName).get
@@ -147,7 +146,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
   lazy val reader: Iterator[Document] = {
     initialized = true
-    var connection: CosmosDBConnection = new CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config)
 
     val readingChangeFeed: Boolean = config
       .get[String](CosmosDBConfig.ReadChangeFeed)
@@ -220,21 +219,18 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       */
     def readChangeFeed: Iterator[Document] = {
 
-      // For tokens checkpointing
-      var checkPointPath: String = null
       val objectMapper: ObjectMapper = new ObjectMapper()
 
       val changeFeedCheckpointLocation: String = config
         .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
         .getOrElse(StringUtils.EMPTY)
-      var changeFeedCheckpoint: Boolean = !changeFeedCheckpointLocation.isEmpty
       val queryName: String = config
         .get[String](CosmosDBConfig.ChangeFeedQueryName)
         .get
       val partitionId = partition.partitionKeyRangeId.toString
       var parentPartitionId = ""
 
-      if(!partition.parents.isEmpty()) {
+      if(!partition.parents.isEmpty) {
         parentPartitionId = partition.parents.iterator().next()
       }
 
@@ -254,7 +250,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           collectionLink,
           partitionId)
 
-        if(cfCurrentToken.isEmpty() && !parentPartitionId.isEmpty()) {
+        if(cfCurrentToken.isEmpty && !parentPartitionId.isEmpty) {
           cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             queryName,
@@ -262,7 +258,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
             parentPartitionId)
         }
 
-        if(cfNextToken.isEmpty() && !parentPartitionId.isEmpty()) {
+        if(cfNextToken.isEmpty && !parentPartitionId.isEmpty) {
           cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             CosmosDBRDDIterator.getNextTokenPath(queryName),
@@ -275,7 +271,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       def getContinuationToken(partitionId: String): String = {
         val continuationToken = config.get[String](CosmosDBConfig.ChangeFeedContinuationToken)
         if (continuationToken.isDefined) {
-          // Continuaton token is overriden
+          // Continuation token is overridden
           val emptyTokenMap = new ConcurrentHashMap[String, String]()
           val collectionTokenMap = objectMapper.readValue(continuationToken.get, emptyTokenMap.getClass)
           cfCurrentToken = collectionTokenMap.get(partitionId)
@@ -294,9 +290,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       }
 
       // Update the tokens cache as appropriate
-      def updateTokens(currentToken: String,
-                       nextToken: String,
-                       partitionId: String): Unit = {
+      def updateTokens(nextToken: String, partitionId: String): Unit = {
         val rollingChangeFeed: Boolean = config
           .get[String](CosmosDBConfig.RollingChangeFeed)
           .getOrElse(CosmosDBConfig.DefaultRollingChangeFeed.toString)
@@ -360,61 +354,61 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       while(!successReadChangeFeed && retryCount < maxRetryCountOnServiceUnavailable && !isGone) {
         // Query for change feed
         try {
-          iteratorDocument = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema, updateTokens _)
+          iteratorDocument = connection.readChangeFeed(changeFeedOptions, structuredStreaming, shouldInferStreamSchema, (currentToken: String, nextToken: String, partitionId: String) => updateTokens(nextToken, partitionId))
           successReadChangeFeed = true
         }
         catch {
-          case docex: DocumentClientException => handleGoneException(connection, docex)
+          case docEx: DocumentClientException => handleGoneException(connection, docEx)
           case ex: IllegalStateException =>
-            if (ex.getCause.isInstanceOf[ServiceUnavailableException]) {
-              if (retryCount < maxRetryCountOnServiceUnavailable) {
-                val retryDelayInMs = rnd.nextInt(1000)
-                logWarning(s"Service Unavailable exception thrown. Going to retry. " +
-                  s"Current retry count: ${retryCount}. Max retry count: ${maxRetryCountOnServiceUnavailable} " +
-                  s"Retry Delay (ms): ${retryDelayInMs}")
-                Thread.sleep(retryDelayInMs)
-                retryCount += 1
-              } else {
-                logError("Exhausted all retries on Service Unavailable exception")
-                throw ex
+            ex.getCause match {
+              case _: ServiceUnavailableException =>
+                if (retryCount < maxRetryCountOnServiceUnavailable) {
+                  val retryDelayInMs = rnd.nextInt(1000)
+                  logWarning(s"Service Unavailable exception thrown. Going to retry. " +
+                    s"Current retry count: $retryCount. Max retry count: $maxRetryCountOnServiceUnavailable " +
+                    s"Retry Delay (ms): $retryDelayInMs")
+                  Thread.sleep(retryDelayInMs)
+                  retryCount += 1
+                } else {
+                  logError("Exhausted all retries on Service Unavailable exception")
+                  throw ex
+                }
+              case _ => ex.getCause match {
+                case docEx: DocumentClientException =>
+                  handleGoneException(connection, docEx)
+                  isGone = true
+                case _ =>
+                  logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
               }
-            } else if (ex.getCause.isInstanceOf[DocumentClientException]) {
-              val docex = ex.getCause.asInstanceOf[DocumentClientException]
-              handleGoneException(connection, docex);
-              isGone = true
-            } else {
-              logError(s"An IllegalStateException was thrown: ${ex.getMessage}")
             }
-          case ex: Throwable => {
+          case ex: Throwable =>
             logError(s"UNHANDLED EXCEPTION: ${ex.getMessage}")
             throw ex
-          }
         }
       }
       iteratorDocument
     }
 
-    taskContext.addTaskFailureListener((context: TaskContext, ex: Throwable) => {
+    taskContext.addTaskFailureListener((_: TaskContext, ex: Throwable) => {
       logError("Handling Task Failure")
-      if (ex.isInstanceOf[DocumentClientException]) {
-        val dcx: DocumentClientException = ex.asInstanceOf[DocumentClientException]
-        if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
-          logError("Service Unavailable")
-          connection.reinitializeClient()
-        }
-      } else if (ex.isInstanceOf[IllegalStateException]
-        && ex.getCause != null
-        && ex.getCause.isInstanceOf[DocumentClientException]){
-        logError("Illegal State Exception with Service Unavailable")
-        val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
-        if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
-          connection.reinitializeClient()
-        }
+      ex match {
+        case dcx: DocumentClientException =>
+          if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
+            logError("Service Unavailable")
+            connection.reinitializeClient()
+          }
+        case _: IllegalStateException if ex.getCause.isInstanceOf[DocumentClientException] && ex.getCause != null =>
+          logError("Illegal State Exception with Service Unavailable")
+          val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
+          if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
+            connection.reinitializeClient()
+          }
+        case _ =>
       }
     })
 
     // Register an on-task-completion callback to close the input stream.
-    taskContext.addTaskCompletionListener((context: TaskContext) => {
+    taskContext.addTaskCompletionListener((_: TaskContext) => {
       connection.reinitializeClient()
       closeIfNeeded()
     })
@@ -428,15 +422,15 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
   private def handleGoneException(connection: CosmosDBConnection, exception: DocumentClientException): Unit = {
     if (exception.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE
-      || exception.getSubStatusCode() == SubStatusCodes.PARTITION_KEY_RANGE_GONE
-      || exception.getSubStatusCode() == SubStatusCodes.COMPLETING_SPLIT)
+      || exception.getSubStatusCode == SubStatusCodes.PARTITION_KEY_RANGE_GONE
+      || exception.getSubStatusCode == SubStatusCodes.COMPLETING_SPLIT)
     {
       val retryDelayInMs = rnd.nextInt(1000)
                 
       logWarning(
         s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, " +
-        s"status code ${exception.getStatusCode}, substatus ${exception.getSubStatusCode} " +
-        s"Retry delay (ms): ${retryDelayInMs}")
+        s"status code ${exception.getStatusCode}, subStatus ${exception.getSubStatusCode} " +
+        s"Retry delay (ms): $retryDelayInMs")
       Thread.sleep(retryDelayInMs)
       connection.reinitializeClient()
     } else {

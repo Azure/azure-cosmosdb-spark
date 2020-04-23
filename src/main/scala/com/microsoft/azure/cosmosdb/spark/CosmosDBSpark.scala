@@ -56,7 +56,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
   /**
    * The default source string for creating DataFrames from CosmosDB
    */
-  val defaultSource = classOf[DefaultSource].getCanonicalName
+  val defaultSource: String = classOf[DefaultSource].getCanonicalName
 
   /**
     * For verfication purpose
@@ -157,7 +157,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                       connection: CosmosDBConnection,
                                       writingBatchSize: Int)(implicit ev: ClassTag[D]): Unit = {
     // Initialize BulkExecutor
-    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter()
+    val updater: DocumentBulkExecutor = connection.getDocumentBulkImporter
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
@@ -228,26 +228,26 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     connection: CosmosDBConnection,
     docs: java.util.List[String]): String =
   {
-    val pkDefinitionModel = connection.getPartitionKeyDefinition()
+    val pkDefinitionModel = connection.getPartitionKeyDefinition
 
-    logDebug(s"PartitionKeyDefinition: Kind: ${pkDefinitionModel.getKind().toString()}")
-    val version = pkDefinitionModel.getVersion()
+    logDebug(s"PartitionKeyDefinition: Kind: ${pkDefinitionModel.getKind.toString}")
+    val version = pkDefinitionModel.getVersion
     if (version != null)
     {
-      logDebug(s"PartitionKeyDefinition: Version: ${version.toString()}")
+      logDebug(s"PartitionKeyDefinition: Version: ${version.toString}")
     }
-    logDebug(s"PartitionKeyDefinition: Paths - ${pkDefinitionModel.getPaths().mkString("|")}")
+    logDebug(s"PartitionKeyDefinition: Paths - ${pkDefinitionModel.getPaths.mkString("|")}")
 
     val sb = new StringBuilder()
-    docs.foreach((d) =>
+    docs.foreach(d =>
       {
-        val doc = d.toString()
+        val doc : String = d.toString
         val internalPK = com.microsoft.azure.documentdb.bulkexecutor.internal.DocumentAnalyzer
           .extractPartitionKeyValue(doc, pkDefinitionModel)
         val effectivePK = internalPK
           .getEffectivePartitionKeyString(pkDefinitionModel, true)
         val jsonPK = internalPK
-          .toJson()
+          .toJson
         sb.append(jsonPK).append("(").append(effectivePK).append(") --> ").append(doc).append(", ")
       }
     )
@@ -261,7 +261,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                       upsert: Boolean,
                                       maxConcurrencyPerPartitionRange: Integer): Unit = {
     // Initialize BulkExecutor
-    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter()
+    val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter
 
     // Set retry options to 0 to pass control to BulkExecutor
     // connection.setZeroClientRetryPolicy
@@ -299,7 +299,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
           throw new Exception(
             "Errors encountered in bulk import API execution. " +
-            "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition().toString() + ", " +
+            "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition.toString() + ", " +
             "Number of failures corresponding to exception of type: " +
             bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
             bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
@@ -323,7 +323,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
         throw new Exception(
           "Errors encountered in bulk import API execution. " +
-          "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition() + ", " +
+          "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition + ", " +
           "Number of failures corresponding to exception of type: " +
           bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
           bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
@@ -335,7 +335,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
                                          partitionCount: Int): Iterator[D] = {
-    val connection: CosmosDBConnection = new CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
     val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
@@ -476,9 +476,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     def build(): CosmosDBSpark = {
       require(sparkSession.isDefined, "The SparkSession must be set, either explicitly or via the SparkContext")
       val session = sparkSession.get
-      val readConf = config.isDefined match {
-        case true => Config(options, config)
-        case false => Config(session.sparkContext.getConf, options)
+      val readConf = if (config.isDefined) {
+        Config(options, config)
+      } else {
+        Config(session.sparkContext.getConf, options)
       }
 
       logInfo("Read config: " + readConf.toString)
@@ -570,7 +571,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     * @param jsc the Spark context containing the CosmosDB connection configuration
     * @return a CosmosDBRDD
     */
-  def load(jsc: JavaSparkContext): JavaCosmosDBRDD = builder().javaSparkContext(jsc).build().toJavaRDD()
+  def load(jsc: JavaSparkContext): JavaCosmosDBRDD = builder().javaSparkContext(jsc).build().toJavaRDD
 
   /**
     * Load data from CosmosDB
@@ -579,7 +580,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     * @return a CosmosDBRDD
     */
   def load(jsc: JavaSparkContext, readConfig: Config): JavaCosmosDBRDD =
-    builder().javaSparkContext(jsc).config(readConfig).build().toJavaRDD()
+    builder().javaSparkContext(jsc).config(readConfig).build().toJavaRDD
 
   /**
     * Save data to CosmosDB
@@ -665,7 +666,7 @@ case class CosmosDBSpark(sparkSession: SparkSession, readConfig: Config) {
     *
     * @return a JavaCosmosDBRDD
     */
-  def toJavaRDD(): JavaCosmosDBRDD = rdd.toJavaRDD()
+  def toJavaRDD: JavaCosmosDBRDD = rdd.toJavaRDD
 
   /**
     * Creates a `DataFrame` based on the schema derived from the optional type.

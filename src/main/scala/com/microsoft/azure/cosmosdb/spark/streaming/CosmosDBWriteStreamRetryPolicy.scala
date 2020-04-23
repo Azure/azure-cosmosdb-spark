@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.{Document, ResourceResponse, RequestOptions}
+import com.microsoft.azure.cosmosdb.{Document, RequestOptions, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
@@ -30,21 +30,24 @@ import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types.StructType
-import java.time.Instant;
-import java.time.temporal.ChronoField;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.TimeUnit;
+import java.time.Instant
+import java.time.temporal.ChronoField
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.TimeUnit
+
 import rx.Observable
+
 import scala.reflect.ClassTag
 import scala.collection
 import scala.collection.JavaConverters
+import scala.util.Random
 
 class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String]) 
     extends CosmosDBLoggingTrait
     with Serializable
 {
-    val config = getConfig(configMap)
-    val rnd = scala.util.Random
+    val config: CosmosDBWriteStreamRetryPolicyConfig = getConfig(configMap)
+    val rnd: Random.type = scala.util.Random
     private lazy val notificationHandler: CosmosDBWriteStreamPoisonMessageNotificationHandler = {
         getNotificationHandler(configMap)
     }
@@ -76,13 +79,13 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
                 schema: StructType,
                 requestOptions: RequestOptions,
                 maxWriteConcurrency: Integer,
-                task: Function2[Document, RequestOptions, Observable[ResourceResponse[Document]]]): Observable[ResourceResponse[Document]] =
+                task: (Document, RequestOptions) => Observable[ResourceResponse[Document]]): Observable[ResourceResponse[Document]] =
     {
         val maxRetries = this.config.getMaxTransientRetryCount()
         val maxRetryDelayInMs = this.config.getMaxTransientRetryDelayInMs()
 
-        val retryUntil = Instant.now().get(ChronoField.MILLI_OF_SECOND) + this.config.getMaxTransientRetryDurationInMs();
-        val attempts = new AtomicLong(0L);
+        val retryUntil = Instant.now().get(ChronoField.MILLI_OF_SECOND) + this.config.getMaxTransientRetryDurationInMs()
+        val attempts = new AtomicLong(0L)
 
         val itemConversionFunc = (item: D) => item match
         {
@@ -97,7 +100,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
             itemConversionFunc,
             requestOptions,
             task,
-            this.config.isTransient _,
+            this.config.isTransient,
             loggingAction = (msg: String) => logDebug(msg),
             (throwable: Throwable, document: Document) => this.notificationHandler.onPoisonMessage(throwable, document),
             this.rnd,

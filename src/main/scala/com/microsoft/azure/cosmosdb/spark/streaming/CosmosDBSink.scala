@@ -34,7 +34,7 @@ private[spark] class CosmosDBSink(sqlContext: SQLContext,
   extends Sink with CosmosDBLoggingTrait with Serializable {
 
   private var lastBatchId: Long = -1L
-  private var retryPolicy: CosmosDBWriteStreamRetryPolicy = new CosmosDBWriteStreamRetryPolicy(configMap)
+  private val retryPolicy: CosmosDBWriteStreamRetryPolicy = new CosmosDBWriteStreamRetryPolicy(configMap)
   
   override def addBatch(batchId: Long, data: DataFrame): Unit = {
     if (batchId <= lastBatchId) {
@@ -48,7 +48,7 @@ private[spark] class CosmosDBSink(sqlContext: SQLContext,
     val schemaOutput = queryExecution.analyzed.output
     val config = Config(configMap)
     val rdd = queryExecution.toRdd
-    logTrace(s"Partition Count:" + rdd.partitions.size)
+    logTrace(s"Partition Count:" + rdd.partitions.length)
 
     rdd.foreachPartition( iter => {
       val writeTask = new StreamingWriteTask()

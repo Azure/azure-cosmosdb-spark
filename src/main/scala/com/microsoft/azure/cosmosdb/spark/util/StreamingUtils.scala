@@ -58,7 +58,7 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
     iter: Iterator[D],
     schemaOutput: Seq[Attribute],
     config: Config,
-    retryPolicy: CosmosDBWriteStreamRetryPolicy) = {
+    retryPolicy: CosmosDBWriteStreamRetryPolicy): Unit = {
 
     val upsert: Boolean = config
       .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
@@ -69,9 +69,9 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
 
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
-    var startTime = LocalDateTime.now()
+    val startTime = LocalDateTime.now()
 
-    logError(s"Max. write concurrency is ${maxWriteConcurrency}")
+    logError(s"Max. write concurrency is $maxWriteConcurrency")
 
     val defaultRequestOptions : RequestOptions = null
 
@@ -84,9 +84,9 @@ class StreamingWriteTask extends Serializable with CosmosDBLoggingTrait {
         retryPolicy.process(iter, schema, defaultRequestOptions, maxWriteConcurrency, asyncConnection.createDocument)
     }
 
-    val count = result.count().toBlocking().last()
+    val count = result.count().toBlocking.last()
 
-    var latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
-    logInfo(s"Batch of ${count} records written with latency ${latency} milliseconds")
+    val latency = Math.abs(ChronoUnit.MILLIS.between(LocalDateTime.now(), startTime))
+    logInfo(s"Batch of $count records written with latency $latency milliseconds")
   }
 }

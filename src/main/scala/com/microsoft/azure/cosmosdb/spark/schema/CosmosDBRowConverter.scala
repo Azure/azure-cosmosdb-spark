@@ -70,12 +70,10 @@ object CosmosDBRowConverter extends RowConverter[Document]
         try {
           recordAsRow(documentToMap(record), schema)
         } catch {
-          case e: Exception => {
-            logInfo(s"record is ${record}")
+          case e: Exception =>
+            logInfo(s"record is $record")
             throw e
-          }
         }
-
       }
     }
   }
@@ -92,11 +90,11 @@ object CosmosDBRowConverter extends RowConverter[Document]
 
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
-        if (mdata.contains("idx") && mdata.contains("colname")) =>
+        if mdata.contains("idx") && mdata.contains("colname") =>
           val colName = mdata.getString("colname")
           val idx = mdata.getLong("idx").toInt
-          json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true))).collect {
-            case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
+          json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, containsNull = true))).collect {
+            case elemsList: Seq[_] if elemsList.indices contains idx => elemsList(idx)
           } orNull
       case StructField(name, dataType, _, _) =>
         json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
@@ -143,19 +141,19 @@ object CosmosDBRowConverter extends RowConverter[Document]
   }
 
   def rowToJSONObject(row: Row): JSONObject = {
-    var jsonObject: JSONObject = new JSONObject()
+    val jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
       case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, false))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
     })
     jsonObject
   }
 
   def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
-    var jsonObject: JSONObject = new JSONObject()
+    val jsonObject: JSONObject = new JSONObject()
     schema.fields.zipWithIndex.foreach({
       case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, true))
+      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
     })
     jsonObject
   }
@@ -168,13 +166,12 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
-      case StringType           => {
+      case StringType           =>
         if (isInternalRow) {
           new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
         } else {
           element.asInstanceOf[String]
         }
-      }
       case TimestampType        => element.asInstanceOf[Timestamp].getTime
       case arrayType: ArrayType => arrayTypeRouterToJsonArray(arrayType.elementType, element, isInternalRow)
       case mapType: MapType =>
@@ -191,7 +188,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
   }
 
   private def mapTypeToJSONObject(valueType: DataType, data: Map[String, Any], isInternalRow: Boolean): JSONObject = {
-    var jsonObject: JSONObject = new JSONObject()
+    val jsonObject: JSONObject = new JSONObject()
     val internalData = valueType match {
       case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowTyperouterToJsonArray(kv._2, subDocuments)))
       case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeRouterToJsonArray(subArray.elementType, kv._2, isInternalRow)))

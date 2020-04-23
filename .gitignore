@@ -349,3 +349,8 @@ ASALocalRun/
 .vscode/settings.json
 scalastyle-output.xml
 .settings/org.eclipse.jdt.apt.core.prefs
+.bloop/azure-cosmosdb-spark_2.4.0_2.11-test.json
+.bloop/azure-cosmosdb-spark_2.4.0_2.11.json
+.bloop/bloop.settings.json
+.metals/metals.h2.db
+.metals/metals.lock.db

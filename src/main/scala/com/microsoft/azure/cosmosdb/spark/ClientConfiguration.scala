@@ -1,6 +1,6 @@
 /**
   * The MIT License (MIT)
-  * Copyright (c) 2016 Microsoft Corporation
+  * Copyright (c) 2020 Microsoft Corporation
   *
   * Permission is hereby granted, free of charge, to any person obtaining a copy
   * of this software and associated documentation files (the "Software"), to deal
@@ -88,16 +88,7 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
   }
 
   private def createBulkExecutorSettings(config: Config) : BulkExecutorSettings = {
-      val pkDef: Option[PartitionKeyDefinition] =
-        config.get[String](CosmosDBConfig.PartitionKeyDefinition)
-        .map(pk => {
-            val pkDefinition = new PartitionKeyDefinition()
-            val paths: ListBuffer[String] = new ListBuffer[String]()
-            paths.add(pk)
-            pkDefinition.setPaths(paths)
-            pkDefinition
-        })
-
+    val pkDef: Option[String] = config.get[String](CosmosDBConfig.PartitionKeyDefinition)
     val maxMiniBatchImportSizeKB: Int = config
       .getOrElse(CosmosDBConfig.MaxMiniBatchImportSizeKB, CosmosDBConfig.DefaultMaxMiniBatchImportSizeKB)
     val maxMiniBatchUpdateCount: Int = config
@@ -121,7 +112,7 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
     val userAgentString: String = if (applicationName.isEmpty) {
       s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName}"
     } else {
-      s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName} ${applicationName}"    
+      s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName} $applicationName"
     }
 
     val connectionRequestTimeout : Option[Int] = 

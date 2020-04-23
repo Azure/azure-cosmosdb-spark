@@ -59,7 +59,7 @@ case class CosmosDBSchema[T <: RDD[Document]](
 
     val flatMap = schemaData.flatMap {
       dbo =>
-        val doc: Map[String, AnyRef] = dbo.getHashMap().asScala.toMap
+        val doc: Map[String, AnyRef] = dbo.getHashMap.asScala.toMap
         val fields = doc.mapValues(f => convertToStruct(f))
         fields
     }
@@ -82,14 +82,14 @@ case class CosmosDBSchema[T <: RDD[Document]](
 
   private def convertToStruct(dataType: Any): DataType = dataType match {
     case array: util.ArrayList[_] =>
-      typeOfArray(array.asScala.toSeq)
+      typeOfArray(array.asScala)
     case hm: util.HashMap[_, _] =>
       val fields = hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap.map {
         case (k, v) => StructField(k, convertToStruct(v))
       }.toSeq
       StructType(fields)
     case bo: Document =>
-      val fields = bo.getHashMap().asScala.toMap.map {
+      val fields = bo.getHashMap.asScala.toMap.map {
         case (k, v) =>
           StructField(k, convertToStruct(v))
       }.toSeq

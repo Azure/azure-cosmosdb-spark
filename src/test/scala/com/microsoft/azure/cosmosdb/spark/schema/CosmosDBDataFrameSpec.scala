@@ -65,7 +65,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .map(x => SimpleDocument(x.toString, x, ((documentCount - x + 1) + documentCount).toString)))
       .toDF().write.mode(SaveMode.Overwrite).cosmosDB()
     cosmosDBRDD = sc.loadFromCosmosDB()
-    var expectedNewValues = (documentCount + 1 to documentCount * 2).toList
+    val expectedNewValues = (documentCount + 1 to documentCount * 2).toList
     cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs expectedNewValues
   }
 
@@ -82,7 +82,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val newConfig: Config = Config(configMap)
 
     sc.parallelize(simpleDocuments).toDF().write.cosmosDB(newConfig)
-    var cosmosDBRDD: CosmosDBRDD = sc.loadFromCosmosDB(newConfig)
+    val cosmosDBRDD: CosmosDBRDD = sc.loadFromCosmosDB(newConfig)
     cosmosDBRDD.map(x => x.getInt("intString")).collect() should contain theSameElementsAs (1 to documentCount).toList
 
     cosmosDBDefaults.deleteCollection(databaseName, collectionName)
@@ -97,7 +97,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val coll = sparkSession.sqlContext.read.cosmosDB()
     coll.createOrReplaceTempView("c")
 
-    var query = "SELECT * FROM c "
+    val query = "SELECT * FROM c "
 
     // Run DF query (count)
     val nanoPerSecond = 1e9
@@ -245,7 +245,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     FileUtils.deleteDirectory(new File(checkpointPath))
 
-    var configMap = Map("Endpoint" -> host,
+    val configMap = Map("Endpoint" -> host,
       "Masterkey" -> key,
       "Database" -> dbName,
       "Collection" -> collName,
@@ -364,7 +364,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
   }
 
   it should "should work with data with a property containing integer and string values" in withSparkContext() { sc =>
-    var largeCount = 1001
+    val largeCount = 1001
     sc.parallelize((1 to largeCount).map(x => {
       if (x <= largeCount - 2)
         new Document(s"{pkey: $x, intValue: $x}")
@@ -381,12 +381,12 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val coll = sparkSession.sqlContext.read.cosmosDB()
     coll.createOrReplaceTempView("c")
 
-    var query = "SELECT c.intValue + 1 FROM c"
+    val query = "SELECT c.intValue + 1 FROM c"
     var expectedValues = new ListBuffer[Any]
     expectedValues ++= (2 until largeCount)
     expectedValues += null
     expectedValues += null
-    var df = sparkSession.sql(query)
+    val df = sparkSession.sql(query)
     df.count() shouldBe largeCount
     df.rdd.map(x => x.get(0)).collect() should contain theSameElementsAs expectedValues
   }
@@ -615,7 +615,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       doc.set("decimalValue", BigDecimal.valueOf(Double.MaxValue) * 2 + i)
       doc
     })).saveToCosmosDB()
-    var df = spark.read.cosmosDB()
+    val df = spark.read.cosmosDB()
 
     // Verify with a document with string value for number property
     spark.sql(s"select '${testCount + 1}' as id, " +
@@ -659,7 +659,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val cfCheckpointPath = "./changefeedcheckpoint"
     FileUtils.deleteDirectory(new File(cfCheckpointPath))
 
-    var configMap = Config(spark.sparkContext.getConf)
+    val configMap = Config(spark.sparkContext.getConf)
       .asOptions
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
@@ -741,7 +741,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
 
     // Verify the documents have streamed to the new collection
     val df = spark.read.cosmosDB(Config(sinkConfigMap))
-    var streamedIdCheckRangeStart = streamingSinkDelayMs / insertIntervalMs
+    val streamedIdCheckRangeStart = streamingSinkDelayMs / insertIntervalMs
     var streamedIdCheckRangeEnd = insertIterations
     df.rdd.map(row => row.getString(row.fieldIndex("id")).toInt).collect().sortBy(x => x) should
       contain allElementsOf (streamedIdCheckRangeStart to streamedIdCheckRangeEnd).toList
@@ -842,7 +842,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val cfCheckpointPath = "./changefeedcheckpoint"
     FileUtils.deleteDirectory(new File(cfCheckpointPath))
 
-    var configMap = Config(spark.sparkContext.getConf)
+    val configMap = Config(spark.sparkContext.getConf)
       .asOptions
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
@@ -867,7 +867,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       +((CosmosDBConfig.ChangeFeedQueryName, "Structured Stream unit test"))
 
     // Start to read the stream
-    var streamData = spark.readStream
+    val streamData = spark.readStream
       .format(classOf[CosmosDBSourceProvider].getName)
       .options(sourceConfigMap)
       .load()
@@ -886,7 +886,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .options(sinkConfigMap)
       .option("checkpointLocation", checkpointPath)
 
-    var streamingQuery = streamingQueryWriter.start()
+    val streamingQuery = streamingQueryWriter.start()
 
     // Let streams ready
     TimeUnit.SECONDS.sleep(20)
@@ -938,7 +938,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       new UpdateItem(id, pkey, operations)
     })
 
-    var configMap = Config(spark.sparkContext.getConf)
+    val configMap = Config(spark.sparkContext.getConf)
       .asOptions
       .+((CosmosDBConfig.BulkUpdate, "true"))
 
