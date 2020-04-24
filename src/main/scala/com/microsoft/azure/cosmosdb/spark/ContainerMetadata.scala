@@ -24,7 +24,15 @@ package com.microsoft.azure.cosmosdb.spark
 
 import com.microsoft.azure.documentdb._
 
-case class ContainerMetadata(
+/**
+  * Case class for immutable container metadata
+  * @param id                       The name of the container
+  * @param selfLink                 The self link of the container - it has the format of
+  *                                 dbs/{DBResourceId}/cols/{ContainerResourceId}
+  * @param resourceId               The unique resource-id of the container
+  * @param partitionKeyDefinition   The partition key definition of the container
+  */
+private[spark] case class ContainerMetadata(
                               id: String,
                               selfLink: String,
                               resourceId: String,

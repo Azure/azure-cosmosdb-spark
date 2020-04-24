@@ -23,6 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.{Timer, TimerTask}
 
 import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig
 import com.microsoft.azure.documentdb._
@@ -33,14 +34,17 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
+/**
+  * Helper class that allows access to the resources used in CosmosDBConnection
+  * that are cached as singletons on executors.
+  */
 object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
-  private lazy val clientCache
-  : ConcurrentHashMap[ClientConfiguration, ClientCacheEntry] =
+  private lazy val clientCache: ConcurrentHashMap[ClientConfiguration, ClientCacheEntry] = 
     new ConcurrentHashMap[ClientConfiguration, ClientCacheEntry]()
   private lazy val createClientFunc =
     new java.util.function.Function[ClientConfiguration, ClientCacheEntry]() {
       override def apply(config: ClientConfiguration): ClientCacheEntry = {
-        val client = if (config.resourceLink.isDefined) {
+        val client = if (config.authConfig.resourceLink.isDefined) {
           createClientWithResourceToken(config)
         } else {
           createClientWithMasterKey(config)
@@ -55,13 +59,21 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         )
 
         logInfo(
-          s"Creating new ClientCacheEntry#${clientCacheEntry.hashCode()} " +
-            s"for ClientConfiguration#${config.hashCode()}" +
-            s"with DocumentClient#${client.hashCode()}"
+          s"Creating new ${clientCacheEntry.getLogMessage}"
         )
         clientCacheEntry
       }
     }
+  
+  private val rnd = scala.util.Random
+
+  private val refreshDelay : Long = (10 * 60 * 1000) + rnd.nextInt(5 * 60 * 1000) // in 10 - 15 minutes
+  private val refreshPeriod : Long = 15 * 60 * 1000 // every 15 minutes
+  // main purpose of the time is to allow bulk operations to consume
+  // additional throughput when more RUs are getting provisioned
+  private val timerName = "throughput-refresh-timer"
+  private val timer: Timer = new Timer(timerName)
+
   private val nullRequestOptions: RequestOptions = null
   private val bulkExecutorInitializationRetryOptions: RetryOptions = {
     val bulkExecutorInitializationRetryOptions = new RetryOptions()
@@ -75,14 +87,14 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   var lastConnectionPolicy: ConnectionPolicy = _
   var lastConsistencyLevel: Option[ConsistencyLevel] = _
 
-  def getOrCreateBulkExecutor(
-                               config: ClientConfiguration
-                             ): DocumentBulkExecutor = {
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
+  startRefreshTimer()
+
+  def getOrCreateBulkExecutor(config: ClientConfiguration): DocumentBulkExecutor = {
+    val clientCacheEntry = getOrCreateClientCacheEntry(config)
     if (clientCacheEntry.bulkExecutor.isDefined) {
       clientCacheEntry.bulkExecutor.get
     } else {
-      val client: DocumentClient = createClientFunc(config).docClient
+      val client: DocumentClient = clientCacheEntry.docClient
       val pkDef = getPartitionKeyDefinition(config)
       val maxAvailableThroughput = getOrReadMaxAvailableThroughput(config)
 
@@ -111,26 +123,18 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
       // Instantiate DocumentBulkExecutor
       val bulkExecutor = builder.build()
 
-      logInfo(
-        s"Creating bulk executor for ClientCacheEntry#${clientCacheEntry.hashCode()} " +
-          s"for ClientConfiguration#${config.hashCode()}" +
-          s"with DocumentClient#${client.hashCode()}" +
-          s"with BulkExecutor#${bulkExecutor.hashCode()}"
-      )
-
-      clientCache.replace(
+      attemptClientCacheEntryUpdate(
         config,
         clientCacheEntry,
-        clientCacheEntry.copy(bulkExecutor = Some(bulkExecutor))
+        operationName = "BulkExecutor",
+        oldClientCacheEntry => oldClientCacheEntry.copy(bulkExecutor = Some(bulkExecutor))
       )
 
       bulkExecutor
     }
   }
 
-  def getPartitionKeyDefinition(
-                                 config: ClientConfiguration
-                               ): PartitionKeyDefinition = {
+  def getPartitionKeyDefinition(config: ClientConfiguration): PartitionKeyDefinition = {
     config.bulkConfig.partitionKeyOption match {
       case None =>
         val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(
@@ -146,10 +150,176 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     }
   }
 
-  private def getOrReadMaxAvailableThroughput(
-                                               config: ClientConfiguration
-                                             ): Int = {
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
+  /**
+    * Resets the partition key range cache within the Document client
+    * This is done to enforce that the DocumentClient retrieves fresh partition key range
+    * metadata - for example when computing the number of partitions to execute
+    * queries on etc.
+    *
+    * @param config The cache key - represents the config settings
+    */
+  def reinitializeClient(config: ClientConfiguration): Unit = {
+    val clientCacheEntry: ClientCacheEntry = clientCache.get(config)
+    if (clientCacheEntry != null) {
+      val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(config)
+      val docClient: DocumentClient = clientCacheEntry.docClient
+      logDebug(
+        s"Updating Partition key range cache for DocumentClient#${docClient.hashCode()} " +
+          s"of ClientConfiguration#${config.hashCode()}"
+      )
+      val field = docClient.getClass.getDeclaredField("partitionKeyRangeCache")
+      field.setAccessible(true)
+      val partitionKeyRangeCache =
+        field.get(docClient).asInstanceOf[PartitionKeyRangeCache]
+      val range =
+        new com.microsoft.azure.documentdb.internal.routing.Range[String](
+          "00",
+          "FF",
+          true,
+          true
+        )
+
+      partitionKeyRangeCache.getOverlappingRanges(
+        containerMetadata.selfLink,
+        range,
+        true
+      )
+
+      attemptClientCacheEntryUpdate(
+        config,
+        clientCacheEntry,
+        operationName = "DocumentClient-After-Reinitialization",
+        oldClientCacheEntry => oldClientCacheEntry.copy(docClient = docClient)
+      )
+    }
+  }
+
+  def getOrReadContainerMetadata(config: ClientConfiguration): ContainerMetadata = {
+    val clientCacheEntry = getOrCreateClientCacheEntry(config)
+    if (clientCacheEntry.containerMetadata.isDefined) {
+      clientCacheEntry.containerMetadata.get
+    } else {
+      val documentClient: DocumentClient = clientCacheEntry.docClient
+      val collectionLink: String =
+        config.getCollectionLink()
+      val collection: DocumentCollection = documentClient
+        .readCollection(collectionLink, nullRequestOptions)
+        .getResource
+
+      val containerMetadata: ContainerMetadata = ContainerMetadata(
+        config.container,
+        collection.getSelfLink,
+        collection.getResourceId,
+        collection.getPartitionKey
+      )
+
+      attemptClientCacheEntryUpdate(
+        config,
+        clientCacheEntry,
+        operationName = "ContainerMetadata",
+        oldClientCacheEntry => oldClientCacheEntry.copy(containerMetadata = Some(containerMetadata))
+      )
+
+      containerMetadata
+    }
+  }
+
+  private def startRefreshTimer() : Unit = {
+    logInfo(s"$timerName: scheduling timer - delay: $refreshDelay ms, period: $refreshPeriod ms")
+    timer.schedule(
+      new TimerTask { def run(): Unit = onRunRefreshTimer() },
+      refreshDelay, 
+      refreshPeriod)
+  }
+
+  private def onRunRefreshTimer() : Unit = {
+    val sequentialParallelismThreshold = java.lang.Long.MAX_VALUE
+    logTrace(s"--> $timerName: onRefreshTimer")
+    
+    val foreachConsumer = new java.util.function.Consumer[ClientConfiguration]() {
+      override def accept(config: ClientConfiguration): Unit = {
+
+        // The throughput available for bulk operations can change
+        // if it gets reduced this would just result in higher number of
+        // throttled requests - no big deal
+        // but when adding provisioned throughput the bulk ingestion wouldn't pick-up
+        // this change - to change this we reset the bulk executor and maxAvailableThroughput
+        // from the cache entry - so any additional will get picked-up sooner
+        val refreshEntryFunc = new java.util.function.BiFunction[ClientConfiguration, ClientCacheEntry, ClientCacheEntry]() {
+          override def apply(key: ClientConfiguration, oldClientCacheEntry: ClientCacheEntry) : ClientCacheEntry = {
+            val newClientCacheEntry = oldClientCacheEntry.copy(
+              bulkExecutor = None,
+              maxAvailableThroughput = None
+            )
+
+            logInfo(s"$timerName: ClientConfiguration#${config.hashCode} has been reset - new " +
+                s"${newClientCacheEntry.getLogMessage}, previously ${oldClientCacheEntry.getLogMessage}")
+
+            newClientCacheEntry
+          }
+        }
+
+        clientCache.computeIfPresent(config, refreshEntryFunc)
+      }
+    }
+
+    clientCache.forEachKey(
+      sequentialParallelismThreshold,
+      foreachConsumer)
+    
+    logTrace(s"<-- $timerName: onRefreshTimer")
+  }
+
+  private def attemptClientCacheEntryUpdate(
+                                             configuration: ClientConfiguration,
+                                             oldClientCacheEntry: ClientCacheEntry,
+                                             operationName: String,
+                                             updateFunc: ClientCacheEntry => ClientCacheEntry) = {
+
+    logTrace(
+      s"Creating $operationName for ${oldClientCacheEntry.getLogMessage}"
+    )
+
+    val newClientCacheEntry = updateFunc(oldClientCacheEntry)
+
+    // Intentionally using replace here - not computeIfPresent for example
+    // Calculating the "update" often involves IO - for example to calculate the throughput
+    // doing it within computeIfPresent would basically do this under a lock
+    // instead we risk that teh IO operations are done multiple times
+    // and instead only one of the threads "wins" - the concurrency in Executors
+    // is small enough that this won't be a common pattern - so is a reasonable trade-off
+    if (clientCache.replace(configuration, oldClientCacheEntry, newClientCacheEntry)) {
+      logInfo(
+        s"Updated $operationName for ${newClientCacheEntry.getLogMessage}"
+      )
+    }
+
+    newClientCacheEntry
+  }
+
+  private def getOrCreateClientCacheEntry(config: ClientConfiguration): ClientCacheEntry = {
+    clientCache.computeIfAbsent(config, createClientFunc)
+  }
+
+  def getOrCreateClient(config: ClientConfiguration): DocumentClient = {
+    logTrace(
+      s"--> getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
+        s"ClientCache#${clientCache.hashCode()} " +
+        s"- record count ${clientCache.size()}"
+    )
+    val clientCacheEntry = getOrCreateClientCacheEntry(config)
+    logTrace(
+      s"<-- getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
+        s"ClientCache#${clientCache.hashCode()} " +
+        s" - record count ${clientCache.size()} " +
+        s" returns ${clientCacheEntry.getLogMessage}"
+    )
+
+    clientCacheEntry.docClient
+  }
+
+  private def getOrReadMaxAvailableThroughput(config: ClientConfiguration): Int = {
+    val clientCacheEntry = getOrCreateClientCacheEntry(config)
     if (clientCacheEntry.maxAvailableThroughput.isDefined) {
       clientCacheEntry.maxAvailableThroughput.get
     } else {
@@ -161,18 +331,11 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         queryOffers(documentClient, containerMetadata.resourceId)
 
       if (containerProvisionedThroughput.isDefined) {
-        clientCache.replace(
+        attemptClientCacheEntryUpdate(
           config,
           clientCacheEntry,
-          clientCacheEntry.copy(maxAvailableThroughput =
-            containerProvisionedThroughput
-          )
-        )
-
-        logDebug(
-          s"Read throughout '${containerProvisionedThroughput.get}' for " +
-            s"collection '${containerMetadata.id}' with DocumentClient#" +
-            s"${documentClient.hashCode()} and ContainerMetadata#${containerMetadata.hashCode()}"
+          operationName = "MaxAvailableThroughput-Container",
+          oldClientCacheEntry => oldClientCacheEntry.copy(maxAvailableThroughput = containerProvisionedThroughput)
         )
 
         containerProvisionedThroughput.get
@@ -182,18 +345,11 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
           queryOffers(documentClient, databaseMetadata.resourceId)
 
         if (databaseProvisionedThroughput.isDefined) {
-          clientCache.replace(
+          attemptClientCacheEntryUpdate(
             config,
             clientCacheEntry,
-            clientCacheEntry.copy(maxAvailableThroughput =
-              databaseProvisionedThroughput
-            )
-          )
-
-          logDebug(
-            s"Read throughout '${databaseProvisionedThroughput.get}' for " +
-              s"collection '${databaseMetadata.id}' with DocumentClient#${documentClient.hashCode()} " +
-              s"and DatabaseMetadata#${databaseMetadata.hashCode()}"
+            operationName = "MaxAvailableThroughput-Database",
+            oldClientCacheEntry => oldClientCacheEntry.copy(maxAvailableThroughput = databaseProvisionedThroughput)
           )
 
           databaseProvisionedThroughput.get
@@ -235,57 +391,8 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     Some(collectionThroughput)
   }
 
-  def getOrReadContainerMetadata(
-                                  config: ClientConfiguration
-                                ): ContainerMetadata = {
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
-    if (clientCacheEntry.containerMetadata.isDefined) {
-      clientCacheEntry.containerMetadata.get
-    } else {
-      val documentClient: DocumentClient = clientCacheEntry.docClient
-      val collectionLink: String =
-        config.getCollectionLink()
-      val collection: DocumentCollection = documentClient
-        .readCollection(collectionLink, nullRequestOptions)
-        .getResource
-
-      val containerMetadata: ContainerMetadata = ContainerMetadata(
-        config.container,
-        collection.getSelfLink,
-        collection.getResourceId,
-        collection.getPartitionKey
-      )
-
-      val newClientCacheEntry =
-        clientCacheEntry.copy(containerMetadata = Some(containerMetadata))
-
-      logTrace(
-        s"Read container metadata '${containerMetadata.hashCode()}' " +
-          s"for collection '${containerMetadata.id}' " +
-          s"for ClientConfiguration#${config.hashCode()} " +
-          s"for ClientCacheEntry#${clientCacheEntry.hashCode()} " +
-          s"with DocumentClient#${documentClient.hashCode()}"
-      )
-
-      if (clientCache.replace(config, clientCacheEntry, newClientCacheEntry)) {
-        logDebug(
-          s"Updating container metadata '${containerMetadata.hashCode()}' " +
-            s"for collection '${containerMetadata.id}' " +
-            s"for ClientConfiguration#${config.hashCode()} " +
-            s"for ClientCacheEntry#${clientCacheEntry.hashCode()} " +
-            s"with DocumentClient#${documentClient.hashCode()}" +
-            s"into new ClientCacheEntry#${newClientCacheEntry.hashCode()}"
-        )
-      }
-
-      containerMetadata
-    }
-  }
-
-  private def getOrReadDatabaseMetadata(
-                                         config: ClientConfiguration
-                                       ): DatabaseMetadata = {
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
+  private def getOrReadDatabaseMetadata(config: ClientConfiguration): DatabaseMetadata = {
+    val clientCacheEntry = getOrCreateClientCacheEntry(config)
     if (clientCacheEntry.databaseMetadata.isDefined) {
       clientCacheEntry.databaseMetadata.get
     } else {
@@ -299,80 +406,18 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
       val databaseMetadata: DatabaseMetadata =
         DatabaseMetadata(config.database, database.getResourceId)
 
-      logDebug(
-        s"Read database metadata '${
-          databaseMetadata
-            .hashCode()
-        }' for database '${databaseMetadata.id}' " +
-          s"with DocumentClient#${documentClient.hashCode()}"
-      )
-
-      clientCache.replace(
+      attemptClientCacheEntryUpdate(
         config,
         clientCacheEntry,
-        clientCacheEntry.copy(databaseMetadata = Some(databaseMetadata))
+        operationName = "ContainerMetadata",
+        oldClientCacheEntry => oldClientCacheEntry.copy(databaseMetadata = Some(databaseMetadata))
       )
 
       databaseMetadata
     }
   }
 
-  def reinitializeClient(config: ClientConfiguration): AnyVal = {
-    val clientCacheEntry: ClientCacheEntry = clientCache.get(config)
-    if (clientCacheEntry != null) {
-      val containerMetadata: ContainerMetadata = getOrReadContainerMetadata(
-        config
-      )
-      val docClient: DocumentClient = clientCacheEntry.docClient
-      logDebug(
-        s"Updating Partition key range cache for DocumentClient#${docClient.hashCode()} " +
-          s"of ClientConfiguration#${config.hashCode()}"
-      )
-      val field = docClient.getClass.getDeclaredField("partitionKeyRangeCache")
-      field.setAccessible(true)
-      val partitionKeyRangeCache =
-        field.get(docClient).asInstanceOf[PartitionKeyRangeCache]
-      val range =
-        new com.microsoft.azure.documentdb.internal.routing.Range[String](
-          "00",
-          "FF",
-          true,
-          true
-        )
-      partitionKeyRangeCache.getOverlappingRanges(
-        containerMetadata.selfLink,
-        range,
-        true
-      )
-      clientCache.replace(
-        config,
-        clientCacheEntry,
-        clientCacheEntry.copy(docClient = docClient)
-      )
-    }
-  }
-
-  def getOrCreateClient(config: ClientConfiguration): DocumentClient = {
-    logTrace(
-      s"--> getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
-        s"ClientCache#${clientCache.hashCode()} " +
-        s"- record count ${clientCache.size()}"
-    )
-    val clientCacheEntry = clientCache.computeIfAbsent(config, createClientFunc)
-    logTrace(
-      s"<-- getOrCreateClient for ClientConfiguration#${config.hashCode()}, " +
-        s"ClientCache#${clientCache.hashCode()} " +
-        s" - record count ${clientCache.size()} " +
-        s" with ClientCacheEntry#${clientCacheEntry.hashCode()}" +
-        s" with DocumentClient#${clientCacheEntry.docClient.hashCode()}"
-    )
-
-    clientCacheEntry.docClient
-  }
-
-  private def createClientWithMasterKey(
-                                         config: ClientConfiguration
-                                       ): DocumentClient = {
+  private def createClientWithMasterKey(config: ClientConfiguration): DocumentClient = {
     lastConnectionPolicy = createConnectionPolicy(
       config.connectionPolicySettings
     )
@@ -381,15 +426,13 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
 
     new DocumentClient(
       config.host,
-      config.key,
+      config.authConfig.authKey,
       lastConnectionPolicy,
       consistencyLevel
     )
   }
 
-  private def createConnectionPolicy(
-                                      settings: ConnectionPolicySettings
-                                    ): ConnectionPolicy = {
+  private def createConnectionPolicy(settings: ConnectionPolicySettings): ConnectionPolicy = {
     val connectionPolicy = new ConnectionPolicy()
 
     val connectionMode = ConnectionMode.valueOf(settings.connectionMode)
@@ -427,12 +470,10 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     connectionPolicy
   }
 
-  private def createClientWithResourceToken(
-                                             config: ClientConfiguration
-                                           ): DocumentClient = {
+  private def createClientWithResourceToken(config: ClientConfiguration): DocumentClient = {
     val permissionWithNamedResourceLink = new Permission()
-    permissionWithNamedResourceLink.set("_token", config.key)
-    permissionWithNamedResourceLink.setResourceLink(config.resourceLink.get)
+    permissionWithNamedResourceLink.set("_token", config.authConfig.authKey)
+    permissionWithNamedResourceLink.setResourceLink(config.authConfig.resourceLink.get)
 
     val namedResourceLinkPermission =
       List[Permission](permissionWithNamedResourceLink)
@@ -450,16 +491,22 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
       consistencyLevel
     )
 
-    // Grab the other permission thing
-    val collection = client.readCollection(config.resourceLink.get, null)
+    // The namedResourceLinkPermission above provides the necessary
+    // authentication information (resource token + link in the form of /dbs/<DBName>[/colls/<ContainerName>])
+    // Internally the SDK can also address resources via the self-link (using resource-id instead of teh name,
+    // which is unique and changes for each instance of a container for example when dropping and recreating
+    // containers with the same name. The code below retrieves the self-link of the target container 
+    // to construct the resource-id based permission.
+    val collection = client.readCollection(config.authConfig.resourceLink.get, null)
     client.close()
 
     val collectionSelfLink = collection.getResource.getSelfLink
 
     val permissionWithSelfLink = new Permission()
-    permissionWithSelfLink.set("_token", config.key)
+    permissionWithSelfLink.set("_token", config.authConfig.authKey)
     permissionWithSelfLink.setResourceLink(collectionSelfLink)
 
+    // adding both permissions - for name and resource-id based addresses
     val permissions =
       List[Permission](permissionWithSelfLink, permissionWithNamedResourceLink)
 

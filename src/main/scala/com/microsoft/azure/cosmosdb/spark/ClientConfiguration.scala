@@ -32,12 +32,22 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
-case class ClientConfiguration(
+/**
+  * Case class used as an envelope for the configuration settings of a CosmosDBConnection. All information
+  * is immutable - this case class is used as the cache key when caching CosmosDBConnections in teh Executors
+  * @param host                      The CosmosDB account name
+  * @param authConfig                The authentication configuration
+  * @param connectionPolicySettings  The configuration settings applicable when producing a connection policy
+  * @param consistencyLevel          The requested consistency level
+  * @param database                  The target database name
+  * @param container                 The target container name
+  * @param bulkConfig                The configuration settings applicable when producing bulk executors
+  */
+private[spark] case class ClientConfiguration(
     host: String,
-    key: String,
+    authConfig: AuthConfig,
     connectionPolicySettings: ConnectionPolicySettings,
     consistencyLevel: String,
-    resourceLink: Option[String],
     database: String,
     container: String,
     bulkConfig: BulkExecutorSettings) {
@@ -66,10 +76,9 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
 
     ClientConfiguration(
       config.get(CosmosDBConfig.Endpoint).get,
-      authConfig.authKey,
+      authConfig,
       connectionPolicySettings,
       consistencyLevel,
-      authConfig.resourceLink,
       database,
       collection,
       bulkExecutorSettings)
@@ -106,10 +115,10 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
       .get(CosmosDBConfig.WriteThroughputBudget)
 
     BulkExecutorSettings(
-      pkDef,
       maxMiniBatchUpdateCount,
       maxMiniBatchImportSizeKB,
-      maxThroughputForBulkOperations)
+      maxThroughputForBulkOperations,
+      pkDef)
   }
 
   private def createConnectionPolicySettings(config: Config) : ConnectionPolicySettings = {

@@ -22,6 +22,15 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-case class AuthConfig(
-                       authKey: String,
-                       resourceLink: Option[String])
+/**
+  * Case class for the configuration settings used for authentication
+  * @param authKey       the value of the master key or when using resource tokens
+  *                      the resource token value
+  * @param resourceLink  when using resource tokens the targeted resource the resource
+  *                      token should be used for - resource links here should be constructed
+  *                      using names - not resource-ids. The format for collections would be
+  *                      /dbs/{DBName}/cols/{ContainerName}
+  */
+private[spark] case class AuthConfig(
+                      authKey: String,
+                      resourceLink: Option[String])

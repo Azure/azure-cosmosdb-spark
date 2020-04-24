@@ -22,6 +22,11 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
-case class DatabaseMetadata(
+/**
+  * Case class for immutable database metadata
+  * @param id                       The name of the database
+  * @param resourceId               The unique resource-id of the database
+  */
+private[spark] case class DatabaseMetadata(
                              id: String,
                              resourceId: String)
