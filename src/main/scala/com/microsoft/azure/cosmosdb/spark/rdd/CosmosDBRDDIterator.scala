@@ -397,19 +397,19 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
             logError("Service Unavailable")
             connection.reinitializeClient()
           }
-        case _: IllegalStateException if ex.getCause.isInstanceOf[DocumentClientException] && ex.getCause != null =>
-          logError("Illegal State Exception with Service Unavailable")
+        case _: IllegalStateException if ex.getCause != null && ex.getCause.isInstanceOf[DocumentClientException] => {
           val dcx: DocumentClientException = ex.getCause.asInstanceOf[DocumentClientException]
+          logError(s"Illegal State Exception with StatusCode ${dcx.getStatusCode}")
           if (dcx.getStatusCode == StatusCodes.SERVICE_UNAVAILABLE) {
             connection.reinitializeClient()
           }
-        case _ =>
+        }
+        case genericThrowable: Throwable => logError(s"Unspecific error ${genericThrowable.getMessage}")
       }
     })
 
     // Register an on-task-completion callback to close the input stream.
     taskContext.addTaskCompletionListener((_: TaskContext) => {
-      connection.reinitializeClient()
       closeIfNeeded()
     })
 

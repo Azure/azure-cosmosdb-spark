@@ -263,7 +263,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     val coll = spark.sqlContext.read.cosmosDB(readConfig)
 
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
-    val collectionLink = s"dbs/$dbName/colls/$collName"
+    val collectionLink = ClientConfiguration.getCollectionLink(dbName, collName)
 
     // VERIFY change feed starting from the beginning
     if (startFromTheBeginning) {
@@ -293,7 +293,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       // Update documents with ID ranging from (iteration * document - documentCount / 2) -> iteration * documentCount
       (0 until documentCount / 2).foreach(i => {
         val documentId: String = (iteration * documentCount - i).toString
-        val documentLink = s"dbs/$dbName/colls/$collName/docs/$documentId"
+        val documentLink = s"${ClientConfiguration.getCollectionLink(dbName, collName)}/docs/$documentId"
 
         val requestOptions = new RequestOptions()
         requestOptions.setPartitionKey(new PartitionKey(documentId))
@@ -345,7 +345,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     coll.count() should equal(documentCount)
 
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
-    val collectionLink = s"dbs/$dbName/colls/$collName"
+    val collectionLink = ClientConfiguration.getCollectionLink(dbName, collName)
 
     val IncrementalViewReadIterations = 3
 
@@ -663,12 +663,11 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .asOptions
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
-    val databaseLink = s"dbs/$databaseName"
-    val sourceCollectionLink = s"$databaseLink/colls/$getTestCollectionName"
+    val sourceCollectionLink = ClientConfiguration.getCollectionLink(databaseName, getTestCollectionName)
 
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
-    val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
+    val sinkCollectionLink = ClientConfiguration.getCollectionLink(databaseName, sinkCollection)
     cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     /*
@@ -846,12 +845,12 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       .asOptions
       .+((CosmosDBConfig.ChangeFeedCheckpointLocation, cfCheckpointPath))
 
-    val databaseLink = s"dbs/$databaseName"
-    val sourceCollectionLink = s"$databaseLink/colls/$getTestCollectionName"
+    val sourceCollectionLink = ClientConfiguration.getCollectionLink(databaseName, getTestCollectionName)
+ 
 
     // Create the sink collection
     val documentClient = new DocumentClient(host, key, new ConnectionPolicy(), ConsistencyLevel.Session)
-    val sinkCollectionLink = s"$databaseLink/colls/$sinkCollection"
+    val sinkCollectionLink =  ClientConfiguration.getCollectionLink(databaseName, sinkCollection)
     cosmosDBDefaults.createCollection(databaseName, sinkCollection)
 
     // Create some documents in the collection

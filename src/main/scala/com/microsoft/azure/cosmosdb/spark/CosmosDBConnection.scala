@@ -42,7 +42,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     collectionLink
   }
 
-  def reinitializeClient(): AnyVal = {
+  def reinitializeClient(): Unit = {
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
   }
 
@@ -60,9 +60,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig)
   }
 
-  def queryDocuments(
-                      queryString: String,
-                      feedOpts: FeedOptions): Iterator[Document] = {
+  def queryDocuments(queryString: String,
+                     feedOpts: FeedOptions): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
@@ -81,11 +80,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
   }
 
-  def readChangeFeed(
-                      changeFeedOptions: ChangeFeedOptions,
-                      isStreaming: Boolean,
-                      shouldInferStreamSchema: Boolean,
-                      updateTokenFunc: (String, String, String) => Unit
+  def readChangeFeed(changeFeedOptions: ChangeFeedOptions,
+                     isStreaming: Boolean,
+                     shouldInferStreamSchema: Boolean,
+                     updateTokenFunc: (String, String, String) => Unit
                     ): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)

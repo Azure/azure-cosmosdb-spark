@@ -184,13 +184,6 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         range,
         true
       )
-
-      attemptClientCacheEntryUpdate(
-        config,
-        clientCacheEntry,
-        operationName = "DocumentClient-After-Reinitialization",
-        oldClientCacheEntry => oldClientCacheEntry.copy(docClient = docClient)
-      )
     }
   }
 

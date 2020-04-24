@@ -130,11 +130,12 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
     try {
       fn
     } catch {
-      case e if n > 1 =>
+      case e if n > 1 => {
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         logError(s"Exception during executing HDFS operation with message: ${e.getMessage} and stacktrace: ${sw.toString}, retrying .. ")
         retry(n - 1)(fn)
+      }
     }
   }
 }

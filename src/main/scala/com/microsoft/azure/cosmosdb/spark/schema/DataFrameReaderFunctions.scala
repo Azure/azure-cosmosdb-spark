@@ -26,7 +26,7 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import com.microsoft.azure.cosmosdb.spark.config.CachingMode.CachingMode
 import com.microsoft.azure.cosmosdb.spark.config._
-import com.microsoft.azure.cosmosdb.spark.{DefaultSource, CosmosDBLoggingTrait}
+import com.microsoft.azure.cosmosdb.spark.{DefaultSource, CosmosDBLoggingTrait, ClientConfiguration}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.sql.cosmosdb.util.StreamingUtils
 import org.apache.spark.sql.types.StructType
@@ -40,7 +40,7 @@ object DataFrameReaderFunctions {
   def getCacheKey(configMap: collection.Map[String, String]) : String = {
     val database = configMap.get(CosmosDBConfig.Database)
     val collection = configMap.get(CosmosDBConfig.Collection)
-    s"dbs/$database/colls/$collection"
+    ClientConfiguration.getCollectionLink(database.get, collection.get)
   }
 }
 

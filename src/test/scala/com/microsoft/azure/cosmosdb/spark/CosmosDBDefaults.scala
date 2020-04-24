@@ -144,7 +144,7 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   }
 
   def deleteCollection(databaseName: String, collectionName: String): Unit = {
-    val collectionLink = "dbs/" + databaseName + "/colls/" + collectionName
+    val collectionLink = ClientConfiguration.getCollectionLink(databaseName, collectionName)
     try {
       documentDBClient.deleteCollection(collectionLink, null)
       logInfo(s"Deleted collection with link '$collectionLink'")

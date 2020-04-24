@@ -169,11 +169,11 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
         preferredRegions)
   }
 
-  private def getCollectionLink(database: String, collection: String): String = {
+  def getCollectionLink(database: String, collection: String): String = {
     s"${getDatabaseLink(database)}/${Paths.COLLECTIONS_PATH_SEGMENT}/$collection"
   }
 
-  private def getDatabaseLink(database: String) : String = {
+  def getDatabaseLink(database: String) : String = {
     s"${Paths.DATABASES_PATH_SEGMENT}/$database"
   }
 }
