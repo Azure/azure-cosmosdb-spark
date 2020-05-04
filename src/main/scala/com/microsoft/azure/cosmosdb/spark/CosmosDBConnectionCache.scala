@@ -372,16 +372,16 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
 
     if (offers.isEmpty) {
       None
-    }
-
-    val offer = offers.get(0)
-    val collectionThroughput = if (offer.getString("offerVersion") == "V1") {
-      CosmosDBConfig.SinglePartitionCollectionOfferThroughput
     } else {
-      offer.getContent.getInt("offerThroughput")
-    }
+      val offer = offers.get(0)
+      val collectionThroughput = if (offer.getString("offerVersion") == "V1") {
+        CosmosDBConfig.SinglePartitionCollectionOfferThroughput
+      } else {
+        offer.getContent.getInt("offerThroughput")
+      }
 
-    Some(collectionThroughput)
+      Some(collectionThroughput)
+    }
   }
 
   private def getOrReadDatabaseMetadata(config: ClientConfiguration): DatabaseMetadata = {
