@@ -132,6 +132,11 @@ limitations under the License.
             <version>1.1.3</version>
         </dependency>
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>27.0.1-jre</version>
+        </dependency>
+        <dependency>
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-data-lake-store-sdk</artifactId>
             <version>2.1.5</version>
@@ -602,14 +607,6 @@ limitations under the License.
                                 <relocation>
                                     <pattern>org.apache.http</pattern>
                                     <shadedPattern>cosmosdb_connector_shaded.org.apache.http</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.google</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.com.google</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.google.common</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.com.google.common</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>com.github.davidmoten</pattern>
