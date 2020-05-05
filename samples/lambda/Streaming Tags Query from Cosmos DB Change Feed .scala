@@ -12,7 +12,6 @@
 import com.microsoft.azure.cosmosdb.spark._
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.config._
-import org.codehaus.jackson.map.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.streaming._
 import java.time._
 

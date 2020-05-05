@@ -369,14 +369,6 @@ limitations under the License.
                                     <shadedPattern>cosmosdb_connector_shaded.com.carrotsearch</shadedPattern>
                                 </relocation>
                                 <relocation>
-                                    <pattern>org.codehaus.jackson</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.org.codehaus.jackson</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.codehaus.jackson</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.org.codehaus.jackson</shadedPattern>
-                                </relocation>
-                                <relocation>
                                     <pattern>org.apache.avro</pattern>
                                     <shadedPattern>cosmosdb_connector_shaded.org.apache.avro</shadedPattern>
                                 </relocation>
@@ -531,10 +523,6 @@ limitations under the License.
                                 <relocation>
                                     <pattern>org.bouncycastle</pattern>
                                     <shadedPattern>cosmosdb_connector_shaded.org.bouncycastle</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.codehaus</pattern>
-                                    <shadedPattern>cosmosdb_connector_shaded.org.codehaus</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.fusesource</pattern>

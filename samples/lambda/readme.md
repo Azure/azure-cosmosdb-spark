@@ -52,7 +52,6 @@ Below is the code snippet on how to configure `spark-shell` to run a Structred S
 import com.microsoft.azure.cosmosdb.spark._
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.config.Config
-import org.codehaus.jackson.map.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.streaming._
 import java.time._
 
@@ -201,7 +200,6 @@ To do this, we can create a separate Cosmos DB collection to save the results of
 import com.microsoft.azure.cosmosdb.spark._
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.config.Config
-import org.codehaus.jackson.map.ObjectMapper
 import com.microsoft.azure.cosmosdb.spark.streaming._
 import java.time._
 
