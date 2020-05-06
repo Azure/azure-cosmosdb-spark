@@ -77,8 +77,7 @@ object CosmosDBConfig {
   val StructuredStreaming = "structuredstreaming"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
-  val ChangeFeedNewQuery = "changefeednewquery"
-  val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+    val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
   val InferStreamSchema = "inferstreamschema"
 
   // Structured Streaming WriteStream retry policy related
@@ -116,24 +115,6 @@ object CosmosDBConfig {
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
 
-  // Writing progress tracking
-  val WritingBatchId = "writingbatchid"
-  val CosmosDBFileStoreCollection = "cosmosdbfilestorecollection"
-
-  // ADL import
-  val adlAccountFqdn = "adlaccountfqdn"
-  val adlClientId = "adlclientid"
-  val adlAuthTokenEndpoint = "adlauthtokenendpoint"
-  val adlClientKey = "adlclientkey"
-  val adlDataFolder = "adldatafolder"
-  val adlIdField = "adlidfield"
-  val adlPkField = "adlpkfield"
-  val adlUseGuidForId = "adluseguidforid"
-  val adlUseGuidForPk = "adluseguidforpk"
-  val adlFileCheckpointPath = "adlfilecheckpointpath"
-  val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
-  val adlMaxFileCount = "adlmaxfilecount"
-
   val ApplicationName = "application_name"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
@@ -164,7 +145,6 @@ object CosmosDBConfig {
   val DefaultChangeFeedMaxPagesPerBatch: Int = Integer.MAX_VALUE
   val DefaultIncrementalView = false
   val DefaultCacheMode: CachingMode.Value = CachingMode.NONE
-  val DefaultChangeFeedNewQuery = false
   val DefaultQueryMaxDegreeOfParallelism: Int = Integer.MAX_VALUE
   val DefaultQueryMaxBufferedItemCount: Int = Integer.MAX_VALUE
   val DefaultResponseContinuationTokenLimitInKb = 10
