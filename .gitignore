@@ -340,17 +340,13 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
+.metals/
+.bloop/
+.settings/
 
-.settings/org.eclipse.core.resources.prefs
 .project
-.settings/org.eclipse.jdt.core.prefs
-.settings/org.eclipse.m2e.core.prefs
+
 .classpath
 .vscode/settings.json
 scalastyle-output.xml
-.settings/org.eclipse.jdt.apt.core.prefs
-.bloop/azure-cosmosdb-spark_2.4.0_2.11-test.json
-.bloop/azure-cosmosdb-spark_2.4.0_2.11.json
-.bloop/bloop.settings.json
-.metals/metals.h2.db
-.metals/metals.lock.db
+
