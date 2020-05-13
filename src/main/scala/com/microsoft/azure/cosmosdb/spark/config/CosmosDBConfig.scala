@@ -21,6 +21,7 @@
   * SOFTWARE.
   */
 package com.microsoft.azure.cosmosdb.spark.config
+import com.microsoft.azure.cosmosdb.spark.config
 
 /**
  * Values and Functions for access and parse the configuration parameters
@@ -76,8 +77,7 @@ object CosmosDBConfig {
   val StructuredStreaming = "structuredstreaming"
   val CachingModeParam = "cachingmode"
   val ChangeFeedQueryName = "changefeedqueryname"
-  val ChangeFeedNewQuery = "changefeednewquery"
-  val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
+    val ChangeFeedCheckpointLocation = "changefeedcheckpointlocation"
   val InferStreamSchema = "inferstreamschema"
 
   // Structured Streaming WriteStream retry policy related
@@ -88,8 +88,8 @@ object CosmosDBConfig {
   val PoisonMessageLocation = "writestreamretrypolicy.poisonmessagelocation"
   val TreatUnknownExceptionsAsTransient = "writestreamretrypolicy.treatunknownexceptionsastransient"
   val DefaultWriteStreamRetryPolicyKind = "NoRetries"
-  val DefaultMaxTransientRetryCount = Int.MaxValue
-  val DefaultMaxTransientRetryDurationInMs = 1000 * 60 * 60 // 1 hour
+  val DefaultMaxTransientRetryCount: Int = Int.MaxValue
+  val DefaultMaxTransientRetryDurationInMs: Int = 1000 * 60 * 60 // 1 hour
   val DefaultMaxTransientRetryDelayInMs = 100 // 0.1 second
   val DefaultPoisonMessageLocation = ""
   val DefaultTreatUnknownExceptionsAsTransient = true
@@ -115,24 +115,6 @@ object CosmosDBConfig {
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
 
-  // Writing progress tracking
-  val WritingBatchId = "writingbatchid"
-  val CosmosDBFileStoreCollection = "cosmosdbfilestorecollection"
-
-  // ADL import
-  val adlAccountFqdn = "adlaccountfqdn"
-  val adlClientId = "adlclientid"
-  val adlAuthTokenEndpoint = "adlauthtokenendpoint"
-  val adlClientKey = "adlclientkey"
-  val adlDataFolder = "adldatafolder"
-  val adlIdField = "adlidfield"
-  val adlPkField = "adlpkfield"
-  val adlUseGuidForId = "adluseguidforid"
-  val adlUseGuidForPk = "adluseguidforpk"
-  val adlFileCheckpointPath = "adlfilecheckpointpath"
-  val adlCosmosDbDataCollectionPkValue = "adlcosmosdbdatacolletionpkvalue"
-  val adlMaxFileCount = "adlmaxfilecount"
-
   val ApplicationName = "application_name"
 
   // When the streaming source is slow, there will be times when getting data from a specific continuation token
@@ -153,19 +135,18 @@ object CosmosDBConfig {
   val DefaultQueryMaxRetryWaitTimeSecs = 1000
   val DefaultSamplingRatio = 1.0
   val DefaultPageSize = 1000
-  val DefaultSampleSize = DefaultPageSize
+  val DefaultSampleSize: Int = DefaultPageSize
   val DefaultUpsert = false
   val DefaultReadChangeFeed = false
   val DefaultStructuredStreaming = false
   val DefaultRollingChangeFeed = false
   val DefaultChangeFeedStartFromTheBeginning = false
   val DefaultChangeFeedUseNextToken = false
-  val DefaultChangeFeedMaxPagesPerBatch = Integer.MAX_VALUE
+  val DefaultChangeFeedMaxPagesPerBatch: Int = Integer.MAX_VALUE
   val DefaultIncrementalView = false
-  val DefaultCacheMode = CachingMode.NONE
-  val DefaultChangeFeedNewQuery = false
-  val DefaultQueryMaxDegreeOfParallelism = Integer.MAX_VALUE
-  val DefaultQueryMaxBufferedItemCount = Integer.MAX_VALUE
+  val DefaultCacheMode: CachingMode.Value = CachingMode.NONE
+  val DefaultQueryMaxDegreeOfParallelism: Int = Integer.MAX_VALUE
+  val DefaultQueryMaxBufferedItemCount: Int = Integer.MAX_VALUE
   val DefaultResponseContinuationTokenLimitInKb = 10
   val DefaultWritingBatchSize_BulkInsert = 100000
   val DefaultWritingBatchSize_PointInsert = 500
@@ -191,7 +172,7 @@ object CosmosDBConfig {
   val DefaultBulkImportMaxConcurrencyPerPartitionRange = 1
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
-    return parameters.map { case (x, v) => x -> v }
+    parameters.map { case (x, v) => x -> v }
   }
 }
 
@@ -204,7 +185,7 @@ object CosmosDBConfig {
   */
 object CachingMode extends Enumeration {
   type CachingMode = Value
-  val NONE = Value("None")
-  val CACHE = Value("Cache")
-  val REFRESH_CACHE = Value("RefreshCache")
+  val NONE: config.CachingMode.Value = Value("None")
+  val CACHE: config.CachingMode.Value = Value("Cache")
+  val REFRESH_CACHE: config.CachingMode.Value = Value("RefreshCache")
 }

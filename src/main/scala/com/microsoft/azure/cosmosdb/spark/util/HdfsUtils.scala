@@ -115,7 +115,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
     val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid"
     val files = listFiles(location, path)
-    var tokens = new util.HashMap[String, String]()
+    val tokens = new util.HashMap[String, String]()
     if (files != null) {
       while (files.hasNext) {
         val file = files.next()

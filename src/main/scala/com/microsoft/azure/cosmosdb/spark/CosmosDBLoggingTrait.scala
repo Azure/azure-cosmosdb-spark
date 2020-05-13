@@ -35,10 +35,10 @@ trait CosmosDBLoggingTrait {
 
   // Make the log field transient so that objects with Logging can
   // be serialized and used on another machine
-  @transient private var log_ : Logger = null // scalastyle:ignore
+  @transient private var log_ : Logger = _ // scalastyle:ignore
 
   // Method to get the logger name for this object
-  protected def logName = {
+  protected def logName: String = {
     // Ignore trailing $'s in the class names for Scala objects
     this.getClass.getName.stripSuffix("$")
   }

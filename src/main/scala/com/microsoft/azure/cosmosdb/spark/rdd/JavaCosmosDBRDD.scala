@@ -24,7 +24,7 @@ package com.microsoft.azure.cosmosdb.spark.rdd
 
 import com.microsoft.azure.documentdb._
 import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.sql.{DataFrame, Dataset};
+import org.apache.spark.sql.{DataFrame, Dataset}
 
 case class JavaCosmosDBRDD(override val rdd: CosmosDBRDD) extends JavaRDD[Document](rdd) {
   /**

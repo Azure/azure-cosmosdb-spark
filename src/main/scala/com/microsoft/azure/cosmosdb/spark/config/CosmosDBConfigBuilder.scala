@@ -32,5 +32,5 @@ case class CosmosDBConfigBuilder(props: Map[Property, Any] = Map()) extends {
 
   val requiredProperties: List[Property] = CosmosDBConfig.required
 
-  def apply(props: Map[Property, Any]) = CosmosDBConfigBuilder(props)
+  def apply(props: Map[Property, Any]): CosmosDBConfigBuilder = CosmosDBConfigBuilder(props)
 }

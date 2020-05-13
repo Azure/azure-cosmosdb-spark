@@ -88,7 +88,7 @@ class CosmosDBRDDSpec extends RequiresCosmosDB {
     // verify the documents distribute among the partitions withint a margin of distributionMargin percent
     val distributionMargin = 20.0 / 100
     val idealDocsPerPartition = count / partitionCount
-    var docsDistribution = cosmosDBRDD.mapPartitions(iter => Array(iter.size).iterator).collect()
+    val docsDistribution = cosmosDBRDD.mapPartitions(iter => Array(iter.size).iterator).collect()
     docsDistribution.foreach(count => assert(Math.abs(count * 1.0 / idealDocsPerPartition - 1) < distributionMargin))
   }
 

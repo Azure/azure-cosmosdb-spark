@@ -1,6 +1,6 @@
 /**
   * The MIT License (MIT)
-  * Copyright (c) 2016 Microsoft Corporation
+  * Copyright (c) 2020 Microsoft Corporation
   *
   * Permission is hereby granted, free of charge, to any person obtaining a copy
   * of this software and associated documentation files (the "Software"), to deal
@@ -20,37 +20,17 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.cosmosdb.spark.query
-
-import com.microsoft.azure.cosmosdb.spark.config.Config
-import org.apache.spark.sql.sources._
-
-object FilterSection {
-
-  implicit def srcFilArr2filSel(sFilters: Array[Filter])(implicit config: Config): FilterSection =
-    SourceFilters(sFilters)
-
-  def apply(sFilters: Array[Filter])(implicit config: Config): FilterSection =
-    srcFilArr2filSel(sFilters)
-
-  def apply(): FilterSection = NoFilters
-}
+package com.microsoft.azure.cosmosdb.spark
 
 /**
-  * Trait to be implemented to those classes describing the Filter section of a CosmosDB query.
+  * Case class for the configuration settings used for authentication
+  * @param authKey       the value of the master key or when using resource tokens
+  *                      the resource token value
+  * @param resourceLink  when using resource tokens the targeted resource the resource
+  *                      token should be used for - resource links here should be constructed
+  *                      using names - not resource-ids. The format for collections would be
+  *                      /dbs/{DBName}/cols/{ContainerName}
   */
-trait FilterSection {
-  def filtersToDBObject(): Unit
-}
-
-case object NoFilters extends FilterSection {
-  override def filtersToDBObject(): Unit = {}
-}
-
-case class SourceFilters(
-                          sFilters: Array[Filter],
-                          parentFilterIsNot: Boolean = false
-                        )(implicit config: Config) extends FilterSection {
-
-  override def filtersToDBObject: Unit = {}
-}
+private[spark] case class AuthConfig(
+                      authKey: String,
+                      resourceLink: Option[String])

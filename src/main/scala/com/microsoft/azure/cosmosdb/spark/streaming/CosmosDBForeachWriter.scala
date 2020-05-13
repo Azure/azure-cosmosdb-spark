@@ -37,17 +37,17 @@ case class CosmosDBForeachWriter(configMap: Map[String, String]) extends Foreach
   var asyncConnection: AsyncCosmosDBConnection = _
   var rows: mutable.ArrayBuffer[Row] = _
 
-  val config = Config(configMap)
+  val config: Config = Config(configMap)
   val upsert: Boolean = config
     .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
     .toBoolean
-  val writingBatchSize = config
+  val writingBatchSize: Int = config
     .getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
     .toInt
-  val writingBatchDelayMs = config
+  val writingBatchDelayMs: Int = config
     .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
     .toInt
-  val rootPropertyToSave = config
+  val rootPropertyToSave: Option[String] = config
     .get[String](CosmosDBConfig.RootPropertyToSave)
 
   def open(partitionId: Long, version: Long): Boolean = {
@@ -63,11 +63,10 @@ case class CosmosDBForeachWriter(configMap: Map[String, String]) extends Foreach
   def close(errorOrNull: Throwable): Unit = {
     errorOrNull match {
       case t: Throwable => throw t
-      case _ => {
+      case _ =>
         if(rows.nonEmpty) {
           asyncConnection.importWithRxJava(rows.iterator, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
         }
-      }
     }
   }
 }

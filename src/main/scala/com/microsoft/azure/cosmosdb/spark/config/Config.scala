@@ -77,16 +77,6 @@ abstract class ConfigBuilder[Builder <: ConfigBuilder[Builder]](
     val properties: Map[Property, Any] = builder.properties.map { case (k, v) => k.toLowerCase -> v }
     val reqProperties: List[Property] = requiredProperties.map(_.toLowerCase)
 
-    // If source is not ADL then the CosmosDB configs are required
-    if (get(CosmosDBConfig.adlAccountFqdn).isEmpty) {
-      require(
-        reqProperties.forall(properties.isDefinedAt),
-        s"Not all properties are defined! : ${
-          reqProperties.diff(
-            properties.keys.toList.intersect(requiredProperties))
-        }")
-    }
-
     if (get(CosmosDBConfig.ReadChangeFeed).getOrElse(CosmosDBConfig.DefaultReadChangeFeed.toString).toBoolean ||
       get(CosmosDBConfig.IncrementalView).getOrElse(CosmosDBConfig.DefaultIncrementalView.toString).toBoolean) {
       require(
@@ -128,7 +118,7 @@ trait Config extends Serializable {
   val properties: Map[Property, Any]
 
   def asOptions: collection.Map[String, String] = {
-    properties.map { case (x, v) => (x -> v.toString()) }
+    properties.map { case (x, v) => x -> v.toString() }
   }
 
   /** Returns the value associated with a key, or a default value if the key is not contained in the configuration object.
@@ -269,13 +259,13 @@ object Config {
       }
     }
 
-    var builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
+    val builder = CosmosDBConfigBuilder(combine.asInstanceOf[Map[String, Any]])
 
     builder.build()
   }
 
   private def isEmpty(value: String): Boolean =
-    value == null || value.isEmpty()
+    value == null || value.isEmpty
 
 
   /**

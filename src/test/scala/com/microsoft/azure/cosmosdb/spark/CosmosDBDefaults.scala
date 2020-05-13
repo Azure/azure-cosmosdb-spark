@@ -64,8 +64,8 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   connectionPolicy.setConnectionMode(ConnectionMode.DirectHttps)
   connectionPolicy.setUserAgentSuffix(Constants.userAgentSuffix)
 
-  lazy val documentDBClient = {
-    var client = new DocumentClient(CosmosDBEndpoint, CosmosDBKey,
+  lazy val documentDBClient: DocumentClient = {
+    val client = new DocumentClient(CosmosDBEndpoint, CosmosDBKey,
       connectionPolicy,
       ConsistencyLevel.Session)
     client
@@ -90,7 +90,7 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   def isCosmosDBOnline(): Boolean = true
 
   def createDatabase(databaseName: String): Unit = {
-    var database: Database = new Database()
+    val database: Database = new Database()
     database.setId(databaseName)
     try {
       documentDBClient.createDatabase(database, null)
@@ -101,7 +101,7 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   }
 
   def deleteDatabase(databaseName: String): Unit = {
-    var databaseLink = "dbs/" + databaseName
+    val databaseLink = "dbs/" + databaseName
     try {
       documentDBClient.deleteDatabase(databaseLink, null)
       logInfo(s"Deleted collection with link '$databaseLink'")
@@ -111,7 +111,7 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   }
 
   def createCollection(databaseName: String, collectionName: String): Unit = {
-    var collection: DocumentCollection = new DocumentCollection()
+    val collection: DocumentCollection = new DocumentCollection()
     collection.setId(collectionName)
 
     // Partition key definition
@@ -121,16 +121,16 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
 
     // Indexing paths
     // The String Range index is there to test String functions such as StartsWith, EndsWith
-	  var defaultPath: IncludedPath = new IncludedPath()
+    val defaultPath: IncludedPath = new IncludedPath()
     defaultPath.setPath("/")
     val defaultIndex: java.util.Collection[Index] = ArrayBuffer[Index](Index.Range(DataType.Number), Index.Range(DataType.String)).asJava
     defaultPath.setIndexes(defaultIndex)
 
-    var indexingPolicy: IndexingPolicy = new IndexingPolicy()
+    val indexingPolicy: IndexingPolicy = new IndexingPolicy()
     indexingPolicy.setIncludedPaths(List(defaultPath).asJavaCollection)
     collection.setIndexingPolicy(indexingPolicy)
 
-    var requestOptions: RequestOptions = new RequestOptions()
+    val requestOptions: RequestOptions = new RequestOptions()
     requestOptions.setOfferThroughput(10100)
 
     val createdCollection = documentDBClient.createCollection("dbs/" + databaseName, collection, requestOptions).getResource
@@ -144,7 +144,7 @@ class CosmosDBDefaults extends CosmosDBLoggingTrait {
   }
 
   def deleteCollection(databaseName: String, collectionName: String): Unit = {
-    var collectionLink = "dbs/" + databaseName + "/colls/" + collectionName
+    val collectionLink = ClientConfiguration.getCollectionLink(databaseName, collectionName)
     try {
       documentDBClient.deleteCollection(collectionLink, null)
       logInfo(s"Deleted collection with link '$collectionLink'")

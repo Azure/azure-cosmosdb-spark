@@ -61,7 +61,7 @@ import static com.microsoft.azure.cosmosdb.spark.gremlin.CosmosDBInputRDD.Consta
 
 public final class CosmosDBInputRDD implements InputRDD {
 
-    private static Logger LOGGER = LoggerFactory.getLogger(CosmosDBInputRDD.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CosmosDBInputRDD.class);
 
     private static CosmosDBRDD cosmosDBRDD = null;
 

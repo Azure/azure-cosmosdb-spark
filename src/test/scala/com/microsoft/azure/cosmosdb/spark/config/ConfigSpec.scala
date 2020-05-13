@@ -22,7 +22,7 @@
   */
 package com.microsoft.azure.cosmosdb.spark.config
 
-import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBDefaults, CosmosDBSpark, RequiresCosmosDB}
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBConnectionCache, CosmosDBDefaults, CosmosDBSpark, RequiresCosmosDB}
 import com.microsoft.azure.documentdb.ConnectionPolicy
 import com.microsoft.azure.cosmosdb.spark.rdd.CosmosDBRDDIterator
 import com.microsoft.azure.cosmosdb.spark.schema._
@@ -39,10 +39,10 @@ class ConfigSpec extends RequiresCosmosDB {
       df.collect()
       df.write.cosmosDB(readConfig)
 
-      CosmosDBConnection.lastConsistencyLevel.get.toString should equal(CosmosDBConfig.DefaultConsistencyLevel)
+      CosmosDBConnectionCache.lastConsistencyLevel.get.toString should equal(CosmosDBConfig.DefaultConsistencyLevel)
 
       val plainConnectionPolicy = new ConnectionPolicy()
-      val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
+      val connectionPolicy = CosmosDBConnectionCache.lastConnectionPolicy
       connectionPolicy.getConnectionMode.toString should equal(CosmosDBConfig.DefaultConnectionMode)
       connectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests should
         equal(plainConnectionPolicy.getRetryOptions.getMaxRetryAttemptsOnThrottledRequests)
@@ -88,10 +88,10 @@ class ConfigSpec extends RequiresCosmosDB {
     df.collect()
     df.write.cosmosDB(readConfig)
 
-    CosmosDBConnection.lastConsistencyLevel.get.toString should
+    CosmosDBConnectionCache.lastConsistencyLevel.get.toString should
       equal(readConfig.properties(CosmosDBConfig.ConsistencyLevel).toString)
 
-    val connectionPolicy = CosmosDBConnection.lastConnectionPolicy
+    val connectionPolicy = CosmosDBConnectionCache.lastConnectionPolicy
     connectionPolicy.getConnectionMode.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionMode).toString)
     connectionPolicy.getMaxPoolSize.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionMaxPoolSize))
     connectionPolicy.getIdleConnectionTimeout.toString should equal(readConfig.properties(CosmosDBConfig.ConnectionIdleTimeout))

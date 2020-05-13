@@ -48,6 +48,6 @@ class NoRetriesCosmosDBWriteStreamRetryPolicyConfig
     }
 
     def getMaxTransientRetryDelayInMs() : Int = {
-        0
+        1
     }
 }

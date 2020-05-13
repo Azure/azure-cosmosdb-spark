@@ -63,10 +63,10 @@ trait JsonSupport {
         case TimestampType => toTimestamp(value)
         case NullType => null
         case _ =>
-          sys.error(s"Unsupported datatype conversion [Value: ${value}] of ${value.getClass}] to ${desiredType}]")
+          sys.error(s"Unsupported datatype conversion [Value: $value] of ${value.getClass}] to $desiredType]")
           value
       }
-    }.getOrElse(null)
+    }.orNull
 
   private def toBinary(value: Any): Array[Byte] = {
     value match {
