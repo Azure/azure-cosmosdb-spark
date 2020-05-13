@@ -133,12 +133,12 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
       s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName} $applicationName"
     }
 
-    val connectionRequestTimeout : Option[Int] = 
+    val connectionRequestTimeoutInSeconds : Option[Int] = 
         config.get[String](CosmosDBConfig.ConnectionRequestTimeout) match {
             case Some(timeoutText) => Some(timeoutText.toInt)
             case None => None
         }
-    val connectionIdleTimeout : Option[Int] = 
+    val connectionIdleTimeoutInSeconds : Option[Int] = 
         config.get[String](CosmosDBConfig.ConnectionIdleTimeout) match {
             case Some(timeoutText) => Some(timeoutText.toInt)
             case None => None
@@ -162,8 +162,8 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
         connectionMode,
         userAgentString,
         maxConnectionPoolSize,
-        connectionRequestTimeout,
-        connectionIdleTimeout,
+        connectionRequestTimeoutInSeconds,
+        connectionIdleTimeoutInSeconds,
         maxRetryAttemptsOnThrottled,
         maxRetryWaitTimeSecs,
         preferredRegions)
