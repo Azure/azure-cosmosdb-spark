@@ -108,13 +108,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
 
         currentSchema = df.schema
       } else {
-        if (customSchema.isDefined)
-        {
-          currentSchema = customSchema.get
-        } 
-        else {
-          currentSchema = cosmosDbStreamSchema
-        }
+        currentSchema = customSchema.getOrElse(cosmosDbStreamSchema)
       }
     }
     currentSchema
