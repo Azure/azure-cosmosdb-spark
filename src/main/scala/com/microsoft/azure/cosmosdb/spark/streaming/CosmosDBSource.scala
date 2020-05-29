@@ -95,7 +95,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
         toBoolean
 
-      if (shouldInferSchema) {
+      if (shouldInferSchema && customSchema.isEmpty) {
         // Dummy batch read query to sample schema
         val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
         val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
