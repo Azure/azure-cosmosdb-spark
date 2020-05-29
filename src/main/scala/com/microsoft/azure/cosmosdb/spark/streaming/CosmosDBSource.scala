@@ -34,7 +34,8 @@ import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 private[spark] class CosmosDBSource(sqlContext: SQLContext,
-                                    configMap: Map[String, String])
+                                    configMap: Map[String, String],
+                                    customSchema: Option[StructType])
   extends Source with CosmosDBLoggingTrait {
 
   val streamConfigMap: Map[String, String] = configMap.
@@ -94,7 +95,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
         getOrElse(CosmosDBConfig.InferStreamSchema, CosmosDBConfig.DefaultInferStreamSchema.toString).
         toBoolean
 
-      if (shouldInferSchema) {
+      if (shouldInferSchema && customSchema.isEmpty) {
         // Dummy batch read query to sample schema
         val df = sqlContext.read.cosmosDB(Config(helperDfConfig))
         val tokens = CosmosDBRDDIterator.getCollectionTokens(Config(configMap))
@@ -106,7 +107,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
 
         currentSchema = df.schema
       } else {
-        currentSchema = cosmosDbStreamSchema
+        currentSchema = customSchema.getOrElse(cosmosDbStreamSchema)
       }
     }
     currentSchema
@@ -138,10 +139,21 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     // in the previous batch. It could be due to node failures or processing failures.
     if (endJson.equals(nextTokens) || endJson.equals(currentTokens)) {
       logDebug(s"Getting data for end offset")
-      val readConfig = Config(
-        streamConfigMap
-          .-(CosmosDBConfig.ChangeFeedContinuationToken)
-          .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
+      val readConfig = if (customSchema.isDefined) {
+        logError(s"Getting data for end offset with forcing inferSchema")
+        Config(
+          streamConfigMap
+            .-(CosmosDBConfig.ChangeFeedContinuationToken)
+            .-(CosmosDBConfig.InferStreamSchema)
+            .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json))
+            .+((CosmosDBConfig.InferStreamSchema, "true")))
+      } 
+      else {
+        Config(
+          streamConfigMap
+            .-(CosmosDBConfig.ChangeFeedContinuationToken)
+            .+((CosmosDBConfig.ChangeFeedContinuationToken, end.json)))
+      }
       val currentDf = sqlContext.read.cosmosDB(schema, readConfig, sqlContext)
       currentDf
     } else {

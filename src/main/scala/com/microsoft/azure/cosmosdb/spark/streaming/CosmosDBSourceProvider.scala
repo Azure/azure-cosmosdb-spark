@@ -35,10 +35,10 @@ class CosmosDBSourceProvider extends DataSourceRegister
 
   override def shortName(): String = "CosmosDBSourceProvider"
 
-  def cosmosDBSource(sqlContext: SQLContext, parameters: Map[String, String]): CosmosDBSource = {
+  def cosmosDBSource(sqlContext: SQLContext, parameters: Map[String, String], customSchema: Option[StructType]): CosmosDBSource = {
     this.synchronized({
       if (cosmosDBSource == null) {
-        cosmosDBSource = new CosmosDBSource(sqlContext, parameters)
+        cosmosDBSource = new CosmosDBSource(sqlContext, parameters, customSchema)
       }
     })
     cosmosDBSource
@@ -48,7 +48,7 @@ class CosmosDBSourceProvider extends DataSourceRegister
                             schema: Option[StructType],
                             providerName: String,
                             parameters: Map[String, String]): (String, StructType) = {
-    (shortName(), cosmosDBSource(sqlContext, parameters).schema)
+    (shortName(), cosmosDBSource(sqlContext, parameters, schema).schema)
   }
 
   override def createSource(sqlContext: SQLContext,
@@ -56,6 +56,6 @@ class CosmosDBSourceProvider extends DataSourceRegister
                             schema: Option[StructType],
                             providerName: String,
                             parameters: Map[String, String]): Source = {
-    cosmosDBSource(sqlContext, parameters)
+    cosmosDBSource(sqlContext, parameters, schema)
   }
 }
