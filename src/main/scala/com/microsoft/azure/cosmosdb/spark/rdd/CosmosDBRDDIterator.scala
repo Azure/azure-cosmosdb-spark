@@ -23,6 +23,8 @@
 package com.microsoft.azure.cosmosdb.spark.rdd
 
 import java.util
+import java.util.Collections
+import java.util.Comparator
 import java.util.concurrent.ConcurrentHashMap
 
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -230,8 +232,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       val partitionId = partition.partitionKeyRangeId.toString
       var parentPartitionId = ""
 
+      // Get the latest parents' partitionId when the child partition has multiple levels of parents
+      // eg: For the given parent hierarchy of ["8","41","89","177"], "177" needs to be picked up
       if(!partition.parents.isEmpty) {
-        parentPartitionId = partition.parents.iterator().next()
+        val cmp = new Comparator[String]() {
+          override def compare(str1: String, str2: String): Int = Integer.valueOf(str1).compareTo(Integer.valueOf(str2))
+        }
+        parentPartitionId = Collections.max(partition.parents, cmp)
       }
 
       val collectionLink = connection.getCollectionLink
@@ -275,6 +282,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           val emptyTokenMap = new ConcurrentHashMap[String, String]()
           val collectionTokenMap = objectMapper.readValue(continuationToken.get, emptyTokenMap.getClass)
           cfCurrentToken = collectionTokenMap.get(partitionId)
+
+          // If the new partition does not have the checkpoint file yet, get the ContinuationToken from its parents' checkpoint file
+          if ((cfCurrentToken == null || cfCurrentToken.isEmpty()) && parentPartitionId != null && !parentPartitionId.isEmpty()) {
+            cfCurrentToken = collectionTokenMap.get(parentPartitionId)
+            logInfo(s"Null ContinuationToken for PartitionId: $partitionId. Latest Parent-PartitionId: $parentPartitionId. + " +
+              s"CurrentToken for latest Parent-PartitionId: $cfCurrentToken")
+          }
         } else {
           // Set the current token to next token for the target collection
           val useNextToken: Boolean = config
