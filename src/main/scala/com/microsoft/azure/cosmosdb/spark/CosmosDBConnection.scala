@@ -50,7 +50,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def getAllPartitions: List[PartitionKeyRange] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
-    toList(ranges)
+    getListFromFeedResponse(ranges)
   }
 
   def getDocumentBulkImporter: DocumentBulkExecutor = {
@@ -66,20 +66,20 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    toList(feedResponse).iterator
+    getListFromFeedResponse(feedResponse).iterator
   }
 
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    toList(feedResponse).iterator
+    getListFromFeedResponse(feedResponse).iterator
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val resp: FeedResponse[Document] = documentClient.readDocuments(collectionLink, feedOptions)
-    toList(resp).iterator
+    getListFromFeedResponse(resp).iterator
   }
 
   /**
@@ -89,7 +89,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
    * @param response
    * @return
    */
-  private def toList[T <: com.microsoft.azure.documentdb.Resource : ClassTag](response: FeedResponse[T]): List[T] = {
+  private def getListFromFeedResponse[T <: com.microsoft.azure.documentdb.Resource : ClassTag](response: FeedResponse[T]): List[T] = {
     response
       .getQueryIterable
       .iterator
