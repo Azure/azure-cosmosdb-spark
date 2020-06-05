@@ -45,12 +45,12 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
   def write(base: String, filePath: String, content: String): Unit = {
     val path = new Path(base + "/" + filePath)
     retry(maxRetryCount) {
-      val os = fs.create(path)
-      os.writeUTF(content)
-      os.close()
+      if (content != null && !content.isEmpty) {
+        val os = fs.create(path)
+        os.writeUTF(content)
+        os.close()
+      }
     }
-
-    logInfo(s"Write $content for $path")
   }
 
   def read(base: String, filePath: String): String = {
