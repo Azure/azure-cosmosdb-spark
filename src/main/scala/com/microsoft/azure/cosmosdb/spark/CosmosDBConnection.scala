@@ -29,6 +29,7 @@ import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 import scala.util.control.Breaks._
 
 private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
@@ -46,10 +47,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
   }
 
-  def getAllPartitions: Array[PartitionKeyRange] = {
+  def getAllPartitions: List[PartitionKeyRange] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
-    ranges.getQueryIterator.toArray
+    getListFromFeedResponse(ranges)
   }
 
   def getDocumentBulkImporter: DocumentBulkExecutor = {
@@ -64,20 +65,35 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                      feedOpts: FeedOptions): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
+    val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    getListFromFeedResponse(feedResponse).iterator
   }
 
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val feedResponse = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    feedResponse.getQueryIterable.iterator()
+    val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    getListFromFeedResponse(feedResponse).iterator
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    documentClient.readDocuments(collectionLink, feedOptions).getQueryIterable.iterator()
+    val resp: FeedResponse[Document] = documentClient.readDocuments(collectionLink, feedOptions)
+    getListFromFeedResponse(resp).iterator
+  }
+
+  /**
+   * Takes the results from a FeedResponse and puts them in a standard List. The FeedResponse
+   * otherwise hides a lot of extra fields behind the Iterator[T] interface that would still
+   * need to be serialized when being collected on the driver.
+   * @param response
+   * @return
+   */
+  private def getListFromFeedResponse[T <: com.microsoft.azure.documentdb.Resource : ClassTag](response: FeedResponse[T]): List[T] = {
+    response
+      .getQueryIterable
+      .iterator
+      .toList
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions,
