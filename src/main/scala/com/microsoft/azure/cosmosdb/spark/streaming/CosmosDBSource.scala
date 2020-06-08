@@ -140,7 +140,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
     if (endJson.equals(nextTokens) || endJson.equals(currentTokens)) {
       logDebug(s"Getting data for end offset")
       val readConfig = if (customSchema.isDefined) {
-        logError(s"Getting data for end offset with forcing inferSchema")
+        logTrace(s"Getting data for end offset with forcing inferSchema")
         Config(
           streamConfigMap
             .-(CosmosDBConfig.ChangeFeedContinuationToken)
