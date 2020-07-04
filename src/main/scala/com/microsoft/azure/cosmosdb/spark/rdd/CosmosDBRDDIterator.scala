@@ -227,9 +227,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       val objectMapper: ObjectMapper = new ObjectMapper()
 
-//      val changeFeedCheckpointLocation: String = config
-//        .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
-//        .getOrElse(StringUtils.EMPTY)
       val queryName: String = config
         .get[String](CosmosDBConfig.ChangeFeedQueryName)
         .get
