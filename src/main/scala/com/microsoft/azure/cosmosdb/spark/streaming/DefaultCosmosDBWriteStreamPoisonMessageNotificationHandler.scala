@@ -22,15 +22,16 @@
   */
 package com.microsoft.azure.cosmosdb.spark.streaming
 
-import com.microsoft.azure.cosmosdb.{Document, ResourceResponse, RequestOptions}
+import com.microsoft.azure.cosmosdb.{Document, RequestOptions, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-
 import java.io.{FileNotFoundException, PrintWriter, StringWriter}
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicLong
+
+import org.apache.commons.lang3.StringUtils
 
 class DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap: Map[String, String])
     extends CosmosDBWriteStreamPoisonMessageNotificationHandler
@@ -45,9 +46,9 @@ class DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap: Map[
         .getOrElse(
             CosmosDBConfig.PoisonMessageLocation,
             String.valueOf(CosmosDBConfig.DefaultPoisonMessageLocation))
-    
+
     private lazy val hdfsUtils: HdfsUtils = {
-        HdfsUtils(configMap)
+        HdfsUtils(configMap, poisonMessageLocation)
     }
 
     def onPoisonMessage(lastError: Throwable, document: Document): Unit =
@@ -61,7 +62,7 @@ class DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap: Map[
 
         val payload = document.toJson()
 
-        logWarning(s"POSION MESSAGE Id: $id, Error: $error, Document payload: $payload")
+        logWarning(s"POISON MESSAGE Id: $id, Error: $error, Document payload: $payload")
 
         if (this.poisonMessageLocation != "")
         {

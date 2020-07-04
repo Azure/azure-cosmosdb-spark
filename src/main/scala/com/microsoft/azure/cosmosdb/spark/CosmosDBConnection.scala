@@ -230,6 +230,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
         }
       }
 
+      // set nextContinuation if the given partition does not have an existing checkpoint file and the "startFromBeginning" is False
+      if (nextContinuation == null || nextContinuation.isEmpty){
+        nextContinuation = feedResponse.getResponseContinuation
+      }
+
       logDebug(s"<-- readChangeFeed, Count: ${cfDocuments.length.toString}, NextContinuation: $nextContinuation")
 
       updateTokenFunc(originalContinuation, nextContinuation, partitionId)

@@ -31,8 +31,9 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path, RemoteIterator}
 
 import scala.collection.mutable
+import java.net.URI
 
-case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrait {
+case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocation: String) extends CosmosDBLoggingTrait {
   private val fsConfig: Configuration = {
     val config = new Configuration()
     configMap.foreach(e => config.set(e._1, e._2))
@@ -40,7 +41,7 @@ case class HdfsUtils(configMap: Map[String, String]) extends CosmosDBLoggingTrai
   }
 
   private val maxRetryCount = 10
-  private val fs = FileSystem.get(fsConfig)
+  private val fs = FileSystem.get(new URI(changeFeedCheckpointLocation), fsConfig)
 
   def write(base: String, filePath: String, content: String): Unit = {
     val path = new Path(base + "/" + filePath)
