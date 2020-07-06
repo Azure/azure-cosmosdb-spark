@@ -50,11 +50,11 @@ object CosmosDBRDDIterator {
   var lastFeedOptions: FeedOptions = _
   var hdfsUtils: HdfsUtils = _
 
-  def initializeHdfsUtils(hadoopConfig: Map[String, String]): Any = {
+  def initializeHdfsUtils(hadoopConfig: Map[String, String], changeFeedCheckpointLocation: String): Any = {
     if (hdfsUtils == null) {
       this.synchronized {
         if (hdfsUtils == null) {
-          hdfsUtils = HdfsUtils(hadoopConfig)
+          hdfsUtils = HdfsUtils(hadoopConfig, changeFeedCheckpointLocation)
         }
       }
     }
@@ -133,7 +133,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   extends Iterator[Document]
     with CosmosDBLoggingTrait {
 
-  CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap)
+  val changeFeedCheckpointLocation: String = config
+    .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
+    .getOrElse(StringUtils.EMPTY)
+
+  CosmosDBRDDIterator.initializeHdfsUtils(hadoopConfig.toMap, changeFeedCheckpointLocation)
 
   // The continuation token for the target CosmosDB partition
   private var cfCurrentToken: String = _
@@ -223,9 +227,6 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
 
       val objectMapper: ObjectMapper = new ObjectMapper()
 
-      val changeFeedCheckpointLocation: String = config
-        .get[String](CosmosDBConfig.ChangeFeedCheckpointLocation)
-        .getOrElse(StringUtils.EMPTY)
       val queryName: String = config
         .get[String](CosmosDBConfig.ChangeFeedQueryName)
         .get
