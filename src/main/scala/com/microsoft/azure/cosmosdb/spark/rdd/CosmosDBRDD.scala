@@ -115,10 +115,11 @@ class CosmosDBRDD(
       case cosmosDBPartition: CosmosDBPartition =>
         logInfo(s"CosmosDBRDD:compute: Start CosmosDBRDD compute task for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
 
-        val taskCompletionListener:TaskCompletionListener = (ctx: TaskContext) => {
-          logInfo(s"CosmosDBRDD:compute: CosmosDBRDD compute task completed for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
+        val completionListener: TaskCompletionListener = new TaskCompletionListener() {
+          override def onTaskCompletion(context: TaskContext): Unit =
+            logInfo(s"CosmosDBRDD:compute: CosmosDBRDD compute task completed for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
         }
-        context.addTaskCompletionListener(taskCompletionListener)
+        context.addTaskCompletionListener(completionListener)
 
         new CosmosDBRDDIterator(
           hadoopConfig,
