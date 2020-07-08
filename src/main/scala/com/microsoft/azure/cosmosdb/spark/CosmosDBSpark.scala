@@ -22,6 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -186,13 +188,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
       if (bulkUpdateResponse != null) {
         if (bulkUpdateResponse.getFailedUpdates.size() > 0) {
-          val failedUpdateIds = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getId)
-          val failedUpdatePKValues = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getPartitionKeyValue)
-
-          val failedUpdateIdPKValuesList = failedUpdateIds.zip(failedUpdatePKValues).toList.mkString(", ")
-          throw new Exception("Errors encountered in bulk update API execution. Number of failures corresponding to exception of type: "
-            + bulkUpdateResponse.getFailedUpdates.get(0).getBulkUpdateFailureException.getClass.getName + " = " + bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.size
-            + ". The global identifier (id, pk) tuples of the failed updates are: " + failedUpdateIdPKValuesList)
+          throw toFailedUpdateException(bulkUpdateResponse)
         }
 
         if (!bulkUpdateResponse.getErrors.isEmpty) {
@@ -209,13 +205,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     if (bulkUpdateResponse != null) {
       if (bulkUpdateResponse.getFailedUpdates.size() > 0) {
-        val failedUpdateIds = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getId)
-        val failedUpdatePKValues = bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.map(_.getPartitionKeyValue)
-
-        val failedUpdateIdPKValuesList = failedUpdateIds.zip(failedUpdatePKValues).toList.mkString(", ")
-        throw new Exception("Errors encountered in bulk update API execution. Number of failures corresponding to exception of type: "
-          + bulkUpdateResponse.getFailedUpdates.get(0).getBulkUpdateFailureException.getClass.getName + " = " + bulkUpdateResponse.getFailedUpdates.get(0).getFailedUpdateItems.size
-          + ". The global identifier (id, pk) tuples of the failed updates are: " + failedUpdateIdPKValuesList)
+        throw toFailedUpdateException(bulkUpdateResponse)
       }
 
       if (!bulkUpdateResponse.getErrors.isEmpty) {
@@ -293,17 +283,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
         }
         if (bulkImportResponse.getFailedImports.size() > 0) {
-          val failedImportDocs = getDocumentsDebugString(
-            connection,
-            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport)
-
-          throw new Exception(
-            "Errors encountered in bulk import API execution. " +
-            "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition.toString() + ", " +
-            "Number of failures corresponding to exception of type: " +
-            bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
-            bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
-            ". The failed import docs are: " + failedImportDocs)
+          throw toFailedImportException(bulkImportResponse, connection)
         }
         documents.clear()
       }
@@ -317,19 +297,65 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
       }
       if (bulkImportResponse.getFailedImports.size() > 0) {
-        val failedImportDocs = getDocumentsDebugString(
-          connection,
-          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport)
-
-        throw new Exception(
-          "Errors encountered in bulk import API execution. " +
-          "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition + ", " +
-          "Number of failures corresponding to exception of type: " +
-          bulkImportResponse.getFailedImports.get(0).getBulkImportFailureException.getClass.getName + " = " +
-          bulkImportResponse.getFailedImports.get(0).getDocumentsFailedToImport.size() +
-          ". The failed import docs are: " + failedImportDocs)
+        throw toFailedImportException(bulkImportResponse, connection)
       }
     }
+  }
+
+  private def toFailedImportException(response: BulkImportResponse, connection: CosmosDBConnection) : Exception = {
+
+    val failedImport = response.getFailedImports.get(0)
+    val failure = failedImport.getBulkImportFailureException
+
+    val failedImportDocs = getDocumentsDebugString(
+        connection,
+        failedImport.getDocumentsFailedToImport)
+
+    val failureWithCallstack = getExceptionWithCallstack(failure)
+        
+    val message = "Errors encountered in bulk import API execution. " +
+      "PartitionKeyDefinition: " + connection.getPartitionKeyDefinition + ", " +
+      "Number of failures corresponding to exception of type: " +
+      failure.getClass.getName + " = " +
+      failedImport.getDocumentsFailedToImport.size() + "; " +
+      "FAILURE: " + failureWithCallstack  + "; " +
+      "DOCUMENT FAILED TO IMPORT: " + failedImportDocs
+
+    logError(message)
+
+    new Exception(message)
+  }
+
+  private def getExceptionWithCallstack(throwable: Throwable) : String = {
+    val sw = new StringWriter
+    val pw = new PrintWriter(sw)
+    throwable.printStackTrace(pw)
+    pw.flush()
+    val failureWithCallstack = sw.toString()
+    pw.close()
+
+    failureWithCallstack
+  }
+
+  private def toFailedUpdateException(response: BulkUpdateResponse) : Exception = {
+    val failedUpdate = response.getFailedUpdates.get(0)
+    val failure = failedUpdate.getBulkUpdateFailureException
+
+    val failedUpdateIds = failedUpdate.getFailedUpdateItems.map(_.getId)
+    val failedUpdatePKValues = failedUpdate.getFailedUpdateItems.map(_.getPartitionKeyValue)
+    val failedUpdateIdPKValuesList = failedUpdateIds.zip(failedUpdatePKValues).toList.mkString(", ")
+
+    val failureWithCallstack = getExceptionWithCallstack(failure)
+
+    val message = "Errors encountered in bulk update API execution. " +
+      "Number of failures corresponding to exception of type: " +
+      failure.getClass.getName + " = " + failedUpdate.getFailedUpdateItems.size + "; " +
+      "FAILURE: " + failureWithCallstack + "; " +
+      "The global identifier (id, pk) tuples of the failed updates are: " + failedUpdateIdPKValuesList
+
+    logError(message)
+
+    new Exception(message)
   }
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
