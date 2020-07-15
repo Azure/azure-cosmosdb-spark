@@ -30,7 +30,7 @@ import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.apache.spark.sql.types.{DataType, _}
+import org.apache.spark.sql.types.{DataType, DecimalType, _}
 import org.json.{JSONArray, JSONObject}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.ArrayData
@@ -166,13 +166,19 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case DoubleType           => element.asInstanceOf[Double]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
+      case FloatType            => element.asInstanceOf[Float]
+      case DecimalType()        => element.asInstanceOf[Decimal].toJavaBigDecimal
       case StringType           =>
         if (isInternalRow) {
           new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
         } else {
           element.asInstanceOf[String]
         }
-      case TimestampType        => element.asInstanceOf[Timestamp].getTime
+      case TimestampType        => if (element.isInstanceOf[java.lang.Long]) {
+        element.asInstanceOf[java.lang.Long]
+      } else { 
+        element.asInstanceOf[Timestamp].getTime
+      }
       case arrayType: ArrayType => arrayTypeRouterToJsonArray(arrayType.elementType, element, isInternalRow)
       case mapType: MapType =>
         mapType.keyType match {
