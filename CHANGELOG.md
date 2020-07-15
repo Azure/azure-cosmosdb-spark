@@ -1,7 +1,9 @@
 # Changelog
 
-## 3.0.9
+## 3.1.0
+- Adds support for bulk updates when using nested partition keys
 - Adds support for Decimal and Float data types during writes to Cosmos DB.
+- Adds support for Timestamp types when they are using Long (unix Epoch) as a value
 
 ## 3.0.8
 - Fixes type cast exception when using "WriteThroughputBudget" config.
