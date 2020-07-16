@@ -167,7 +167,13 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
       case FloatType            => element.asInstanceOf[Float]
-      case DecimalType()        => element.asInstanceOf[Decimal].toJavaBigDecimal
+      case DecimalType()        => if (element.isInstanceOf[Decimal]) {
+        element.asInstanceOf[Decimal].toJavaBigDecimal
+      } else if (element.isInstanceOf[java.lang.Long]) {
+        new java.math.BigDecimal(element.asInstanceOf[java.lang.Long])
+      } else {
+        element.asInstanceOf[java.math.BigDecimal]
+      }
       case StringType           =>
         if (isInternalRow) {
           new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
