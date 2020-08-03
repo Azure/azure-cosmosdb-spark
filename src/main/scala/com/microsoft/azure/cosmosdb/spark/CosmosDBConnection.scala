@@ -137,9 +137,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     if (currentContinuation != null &&
       currentContinuation.contains("|")) {
       val continuationFragments = currentContinuation.split('|')
+      if (continuationFragments.size <= 2) {
+        lastProcessedIdBookmark = continuationFragments(1)
+      }
+      // handle the case in which "id" contains "|" character included in it
+      else {
+        lastProcessedIdBookmark = currentContinuation.substring(continuationFragments(0).length + 1)
+      }
       currentContinuation = continuationFragments(0)
       changeFeedOptions.setRequestContinuation(currentContinuation)
-      lastProcessedIdBookmark = continuationFragments(1)
+      logInfo(s"***** currentContinuation = ${currentContinuation} lastProcessedIdBookmark = ${lastProcessedIdBookmark} foundBookmark = ${foundBookmark}")
       foundBookmark = false
     }
 
