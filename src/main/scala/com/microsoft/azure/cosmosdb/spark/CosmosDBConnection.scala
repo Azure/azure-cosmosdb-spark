@@ -146,7 +146,6 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       }
       currentContinuation = continuationFragments(0)
       changeFeedOptions.setRequestContinuation(currentContinuation)
-      logInfo(s"***** currentContinuation = ${currentContinuation} lastProcessedIdBookmark = ${lastProcessedIdBookmark} foundBookmark = ${foundBookmark}")
       foundBookmark = false
     }
 
