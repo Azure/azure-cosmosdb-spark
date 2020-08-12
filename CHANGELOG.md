@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.0
+- Fixes a regression that caused excessive memory consumption on the executors for large result sets (for example with millions of rows) ultimately resulting in an error "java.lang.OutOfMemoryError: GC overhead limit exceeded"
+
+## 3.1.1
+- Fixes a streaming checkpoint edge case where in the "id" contains "|" character with the "ChangeFeedMaxPagesPerBatch" config applied
+
 ## 3.1.0
 - Adds support for bulk updates when using nested partition keys
 - Adds support for Decimal and Float data types during writes to Cosmos DB.

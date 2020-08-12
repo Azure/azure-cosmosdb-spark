@@ -66,34 +66,63 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    getListFromFeedResponse(feedResponse).iterator
+    getIteratorFromFeedResponse(feedResponse)
   }
 
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
-    getListFromFeedResponse(feedResponse).iterator
+    getIteratorFromFeedResponse(feedResponse)
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val resp: FeedResponse[Document] = documentClient.readDocuments(collectionLink, feedOptions)
-    getListFromFeedResponse(resp).iterator
+    getIteratorFromFeedResponse(resp)
   }
 
-  /**
-   * Takes the results from a FeedResponse and puts them in a standard List. The FeedResponse
-   * otherwise hides a lot of extra fields behind the Iterator[T] interface that would still
+/**
+   * Takes the results from a FeedResponse and puts them in a standard List by fully draining the query.
+   * The FeedResponse otherwise hides a lot of extra fields behind the Iterator[T] interface that would still
    * need to be serialized when being collected on the driver.
    * @param response
    * @return
    */
-  private def getListFromFeedResponse[T <: com.microsoft.azure.documentdb.Resource : ClassTag](response: FeedResponse[T]): List[T] = {
+  private def getListFromFeedResponse[T <: com.microsoft.azure.documentdb.Resource : ClassTag](
+    response: FeedResponse[T]): List[T] = {
+    
     response
-      .getQueryIterable
-      .iterator
-      .toList
+        .getQueryIterator
+        .toList
+  }
+
+  /**
+   * Takes the results from a FeedResponse and puts them in a standard List if 
+   * there is no continuation token. In this case the FeedResponse would hide a lot 
+   * of extra fields behind the Iterator[T] interface that would still
+   * need to be serialized when being collected on the driver.
+   * If the FeedResponse contains a continuation the query iterator is returned so
+   * that the query results can be drained by the driver.
+   * @param response
+   * @return
+   */
+  private def getIteratorFromFeedResponse[T <: com.microsoft.azure.documentdb.Resource : ClassTag](
+    response: FeedResponse[T]): Iterator[T] = {
+
+    val responseContinuation:String = response.getResponseContinuation
+    if (responseContinuation == null || responseContinuation.isEmpty) {
+      logDebug(s"CosmosDBConnection.getIteratorFromFeedResponse -- No continuation - returning simple list")
+      val responseList:List[T]  = response
+        .getQueryIterator
+        .toList
+      responseList.iterator
+    } else {
+      logDebug(s"CosmosDBConnection.getIteratorFromFeedResponse -- With continuation - returning query iterator")
+      val responseIterator:Iterator[T]  = response
+        .getQueryIterator
+      responseIterator      
+    }
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions,
