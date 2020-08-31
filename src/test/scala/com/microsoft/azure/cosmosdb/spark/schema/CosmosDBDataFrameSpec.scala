@@ -173,6 +173,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     verifyReadChangeFeed(
       rollingChangeFeed = false,
       startFromTheBeginning = true,
+      startFromDateTime = "",
       useNextToken = false,
       spark)
   }
@@ -181,6 +182,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     verifyReadChangeFeed(
       rollingChangeFeed = true,
       startFromTheBeginning = true,
+      startFromDateTime = "",
       useNextToken = false,
       spark)
   }
@@ -189,6 +191,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     verifyReadChangeFeed(
       rollingChangeFeed = false,
       startFromTheBeginning = false,
+      startFromDateTime = "",
       useNextToken = false,
       spark)
   }
@@ -197,6 +200,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     verifyReadChangeFeed(
       rollingChangeFeed = true,
       startFromTheBeginning = false,
+      startFromDateTime = "",
       useNextToken = false,
       spark)
   }
@@ -205,6 +209,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     verifyReadChangeFeed(
       rollingChangeFeed = false,
       startFromTheBeginning = true,
+      startFromDateTime = "",
       useNextToken = true,
       spark)
   }
@@ -214,6 +219,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       verifyReadChangeFeed(
         rollingChangeFeed = false,
         startFromTheBeginning = false,
+        startFromDateTime = "",
         useNextToken = true,
         spark)
   }
@@ -228,6 +234,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
     */
   def verifyReadChangeFeed(rollingChangeFeed: Boolean,
                            startFromTheBeginning: Boolean,
+                           startFromDateTime: String,
                            useNextToken: Boolean,
                            spark: SparkSession): Unit = {
 
@@ -252,6 +259,7 @@ class CosmosDBDataFrameSpec extends RequiresCosmosDB {
       "ReadChangeFeed" -> "true",
       "ChangeFeedQueryName" -> s"$rollingChangeFeed $startFromTheBeginning $useNextToken",
       "ChangeFeedStartFromTheBeginning" -> startFromTheBeginning.toString,
+      "ChangeFeedStartFromDateTime" -> startFromDateTime,
       "ChangeFeedUseNextToken" -> useNextToken.toString,
       "RollingChangeFeed" -> rollingChangeFeed.toString,
       CosmosDBConfig.ChangeFeedCheckpointLocation -> checkpointPath,

@@ -70,6 +70,7 @@ object CosmosDBConfig {
   val ReadChangeFeed = "readchangefeed"
   val RollingChangeFeed = "rollingchangefeed"
   val ChangeFeedStartFromTheBeginning = "changefeedstartfromthebeginning"
+  val ChangeFeedStartFromDateTime = "changefeedstartfromdatetime"
   val ChangeFeedUseNextToken = "changefeedusenexttoken"
   val ChangeFeedContinuationToken = "changefeedcontinuationtoken"
   val ChangeFeedMaxPagesPerBatch = "changefeedmaxpagesperbatch"

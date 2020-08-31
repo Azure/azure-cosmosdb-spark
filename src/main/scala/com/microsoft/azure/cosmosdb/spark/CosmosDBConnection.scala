@@ -134,7 +134,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val partitionId = changeFeedOptions.getPartitionKeyRangeId
 
-    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize.toString}, ContinuationToken: ${changeFeedOptions.getRequestContinuation}, PartitionId: $partitionId, ShouldInferSchema: ${shouldInferStreamSchema.toString}")
+    logDebug(s"--> readChangeFeed, PageSize: ${changeFeedOptions.getPageSize.toString}, ContinuationToken: ${changeFeedOptions.getRequestContinuation}, StartFromBeginning: ${changeFeedOptions.isStartFromBeginning}, StartDateTime: ${changeFeedOptions.getStartDateTime}, PartitionId: $partitionId, ShouldInferSchema: ${shouldInferStreamSchema.toString}")
 
     // The ChangeFeed API in the SDK allows accessing the continuation token
     // from the latest HTTP Response
