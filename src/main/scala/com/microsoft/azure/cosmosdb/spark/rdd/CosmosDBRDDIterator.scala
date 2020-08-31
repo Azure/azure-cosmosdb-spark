@@ -43,8 +43,12 @@ import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
 
 import scala.collection.mutable
+import org.joda.time.DateTimeZone
+import org.joda.time.format.ISODateTimeFormat
 
 object CosmosDBRDDIterator {
+
+  val formatterGMT = ISODateTimeFormat.dateTime().withZone(DateTimeZone.forID("GMT"))
 
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
@@ -342,11 +346,20 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .getOrElse(CosmosDBConfig.DefaultChangeFeedStartFromTheBeginning.toString)
         .toBoolean
+      
+      val startFromDateTime: String = config
+        .getOrElse[String](CosmosDBConfig.ChangeFeedStartFromDateTime, "")
+
       val currentToken: String = getContinuationToken(partitionId)
 
       val changeFeedOptions: ChangeFeedOptions = new ChangeFeedOptions()
       changeFeedOptions.setPartitionKeyRangeId(partition.partitionKeyRangeId.toString)
       changeFeedOptions.setStartFromBeginning(startFromTheBeginning)
+      if (StringUtils.isNotBlank(startFromDateTime)) {
+        val startFromDateTimeParsed = CosmosDBRDDIterator.formatterGMT.parseDateTime(startFromDateTime);
+        changeFeedOptions.setStartDateTime(startFromDateTimeParsed)
+      }
+      
       if (currentToken != null && !currentToken.isEmpty) {
         changeFeedOptions.setRequestContinuation(currentToken)
       }
