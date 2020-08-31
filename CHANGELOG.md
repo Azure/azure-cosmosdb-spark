@@ -1,7 +1,7 @@
 # Changelog
 
 ## 3.3.0
-- Adds a new config option "changefeedstartfromdatetime" that can be used to specify from when the changefeed shoudl be processed. See [Config options](https://github.com/Azure/azure-cosmosdb-spark/wiki/Configuration-references) for details.
+- Adds a new config option "changefeedstartfromdatetime" that can be used to specify from when the changefeed should be processed. See [Config options](https://github.com/Azure/azure-cosmosdb-spark/wiki/Configuration-references) for details.
 
 ## 3.2.0
 - Fixes a regression that caused excessive memory consumption on the executors for large result sets (for example with millions of rows) ultimately resulting in an error "java.lang.OutOfMemoryError: GC overhead limit exceeded"
