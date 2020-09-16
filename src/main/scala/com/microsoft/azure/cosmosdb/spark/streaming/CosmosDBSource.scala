@@ -88,8 +88,7 @@ private[spark] class CosmosDBSource(sqlContext: SQLContext,
       val helperDfConfig: Map[String, String] = streamConfigMap
         .-(CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .+((CosmosDBConfig.ChangeFeedStartFromTheBeginning, String.valueOf(false)))
-        .-(CosmosDBConfig.ChangeFeedStartFromDateTime).
-        +((CosmosDBConfig.ChangeFeedStartFromDateTime,null))
+        .-(CosmosDBConfig.ChangeFeedStartFromDateTime)
         .-(CosmosDBConfig.ReadChangeFeed).
         +((CosmosDBConfig.ReadChangeFeed, String.valueOf(false)))
         .-(CosmosDBConfig.QueryCustom).
