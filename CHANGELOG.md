@@ -1,3 +1,6 @@
+### 3.3.1
+- Fixes null pointer exception in streaming schema inference. 
+
 ### 3.3.0
 - Adds a new config option "changefeedstartfromdatetime" that can be used to specify from when the changefeed should be processed. See [Config options](https://github.com/Azure/azure-cosmosdb-spark/wiki/Configuration-references) for details.
 
