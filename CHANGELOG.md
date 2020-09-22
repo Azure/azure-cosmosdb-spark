@@ -1,3 +1,6 @@
+### 3.3.2
+- Fix to capture updates to existing docs when maxPagesPerBatch is used with streaming. 
+
 ### 3.3.1
 - Fixes null pointer exception in streaming schema inference. 
 

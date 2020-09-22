@@ -214,6 +214,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
           for (feedItem <- feedItems) {
             if (!foundBookmark) {
+              // to capture updates to existing docs when maxPagesPerBatch is being used
+              // adds the updated docs to the list while searching for the bookemarked Id from the prior batch
+              if (feedItem.getInt("_lsn") > currentContinuation.toInt) {
+                cfDocuments.add(feedItem)
+              }
+
               if (feedItem.get("id") == lastProcessedIdBookmark) {
                 logDebug("    readChangeFeed.FoundBookmarkDueToIdMatch")
                 foundBookmark = true
@@ -244,7 +250,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           }
 
           if (pageCount >= maxPagesPerBatch) {
-            nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
+            if (maxPagesPerBatch > 1) {
+              nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
+            } else {
+              // when maxPagesPerBatch = 1, the nextContinuation needs to advance to the next continuation
+              nextContinuation = feedResponse.getResponseContinuation + "|" + feedItems.last.get("id")
+            }
 
             logDebug(s"    readChangeFeed.MaxPageCountExceeded NextContinuation: $nextContinuation")
             break
