@@ -72,7 +72,7 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   // main purpose of the time is to allow bulk operations to consume
   // additional throughput when more RUs are getting provisioned
   private val timerName = "throughput-refresh-timer"
-  private val timer: Timer = new Timer(timerName)
+  private val timer: Timer = new Timer(timerName, true)
 
   private val nullRequestOptions: RequestOptions = null
   private val bulkExecutorInitializationRetryOptions: RetryOptions = {
