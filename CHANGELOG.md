@@ -1,3 +1,6 @@
+### 3.3.3
+- Fixes an issue preventing apps from gracefully shutting down by moving Timer task in CosmosDBConnectionCache to a daemon thread
+
 ### 3.3.2
 - Fixes an issue preventing updates to existing documents being captured in bookmarks when maxPagesPerBatch is used with streaming. 
 
