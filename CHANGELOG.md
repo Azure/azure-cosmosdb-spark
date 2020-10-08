@@ -1,3 +1,6 @@
+### 3.3.4
+- Fixes an issue in Streaming preventing docs with MapType to be ingested into Cosmos DB
+
 ### 3.3.3
 - Fixes an issue preventing apps from gracefully shutting down by moving Timer task in CosmosDBConnectionCache to a daemon thread
 

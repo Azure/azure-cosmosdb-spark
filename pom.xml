@@ -21,7 +21,7 @@ limitations under the License.
     <groupId>com.microsoft.azure</groupId>
     <artifactId>azure-cosmosdb-spark_2.4.0_2.11</artifactId>
     <packaging>jar</packaging>
-    <version>3.3.3</version>
+    <version>3.3.4</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Spark Connector for Microsoft Azure CosmosDB</description>
     <url>http://azure.microsoft.com/en-us/services/documentdb/</url>

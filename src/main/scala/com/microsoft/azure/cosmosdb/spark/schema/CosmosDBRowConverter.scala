@@ -30,6 +30,7 @@ import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.catalyst.expressions.UnsafeMapData
 import org.apache.spark.sql.types.{DataType, DecimalType, _}
 import org.json.{JSONArray, JSONObject}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -186,13 +187,20 @@ object CosmosDBRowConverter extends RowConverter[Document]
         element.asInstanceOf[Timestamp].getTime
       }
       case arrayType: ArrayType => arrayTypeRouterToJsonArray(arrayType.elementType, element, isInternalRow)
-      case mapType: MapType =>
+
+      case mapType: MapType if isInternalRow =>
         mapType.keyType match {
-          case StringType => mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]], isInternalRow)
+          case StringType =>
+            // convert from UnsafeMapData to scala Map
+            val unsafeMap = element.asInstanceOf[UnsafeMapData]
+            val keys : Array[String] = unsafeMap.keyArray().toArray[UTF8String](StringType).map(_.toString)
+            val values: Array[AnyRef] = unsafeMap.valueArray().toObjectArray(mapType.valueType)
+            mapTypeToJSONObject(mapType.valueType, keys.zip(values).toMap, isInternalRow)
           case _ => throw new Exception(
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )
         }
+
       case structType: StructType => rowTyperouterToJsonArray(element, structType)
       case _ =>
         throw new Exception(s"Cannot cast $element into a Json value. $elementType has no matching Json value.")
