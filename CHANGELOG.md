@@ -1,3 +1,6 @@
+### 3.5.0
+- Adds support for spark 3.0 and scala 2.12
+
 ### 3.3.4
 - Fixes an issue in Streaming preventing docs with MapType to be ingested into Cosmos DB
 
