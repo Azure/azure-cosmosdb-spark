@@ -19,9 +19,9 @@ limitations under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.microsoft.azure</groupId>
-    <artifactId>azure-cosmosdb-spark_2.4.0_2.11</artifactId>
+    <artifactId>azure-cosmosdb-spark_3.0.0_2.12</artifactId>
     <packaging>jar</packaging>
-    <version>3.3.4</version>
+    <version>3.5.0</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Spark Connector for Microsoft Azure CosmosDB</description>
     <url>http://azure.microsoft.com/en-us/services/documentdb/</url>
