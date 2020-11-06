@@ -144,8 +144,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
   def rowToJSONObject(row: Row): JSONObject = {
     val jsonObject: JSONObject = new JSONObject()
     row.schema.fields.zipWithIndex.foreach({
-      case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
+      case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
     })
     jsonObject
   }
@@ -153,8 +152,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
   def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
     val jsonObject: JSONObject = new JSONObject()
     schema.fields.zipWithIndex.foreach({
-      case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-      case (field, i)                    => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
+      case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
     })
     jsonObject
   }
@@ -168,6 +166,7 @@ object CosmosDBRowConverter extends RowConverter[Document]
       case IntegerType          => element.asInstanceOf[Int]
       case LongType             => element.asInstanceOf[Long]
       case FloatType            => element.asInstanceOf[Float]
+      case NullType             => JSONObject.NULL
       case DecimalType()        => if (element.isInstanceOf[Decimal]) {
         element.asInstanceOf[Decimal].toJavaBigDecimal
       } else if (element.isInstanceOf[java.lang.Long]) {
