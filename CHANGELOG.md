@@ -1,4 +1,4 @@
-### 3.3.5
+### 3.3.5-SNAPSHOT
 - Fixed an issue in write causing NULL columns to not persisted in Cosmos DB.
   Now columns with NULL values will be correctly presisted.
 
