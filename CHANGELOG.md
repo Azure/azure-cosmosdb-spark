@@ -1,6 +1,5 @@
 ### 3.3.5-SNAPSHOT
-- Fixed an issue in write causing NULL columns to not persisted in Cosmos DB.
-  Now columns with NULL values will be correctly presisted.
+- Added support for preserveNullInWrite option to preserve null values in write.
 
 ### 3.3.4
 - Fixes an issue in Streaming preventing docs with MapType to be ingested into Cosmos DB

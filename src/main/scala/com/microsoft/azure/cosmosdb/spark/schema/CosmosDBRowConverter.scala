@@ -26,6 +26,8 @@ import java.sql.{Date, Timestamp}
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
+import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig.DefaultPreserveNullInWrite
+import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -60,8 +62,23 @@ trait RowConverter[T] {
 
 }
 
+case class SerializationConfig(preserveNullInWrite: Boolean)
 
-object CosmosDBRowConverter extends RowConverter[Document]
+object SerializationConfig {
+  def fromConfig(config: Map[String, String]) : SerializationConfig = {
+    var preserveNullInWriteBoolean = CosmosDBConfig.DefaultPreserveNullInWrite;
+    val preserveNullInWriteOpt = config.get(CosmosDBConfig.PreserveNullInWrite)
+    if (preserveNullInWriteOpt.isDefined) {
+      preserveNullInWriteBoolean = preserveNullInWriteOpt.get.toBoolean
+    }
+    SerializationConfig(preserveNullInWriteBoolean)
+  }
+  def fromConfig(config: Config) : SerializationConfig = {
+      SerializationConfig(config.getOrElse(CosmosDBConfig.PreserveNullInWrite, String.valueOf(CosmosDBConfig.DefaultPreserveNullInWrite)).toBoolean)
+  }
+}
+
+class CosmosDBRowConverter(serializationConfig: SerializationConfig = SerializationConfig.fromConfig(Map[String, String]())) extends RowConverter[Document]
   with JsonSupport
   with Serializable
   with CosmosDBLoggingTrait {
@@ -143,17 +160,32 @@ object CosmosDBRowConverter extends RowConverter[Document]
 
   def rowToJSONObject(row: Row): JSONObject = {
     val jsonObject: JSONObject = new JSONObject()
-    row.schema.fields.zipWithIndex.foreach({
-      case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
-    })
+    if (serializationConfig.preserveNullInWrite) {
+      row.schema.fields.zipWithIndex.foreach({
+        case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
+      })
+    } else {
+      row.schema.fields.zipWithIndex.foreach({
+        case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+        case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
+      })
+    }
+
     jsonObject
   }
 
   def internalRowToJSONObject(internalRow: InternalRow, schema: StructType): JSONObject = {
     val jsonObject: JSONObject = new JSONObject()
-    schema.fields.zipWithIndex.foreach({
-      case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
-    })
+    if (serializationConfig.preserveNullInWrite) {
+      schema.fields.zipWithIndex.foreach({
+        case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
+      })
+    } else {
+      schema.fields.zipWithIndex.foreach({
+        case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
+        case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
+      })
+    }
     jsonObject
   }
 

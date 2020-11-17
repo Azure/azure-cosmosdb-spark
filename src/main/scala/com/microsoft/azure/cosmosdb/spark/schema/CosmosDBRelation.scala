@@ -40,6 +40,8 @@ class CosmosDBRelation(private val config: Config,
 
   implicit val _: Config = config
 
+  private val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(config))
+
   // Take sample documents to infer the schema
   private lazy val lazySchema = {
     val sampleSize: Long = config.get[String](CosmosDBConfig.SampleSize)
@@ -75,7 +77,7 @@ class CosmosDBRelation(private val config: Config,
       requiredColumns = requiredColumns,
       filters = filters)
 
-    CosmosDBRowConverter.asRow(CosmosDBRelation.pruneSchema(schema, requiredColumns), rdd)
+    cosmosDBRowConverter.asRow(CosmosDBRelation.pruneSchema(schema, requiredColumns), rdd)
   }
 
   override def equals(other: Any): Boolean = other match {

@@ -165,6 +165,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     // connection.setZeroClientRetryPolicy
     val updateItems = new java.util.ArrayList[UpdateItem](writingBatchSize)
     val updatePatchItems = new java.util.ArrayList[Document](writingBatchSize)
+    val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
 
     var bulkUpdateResponse: BulkUpdateResponse = null
     iter.foreach(item => {
@@ -174,7 +175,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         case doc: Document =>
           updatePatchItems.add(doc)
         case row: Row =>
-          updatePatchItems.add(new Document(CosmosDBRowConverter.rowToJSONObject(row).toString()))
+          updatePatchItems.add(new Document(cosmosDBRowConverter.rowToJSONObject(row).toString()))
         case _ => throw new Exception("Unsupported update item types")
       }
       if (updateItems.size() >= writingBatchSize) {
@@ -257,6 +258,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     // connection.setZeroClientRetryPolicy
 
     val documents = new java.util.ArrayList[String](writingBatchSize)
+    val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
 
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -266,7 +268,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           if (rootPropertyToSave.isDefined) {
             new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
           } else {
-            new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+            new Document(cosmosDBRowConverter.rowToJSONObject(row).toString())
           }
         case any => new Document(any.toString)
       }
@@ -730,7 +732,7 @@ case class CosmosDBSpark(sparkSession: SparkSession, readConfig: Config) {
     * @return a DataFrame.
     */
   def toDF(schema: StructType): DataFrame = {
-    val rowRDD = CosmosDBRowConverter.asRow(schema, rdd)
+    val rowRDD = new CosmosDBRowConverter().asRow(schema, rdd)
     sparkSession.createDataFrame(rowRDD, schema)
   }
 
