@@ -107,28 +107,11 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
 
   private def createBulkExecutorSettings(config: Config) : BulkExecutorSettings = {
     val pkDef: Option[String] = config.get[String](CosmosDBConfig.PartitionKeyDefinition)
-    val maxMiniBatchImportSizeKB: Int = config
-      .getOrElse(CosmosDBConfig.MaxMiniBatchImportSizeKB, CosmosDBConfig.DefaultMaxMiniBatchImportSizeKB)
     val maxMiniBatchUpdateCount: Int = config
       .getOrElse(CosmosDBConfig.MaxMiniBatchUpdateCount, CosmosDBConfig.DefaultMaxMiniBatchUpdateCount)
-    val maxThroughputForBulkOperationsValue: Option[String] =  config
-      .get(CosmosDBConfig.WriteThroughputBudget)
-    val maxThroughputForBulkOperations: Option[Int] = 
-      if (maxThroughputForBulkOperationsValue.isDefined) {
-        val maxThroughputForBulkOperationsValue : String = config.get(CosmosDBConfig.WriteThroughputBudget).get
-        if (maxThroughputForBulkOperationsValue.trim.length > 0) {
-          Some(maxThroughputForBulkOperationsValue.toInt)
-        } else {
-          None
-        }
-      } else {
-        None
-      }
 
     BulkExecutorSettings(
       maxMiniBatchUpdateCount,
-      maxMiniBatchImportSizeKB,
-      maxThroughputForBulkOperations,
       pkDef)
   }
 
