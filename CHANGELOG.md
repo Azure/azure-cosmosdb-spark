@@ -1,4 +1,4 @@
-### 3.3.5-SNAPSHOT
+### 3.4.0
 - Added support for preserveNullInWrite option to preserve null values in write.
 
 ### 3.3.4
