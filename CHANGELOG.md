@@ -1,3 +1,6 @@
+### 3.5.0
+- Improves Write Throughput Budget accuracy that can be used to limit the RU consumption during bulk operations
+
 ### 3.4.0
 - Added support for preserveNullInWrite option to preserve null values in write.
 

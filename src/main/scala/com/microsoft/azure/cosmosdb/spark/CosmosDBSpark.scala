@@ -24,6 +24,7 @@ package com.microsoft.azure.cosmosdb.spark
 
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.nio.charset.Charset
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -33,7 +34,7 @@ import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import rx.Observable
 import com.microsoft.azure.documentdb._
-import com.microsoft.azure.documentdb.bulkexecutor.{DocumentBulkExecutor, BulkImportResponse, BulkUpdateResponse, UpdateItem}
+import com.microsoft.azure.documentdb.bulkexecutor.{BulkImportResponse, BulkUpdateResponse, DocumentBulkExecutor, UpdateItem}
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
@@ -135,12 +136,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
   def save[D: ClassTag](rdd: RDD[D]): Unit = save(rdd, Config(rdd.sparkContext))
 
   /**
-    * Save data to CosmosDB
-    *
-    * @param rdd         the RDD data to save to CosmosDB
-    * @param writeConfig the writeConfig
-    * @tparam D the type of the data in the RDD
-    */
+   * Save data to CosmosDB
+   *
+   * @param rdd         the RDD data to save to CosmosDB
+   * @param writeConfig the writeConfig
+   * @tparam D the type of the data in the RDD
+   */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
     var numPartitions = 0
     try {
@@ -149,9 +150,50 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       case _: Throwable => // no op
     }
 
-    logInfo("Write config: " + writeConfig.toString)
+    val maxMiniBatchImportSizeKB: Int = writeConfig
+      .get[String](CosmosDBConfig.MaxMiniBatchImportSizeKB)
+      .getOrElse(CosmosDBConfig.DefaultMaxMiniBatchImportSizeKB.toString)
+      .toInt
 
-    val mapRdd = rdd.mapPartitions(savePartition(_, writeConfig, numPartitions), preservesPartitioning = true)
+    val writeThroughputBudget : Option[Int] = writeConfig
+      .get[String](CosmosDBConfig.WriteThroughputBudget)
+      .map(_.toInt)
+
+    var writeThroughputBudgetPerCosmosPartition: Option[Int] = None
+    var baseMaxMiniBatchImportSizeKB: Int = maxMiniBatchImportSizeKB
+
+    // if writeThroughputBudget is provided in config, derive baseMaxMiniBatchImportSize based on #sparkPartitions & baseMiniBatchRUConsumption value
+    if (writeThroughputBudget.exists(_ > 0)) {
+      val baseMiniBatchRUConsumption: Int = writeConfig
+        .get[String](CosmosDBConfig.BaseMiniBatchRUConsumption)
+        .getOrElse(CosmosDBConfig.DefaultBaseMiniBatchRUConsumption.toString)
+        .toInt
+
+      val maxIngestionTaskParallelism: Option[Int] = writeConfig
+        .get[String](CosmosDBConfig.MaxIngestionTaskParallelism)
+        .map(_.toInt)
+
+      // If the maxIngestionTaskParallelism was provided, use it for baseMaxMiniBatchImportSize derivation.
+      // If the df has 100 spark partitions and the spark cluster has only 32 cores, the max task parallelism is 32.
+      // In this case, users can set maxIngestionTaskParallelism to 32 and will help with the RU consumption based on writeThroughputBudget.
+      if (maxIngestionTaskParallelism.exists(_ > 0)) numPartitions = maxIngestionTaskParallelism.get
+
+      val cosmosPartitionsCount = CosmosDBConnection(writeConfig).getAllPartitions.length
+      // writeThroughputBudget per cosmos db physical partition
+      writeThroughputBudgetPerCosmosPartition = Some((writeThroughputBudget.get / cosmosPartitionsCount).ceil.toInt)
+      val baseMiniBatchSizeAdjustmentFactor: Double = (baseMiniBatchRUConsumption.toDouble * numPartitions) / writeThroughputBudgetPerCosmosPartition.get
+      if (maxMiniBatchImportSizeKB >= baseMiniBatchSizeAdjustmentFactor) {
+        baseMaxMiniBatchImportSizeKB = (maxMiniBatchImportSizeKB / baseMiniBatchSizeAdjustmentFactor).ceil.toInt
+      } else {
+        // In the rare case of very high #sparkPartitions and very low writeThroughputBudget, derived baseMaxMiniBatchImportSize could be < 1.
+        // In this case, the #sparkPartitions needs to be adjusted to limit the RU consumption with the provided writeThroughputBudget
+        baseMaxMiniBatchImportSizeKB = 1
+        numPartitions = ((maxMiniBatchImportSizeKB * writeThroughputBudgetPerCosmosPartition.get) / baseMiniBatchRUConsumption).ceil.toInt
+      }
+    }
+
+    val mapRdd = rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
+      baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
     mapRdd.collect()
   }
 
@@ -250,7 +292,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                       writingBatchSize: Int,
                                       rootPropertyToSave: Option[String],
                                       upsert: Boolean,
-                                      maxConcurrencyPerPartitionRange: Integer): Unit = {
+                                      maxConcurrencyPerPartitionRange: Integer,
+                                      partitionCount: Int,
+                                      baseMaxMiniBatchImportSize: Int,
+                                      writeThroughputBudgetPerCosmosPartition: Option[Int]): Unit = {
     // Initialize BulkExecutor
     val importer: DocumentBulkExecutor = connection.getDocumentBulkImporter
 
@@ -259,6 +304,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
     val documents = new java.util.ArrayList[String](writingBatchSize)
     val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
+
+    var budgetEvalSize: Double = 0
+    var isBudgetEvalComplete: Boolean = !writeThroughputBudgetPerCosmosPartition.exists(_ > 0)
+    var effectiveMaxMiniBatchImportSize: Int = baseMaxMiniBatchImportSize
+    val effectivewriteThroughputBudgetPerCosmosPartition: Int = writeThroughputBudgetPerCosmosPartition.getOrElse(0)
 
     var bulkImportResponse: BulkImportResponse = null
     iter.foreach(item => {
@@ -276,8 +326,36 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         document.setId(UUID.randomUUID().toString)
       }
       documents.add(document.toJson())
-      if (documents.size() >= writingBatchSize) {
-        bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
+
+      // An initial one-time bulk import is performed with the baseMaxMiniBatchImportSize and the RU consumption is collected.
+      // This will take into consideration the indexed vs non-indexed target container, size of the imported docs etc:
+      // The miniBatchSizeAdjustmentFactor is calculated based on the above RU consumption and the effective minibatch size is adjusted based on this.
+      if (writeThroughputBudgetPerCosmosPartition.exists(_ > 0) && !isBudgetEvalComplete) {
+        budgetEvalSize += document.toJson().getBytes(Charset.forName("UTF-8")).length
+        if (budgetEvalSize >= baseMaxMiniBatchImportSize ) {
+          bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange,
+            baseMaxMiniBatchImportSize, partitionCount, effectivewriteThroughputBudgetPerCosmosPartition)
+          if (!bulkImportResponse.getErrors.isEmpty) {
+            throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
+          }
+          if (!bulkImportResponse.getBadInputDocuments.isEmpty) {
+            throw new Exception("Bad input documents provided to bulk import API. Bad input documents observed:\n" + bulkImportResponse.getBadInputDocuments.toString)
+          }
+          if (bulkImportResponse.getFailedImports.size() > 0) {
+            throw toFailedImportException(bulkImportResponse, connection)
+          }
+
+          val requestUnitsConsumed = bulkImportResponse.getTotalRequestUnitsConsumed
+          val miniBatchSizeAdjustmentFactor = (requestUnitsConsumed * partitionCount) / effectivewriteThroughputBudgetPerCosmosPartition
+          effectiveMaxMiniBatchImportSize = (baseMaxMiniBatchImportSize / miniBatchSizeAdjustmentFactor).ceil.toInt
+          isBudgetEvalComplete = true
+          documents.clear()
+        }
+      }
+
+      if (documents.size() >= writingBatchSize && isBudgetEvalComplete) {
+        bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange,
+          effectiveMaxMiniBatchImportSize, partitionCount, effectivewriteThroughputBudgetPerCosmosPartition)
         if (!bulkImportResponse.getErrors.isEmpty) {
           throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
         }
@@ -291,7 +369,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
     })
     if (documents.size() > 0) {
-      bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange)
+      bulkImportResponse = importer.importAll(documents, upsert, false, maxConcurrencyPerPartitionRange,
+        effectiveMaxMiniBatchImportSize, partitionCount, effectivewriteThroughputBudgetPerCosmosPartition)
       if (!bulkImportResponse.getErrors.isEmpty) {
         throw new Exception("Errors encountered in bulk import API execution. Exceptions observed:\n" + bulkImportResponse.getErrors.toString)
       }
@@ -362,7 +441,9 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
-                                         partitionCount: Int): Iterator[D] = {
+                                         partitionCount: Int,
+                                         baseMaxMiniBatchImportSize: Int,
+                                         writeThroughputBudgetPerCosmosPartition: Option[Int]): Iterator[D] = {
     val connection: CosmosDBConnection = CosmosDBConnection(config)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
@@ -420,7 +501,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           writingBatchSize,
           rootPropertyToSave,
           upsert,
-          maxConcurrencyPerPartitionRange)
+          maxConcurrencyPerPartitionRange,
+          partitionCount,
+          baseMaxMiniBatchImportSize,
+          writeThroughputBudgetPerCosmosPartition)
       } else {
         logDebug(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
