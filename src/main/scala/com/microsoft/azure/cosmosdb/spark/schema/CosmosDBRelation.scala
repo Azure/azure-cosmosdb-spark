@@ -40,7 +40,7 @@ class CosmosDBRelation(private val config: Config,
 
   implicit val _: Config = config
 
-  private val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(config))
+  @transient private val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(config))
 
   // Take sample documents to infer the schema
   private lazy val lazySchema = {
