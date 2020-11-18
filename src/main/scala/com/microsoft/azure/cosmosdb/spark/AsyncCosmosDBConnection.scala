@@ -23,22 +23,20 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.lang.management.ManagementFactory
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
+import java.util.function
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import rx.Observable
 import com.microsoft.azure.cosmosdb._
 import com.microsoft.azure.cosmosdb.internal._
 import com.microsoft.azure.cosmosdb.rx.AsyncDocumentClient
-import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
-import com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBWriteStreamRetryPolicy
+import com.microsoft.azure.cosmosdb.spark.schema.{CosmosDBRowConverter, SerializationConfig}
 import org.apache.spark.sql.Row
 
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
-import java.util.concurrent.ConcurrentHashMap
-import java.util.function
 
 case class AsyncClientConfiguration(host: String,
                                key: String,
@@ -136,6 +134,7 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
     AsyncCosmosDBConnection.getClient(config)
   }
 
+  @transient val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(config))
   private val databaseName = config.get[String](CosmosDBConfig.Database).get
   private val collectionName = config.get[String](CosmosDBConfig.Collection).get
   val collectionLink = s"${Paths.DATABASES_PATH_SEGMENT}/$databaseName/${Paths.COLLECTIONS_PATH_SEGMENT}/$collectionName"
@@ -159,7 +158,7 @@ case class AsyncCosmosDBConnection(config: Config) extends CosmosDBLoggingTrait 
           if (rootPropertyToSave.isDefined) {
             new Document(row.getString(row.fieldIndex(rootPropertyToSave.get)))
           } else {
-            new Document(CosmosDBRowConverter.rowToJSONObject(row).toString())
+            new Document(cosmosDBRowConverter.rowToJSONObject(row).toString())
           }
         case any => new Document(any.toString)
       }

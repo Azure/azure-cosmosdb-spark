@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.streaming
 import com.microsoft.azure.cosmosdb.{Document, RequestOptions, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
-import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
+import com.microsoft.azure.cosmosdb.spark.schema.{CosmosDBRowConverter, SerializationConfig}
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.InternalRow
@@ -46,6 +46,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
     extends CosmosDBLoggingTrait
     with Serializable
 {
+    @transient private val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(configMap))
     val config: CosmosDBWriteStreamRetryPolicyConfig = getConfig(configMap)
     val rnd: Random.type = scala.util.Random
     private lazy val notificationHandler: CosmosDBWriteStreamPoisonMessageNotificationHandler = {
@@ -89,7 +90,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
 
         val itemConversionFunc = (item: D) => item match
         {
-            case internalRow: InternalRow =>  new Document(CosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
+            case internalRow: InternalRow =>  new Document(cosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
             case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
         }
 

@@ -102,6 +102,7 @@ object CosmosDBConfig {
   val Upsert = "upsert"
   val ClientInitDelay = "clientinitdelay"
   val RootPropertyToSave = "rootpropertytosave"
+  val PreserveNullInWrite = "preservenullinwrite"
 
   // Bulk executor library related
   val BulkImport = "bulkimport"
@@ -138,6 +139,7 @@ object CosmosDBConfig {
   val DefaultPageSize = 1000
   val DefaultSampleSize: Int = DefaultPageSize
   val DefaultUpsert = false
+  val DefaultPreserveNullInWrite = false
   val DefaultReadChangeFeed = false
   val DefaultStructuredStreaming = false
   val DefaultRollingChangeFeed = false
