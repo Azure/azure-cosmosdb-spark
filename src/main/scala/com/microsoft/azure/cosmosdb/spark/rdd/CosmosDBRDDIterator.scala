@@ -437,7 +437,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     })
 
     // Register an on-task-completion callback to close the input stream.
-    taskContext.addTaskCompletionListener((_: TaskContext) => {
+    taskContext.addTaskCompletionListener[Unit]((_: TaskContext) => {
       closeIfNeeded()
     })
 

@@ -44,9 +44,9 @@ object StreamingUtils extends Serializable {
 
   def createDataFrameStreaming(df: DataFrame, schema: StructType, sqlContext: SQLContext): DataFrame = {
 
-    val enconder = RowEncoder.apply(schema)
+    val encoder = RowEncoder.apply(schema)
     val mappedRdd = df.rdd.map(row => {
-      enconder.toRow(row)
+      encoder.createSerializer.apply(row)
     })
     sqlContext.internalCreateDataFrame(mappedRdd, schema, isStreaming = true)
   }
