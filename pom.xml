@@ -19,9 +19,9 @@ limitations under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.microsoft.azure</groupId>
-    <artifactId>azure-cosmosdb-spark_2.4.0_2.11</artifactId>
+    <artifactId>azure-cosmosdb-spark_3.0.0_2.12</artifactId>
     <packaging>jar</packaging>
-    <version>3.4.0</version>
+    <version>3.5.0</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Spark Connector for Microsoft Azure CosmosDB</description>
     <url>http://azure.microsoft.com/en-us/services/documentdb/</url>
@@ -32,11 +32,11 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <scala.version>2.11.12</scala.version>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.version>2.12.12</scala.version>
+        <scala.binary.version>2.12</scala.binary.version>
         <sonar.projectBaseDir>azure-cosmosdb-spark</sonar.projectBaseDir>
         <scala.test.version>3.1.1</scala.test.version>
-        <spark.version>2.4.4</spark.version>
+        <spark.version>3.0.0</spark.version>
         <slf4j.version>1.7.30</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <tinkerpop.version>3.2.5</tinkerpop.version>
@@ -214,7 +214,7 @@ limitations under the License.
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>4.4.0</version>
                 <configuration>
                     <checkMultipleScalaVersions>false</checkMultipleScalaVersions>
                     <scalaVersion>${scala.version}</scalaVersion>
