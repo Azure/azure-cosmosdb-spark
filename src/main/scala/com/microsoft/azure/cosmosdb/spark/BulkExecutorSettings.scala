@@ -27,16 +27,9 @@ package com.microsoft.azure.cosmosdb.spark
   *
   * @param maxMiniBatchUpdateCount         specifies the maximum count of update items in a mini-batch
   *                                        used in bulk import API. Default value is 500
-  * @param maxMiniBatchImportSizeKB        specifies the max mini-batch size (specific to bulk import API) i bytes.
-  *                                        Default value is 220200
-  * @param maxThroughputForBulkOperations  specifies the throughput allocated for bulk operations out of the
-  *                                        collection's total throughput (optional). If not specified the entire
-  *                                        provisioned throughput for the container can be used for bulk operations
   * @param partitionKeyOption              Can be used to specify the partition key (optional). If not specified the
   *                                        partition key definition is retrieved at runtime for the target container
   */
 private[spark] case class BulkExecutorSettings(
                                  maxMiniBatchUpdateCount: Int,
-                                 maxMiniBatchImportSizeKB: Int,
-                                 maxThroughputForBulkOperations: Option[Int],
                                  partitionKeyOption: Option[String])

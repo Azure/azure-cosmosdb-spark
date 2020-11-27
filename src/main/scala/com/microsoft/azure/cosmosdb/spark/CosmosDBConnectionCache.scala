@@ -96,17 +96,8 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     } else {
       val client: DocumentClient = clientCacheEntry.docClient
       val pkDef = getPartitionKeyDefinition(config)
-      val maxAvailableThroughput = getOrReadMaxAvailableThroughput(config)
 
-      val effectivelyAvailableThroughputForBulkOperations =
-        if (config.bulkConfig.maxThroughputForBulkOperations.isDefined) {
-          Math.min(
-            config.bulkConfig.maxThroughputForBulkOperations.get,
-            maxAvailableThroughput
-          )
-        } else {
-          maxAvailableThroughput
-        }
+      val effectivelyAvailableThroughputForBulkOperations = getOrReadMaxAvailableThroughput(config)
 
       val builder = DocumentBulkExecutor.builder
         .from(
@@ -118,7 +109,6 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         )
         .withInitializationRetryOptions(bulkExecutorInitializationRetryOptions)
         .withMaxUpdateMiniBatchCount(config.bulkConfig.maxMiniBatchUpdateCount)
-        .withMaxMiniBatchSize(config.bulkConfig.maxMiniBatchImportSizeKB * 1024)
 
       // Instantiate DocumentBulkExecutor
       val bulkExecutor = builder.build()

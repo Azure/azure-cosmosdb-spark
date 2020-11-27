@@ -102,6 +102,7 @@ object CosmosDBConfig {
   val Upsert = "upsert"
   val ClientInitDelay = "clientinitdelay"
   val RootPropertyToSave = "rootpropertytosave"
+  val PreserveNullInWrite = "preservenullinwrite"
 
   // Bulk executor library related
   val BulkImport = "bulkimport"
@@ -112,6 +113,8 @@ object CosmosDBConfig {
   val WriteThroughputBudget = "writethroughputbudget"
   val BulkImportMaxConcurrencyPerPartitionRange = "bulkimport_maxconcurrencyperpartitionrange"
   val MaxMiniBatchImportSizeKB = "maxminibatchimportsizekb"
+  val BaseMiniBatchRUConsumption = "baseminibatchruconsumption"
+  val MaxIngestionTaskParallelism = "maxingestiontaskparallelism"
 
   // Rx Java related write config
   val WritingBatchDelayMs = "writingbatchdelayms"
@@ -138,6 +141,7 @@ object CosmosDBConfig {
   val DefaultPageSize = 1000
   val DefaultSampleSize: Int = DefaultPageSize
   val DefaultUpsert = false
+  val DefaultPreserveNullInWrite = false
   val DefaultReadChangeFeed = false
   val DefaultStructuredStreaming = false
   val DefaultRollingChangeFeed = false
@@ -171,6 +175,8 @@ object CosmosDBConfig {
   val DefaultMaxMiniBatchImportSizeKB = 100
 
   val DefaultBulkImportMaxConcurrencyPerPartitionRange = 1
+
+  val DefaultBaseMiniBatchRUConsumption = 2000
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     parameters.map { case (x, v) => x -> v }

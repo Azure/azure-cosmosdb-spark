@@ -1,3 +1,7 @@
+### 3.4.0
+- Added support for preserveNullInWrite option to preserve null values in write.
+- Improves Write Throughput Budget accuracy that can be used to limit the RU consumption during bulk operations
+
 ### 3.3.4
 - Fixes an issue in Streaming preventing docs with MapType to be ingested into Cosmos DB
 
