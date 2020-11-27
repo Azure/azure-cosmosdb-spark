@@ -31,8 +31,7 @@ import com.microsoft.azure.cosmosdb.{Document, RequestOptions, ResourceResponse}
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
 import com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBWriteStreamRetryPolicy
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -44,10 +43,9 @@ object StreamingUtils extends Serializable {
 
   def createDataFrameStreaming(df: DataFrame, schema: StructType, sqlContext: SQLContext): DataFrame = {
 
-    val enconder = RowEncoder.apply(schema)
-    val mappedRdd = df.rdd.map(row => {
-      enconder.toRow(row)
-    })
+    val convert = CatalystTypeConverters.createToCatalystConverter(schema)
+    val mappedRdd = df.rdd.map(convert(_).asInstanceOf[InternalRow])
+    
     sqlContext.internalCreateDataFrame(mappedRdd, schema, isStreaming = true)
   }
 }
