@@ -1,5 +1,5 @@
-### 3.4.1
-- Fixes a regression preventing docs with MapType and of type NonInternalRow to be ingested in Batch mode to Cosmos DB 
+### 3.6.1
+- Fixes an issue preventing docs with MapType and of type NonInternalRow to be ingested in Batch mode to Cosmos DB 
 
 ### 3.4.0
 - Added support for preserveNullInWrite option to preserve null values in write.
