@@ -205,6 +205,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       var pageCount = 0
       // In streaming scenario, the change feed need to be materialized in order to get the information of the continuation token
       val cfDocuments: ListBuffer[Document] = new ListBuffer[Document]
+      val cfDocumentsIfLastProcessedDocumentWasUpdatedAgain: ListBuffer[Document] = new ListBuffer[Document]
       breakable {
         // hasNext can result in reading the next page of the changefeed and changing the continuation token header
         while (feedResponse.getQueryIterator.hasNext) {
@@ -216,13 +217,44 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
             if (!foundBookmark) {
               // to capture updates to existing docs when maxPagesPerBatch is being used
               // adds the updated docs to the list while searching for the bookemarked Id from the prior batch
-              if (feedItem.getInt("_lsn") > currentContinuation.toInt) {
-                cfDocuments.add(feedItem)
-              }
+              val lsn = feedItem.getInt("_lsn")
+              if (lsn > currentContinuation.toInt) {
 
-              if (feedItem.get("id") == lastProcessedIdBookmark) {
+                if (shouldInferStreamSchema) {
+                  cfDocumentsIfLastProcessedDocumentWasUpdatedAgain.add(feedItem)
+                }
+                else {
+                  val streamDocument: Document = new Document()
+                  streamDocument.set("body", feedItem.toJson)
+                  streamDocument.set("id", feedItem.get("id"))
+                  streamDocument.set("_rid", feedItem.get("_rid"))
+                  streamDocument.set("_self", feedItem.get("_self"))
+                  streamDocument.set("_etag", feedItem.get("_etag"))
+                  streamDocument.set("_attachments", feedItem.get("_attachments"))
+                  streamDocument.set("_ts", feedItem.get("_ts"))
+
+                  cfDocumentsIfLastProcessedDocumentWasUpdatedAgain.add(streamDocument)
+                }
+              } 
+
+              // LSN must be at least identical to aovid we mark
+              // foundBookmark == true too early if the document that we last processed
+              // in last mini batch also occurs in the transaction for the previous LSN 
+              if (lsn >= currentContinuation.toInt &&
+                  feedItem.get("id") == lastProcessedIdBookmark) {
                 logDebug("    readChangeFeed.FoundBookmarkDueToIdMatch")
+
+                if (lsn > currentContinuation.toInt + 1) {
+                  // the last processed document has a higher lsn now - so it was updated again. Make
+                  // sure to include documents we have skipped
+                  // this might result in a couple of duplicates
+                  // but since changefeed's contract is only at-least-once not exactly-once
+                  // this is accpetable and better than returning duplicates
+                  cfDocuments.addAll(cfDocumentsIfLastProcessedDocumentWasUpdatedAgain)
+                }
+
                 foundBookmark = true
+                cfDocumentsIfLastProcessedDocumentWasUpdatedAgain.clear()
               }
             }
             else {
@@ -243,6 +275,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
               }
             }
           }
+
+          if (!cfDocumentsIfLastProcessedDocumentWasUpdatedAgain.isEmpty) {
+            cfDocuments.addAll(cfDocumentsIfLastProcessedDocumentWasUpdatedAgain)
+            cfDocumentsIfLastProcessedDocumentWasUpdatedAgain.clear()
+          }
+
           logDebug(s"Receiving ${cfDocuments.length.toString} change feed items ${if (cfDocuments.nonEmpty) cfDocuments.head}")
 
           if (cfDocuments.nonEmpty) {
@@ -251,7 +289,10 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
           if (pageCount >= maxPagesPerBatch) {
             if (maxPagesPerBatch > 1) {
-              nextContinuation = previousBlockStartContinuation + "|" + feedItems.last.get("id")
+              // set the continuation to lsn of last processed record - 1 - to make sure
+              // the lsn containing teh last processed record is returned again
+              // so that we can find the last processed record and continue processing from there
+              nextContinuation = (feedItems.last.getInt("_lsn") - 1).toString() + "|" + feedItems.last.get("id")
             } else {
               // when maxPagesPerBatch = 1, the nextContinuation needs to advance to the next continuation
               nextContinuation = feedResponse.getResponseContinuation + "|" + feedItems.last.get("id")
