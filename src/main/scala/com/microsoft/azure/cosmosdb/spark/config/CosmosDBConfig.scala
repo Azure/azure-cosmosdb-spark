@@ -65,6 +65,7 @@ object CosmosDBConfig {
   val QueryDisableRUPerMinuteUsage = "query_disableruperminuteusage"
   val QueryEmitVerboseTraces = "query_emitverbosetraces"
   val ResponseContinuationTokenLimitInKb = "response_continuationtoken_limit_kb"
+  val ConvertNestedDocsToNativeJsonFormat = "convertnesteddocstonativejsonformat"
 
   // Change feed streaming related
   val ReadChangeFeed = "readchangefeed"
@@ -177,6 +178,8 @@ object CosmosDBConfig {
   val DefaultBulkImportMaxConcurrencyPerPartitionRange = 1
 
   val DefaultBaseMiniBatchRUConsumption = 2000
+
+  val  DefaultConvertNestedDocsToNativeJsonFormat = false
 
   def parseParameters(parameters: Map[String, String]): Map[String, Any] = {
     parameters.map { case (x, v) => x -> v }
