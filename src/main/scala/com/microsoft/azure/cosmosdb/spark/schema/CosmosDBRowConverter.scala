@@ -219,14 +219,19 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
       }
       case arrayType: ArrayType => arrayTypeRouterToJsonArray(arrayType.elementType, element, isInternalRow)
 
-      case mapType: MapType if isInternalRow =>
+      case mapType: MapType =>
         mapType.keyType match {
           case StringType =>
-            // convert from UnsafeMapData to scala Map
-            val unsafeMap = element.asInstanceOf[UnsafeMapData]
-            val keys : Array[String] = unsafeMap.keyArray().toArray[UTF8String](StringType).map(_.toString)
-            val values: Array[AnyRef] = unsafeMap.valueArray().toObjectArray(mapType.valueType)
-            mapTypeToJSONObject(mapType.valueType, keys.zip(values).toMap, isInternalRow)
+            if (isInternalRow) {
+              // convert from UnsafeMapData to scala Map
+              val unsafeMap = element.asInstanceOf[UnsafeMapData]
+              val keys : Array[String] = unsafeMap.keyArray().toArray[UTF8String](StringType).map(_.toString)
+              val values: Array[AnyRef] = unsafeMap.valueArray().toObjectArray(mapType.valueType)
+              mapTypeToJSONObject(mapType.valueType, keys.zip(values).toMap, true)
+            } else {
+              mapTypeToJSONObject(mapType.valueType, element.asInstanceOf[Map[String, _]], false)
+            }
+
           case _ => throw new Exception(
             s"Cannot cast $element into a Json value. MapTypes must have keys of StringType for conversion into a Document"
           )

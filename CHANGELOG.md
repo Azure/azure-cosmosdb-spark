@@ -1,3 +1,9 @@
+### 3.6.2
+- Fixes an issue sometimes resulting in unnecessary duplucates when using readStream in combination with maxPagesPerBacth setting and updating documents  
+
+### 3.6.1
+- Fixes an issue preventing docs with MapType and of type NonInternalRow to be ingested in Batch mode to Cosmos DB 
+
 ### 3.5.0
 - Adds support for spark 3.0 and scala 2.12
 
