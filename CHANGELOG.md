@@ -1,5 +1,5 @@
 ### 3.6.3
-- Adds a boolean config to enable converting nested docs that are derived as string into the native jason format  
+- Adds a boolean config to enable converting nested docs that are derived as string into the native json format  
 
 ### 3.6.2
 - Fixes an issue sometimes resulting in unnecessary duplucates when using readStream in combination with maxPagesPerBacth setting and updating documents  
