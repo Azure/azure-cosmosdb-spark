@@ -62,7 +62,7 @@ trait RowConverter[T] {
 
 }
 
-case class SerializationConfig(preserveNullInWrite: Boolean)
+case class SerializationConfig(preserveNullInWrite: Boolean, convertNestedDocsToNativeJsonFormat: Boolean)
 
 object SerializationConfig {
   def fromConfig(config: Map[String, String]) : SerializationConfig = {
@@ -71,10 +71,18 @@ object SerializationConfig {
     if (preserveNullInWriteOpt.isDefined) {
       preserveNullInWriteBoolean = preserveNullInWriteOpt.get.toBoolean
     }
-    SerializationConfig(preserveNullInWriteBoolean)
+
+    val convertNestedDocsToNativeJsonFormat: Boolean = config.getOrElse(
+      CosmosDBConfig.ConvertNestedDocsToNativeJsonFormat
+      , String.valueOf(CosmosDBConfig.DefaultConvertNestedDocsToNativeJsonFormat)).toBoolean
+
+    SerializationConfig(preserveNullInWriteBoolean, convertNestedDocsToNativeJsonFormat)
   }
+
   def fromConfig(config: Config) : SerializationConfig = {
-      SerializationConfig(config.getOrElse(CosmosDBConfig.PreserveNullInWrite, String.valueOf(CosmosDBConfig.DefaultPreserveNullInWrite)).toBoolean)
+      SerializationConfig(config.getOrElse(CosmosDBConfig.PreserveNullInWrite, String.valueOf(CosmosDBConfig.DefaultPreserveNullInWrite)).toBoolean
+        , config.getOrElse(CosmosDBConfig.ConvertNestedDocsToNativeJsonFormat, String.valueOf(CosmosDBConfig.DefaultConvertNestedDocsToNativeJsonFormat)).toBoolean
+      )
   }
 }
 
@@ -86,10 +94,9 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
   def asRow(schema: StructType, rdd: RDD[Document]): RDD[Row] = {
       rdd.map { record => {
         try {
-          recordAsRow(documentToMap(record), schema)
+            recordAsRow(record, schema)
         } catch {
           case e: Exception =>
-            logInfo(s"record is $record")
             throw e
         }
       }
@@ -98,12 +105,12 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
 
   def asRow(schema: StructType, array: Array[Document]): Array[Row] = {
     array.map { record =>
-      recordAsRow(documentToMap(record), schema)
+        recordAsRow(record, schema)
     }
   }
 
   def recordAsRow(
-                   json: Map[String, AnyRef],
+                   json: Document,
                    schema: StructType): Row = {
 
     val values: Seq[Any] = schema.fields.map {
@@ -111,9 +118,34 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
         if mdata.contains("idx") && mdata.contains("colname") =>
           val colName = mdata.getString("colname")
           val idx = mdata.getLong("idx").toInt
-          json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, containsNull = true))).collect {
+          documentToMap(json).get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, containsNull = true))).collect {
             case elemsList: Seq[_] if elemsList.indices contains idx => elemsList(idx)
           } orNull
+      case StructField(name, dataType, _, _) =>
+        if (!serializationConfig.convertNestedDocsToNativeJsonFormat || dataType != StringType) {
+          documentToMap(json).get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+        } else {
+          if (json.get(name) == null) {
+            null
+          } else {
+            json.get(name).toString
+          }
+        }
+    }
+    new GenericRowWithSchema(values.toArray, schema)
+  }
+
+  def mapAsRow(
+                json: Map[String, AnyRef],
+                schema: StructType): Row = {
+    val values: Seq[Any] = schema.fields.map {
+      case StructField(name, et, _, mdata)
+        if (mdata.contains("idx") && mdata.contains("colname")) =>
+        val colName = mdata.getString("colname")
+        val idx = mdata.getLong("idx").toInt
+        json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true))).collect {
+          case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
+        } orNull
       case StructField(name, dataType, _, _) =>
         json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
     }
@@ -132,7 +164,7 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
               case doc: Document => documentToMap(doc)
               case hm: util.HashMap[_, _] => hm.asInstanceOf[util.HashMap[String, AnyRef]].asScala.toMap
             }
-            recordAsRow(jsonMap, struct)
+          mapAsRow(jsonMap, struct)
         case (_, map: MapType) =>
           (value match {
             case document: Document => documentToMap(document)
