@@ -46,7 +46,8 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
     extends CosmosDBLoggingTrait
     with Serializable
 {
-    @transient private val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(configMap))
+    val serializationConfig = SerializationConfig.fromConfig(configMap) 
+    @transient private lazy val cosmosDBRowConverter = new CosmosDBRowConverter(serializationConfig)
     val config: CosmosDBWriteStreamRetryPolicyConfig = getConfig(configMap)
     val rnd: Random.type = scala.util.Random
     private lazy val notificationHandler: CosmosDBWriteStreamPoisonMessageNotificationHandler = {
@@ -71,6 +72,14 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
         retryPolicyConfig
     }
 
+    def getRowConverter() : CosmosDBRowConverter = {
+        if (cosmosDBRowConverter == null) {
+            throw new IllegalStateException(s"cosmosDBRowConverter must noty be null at this point")
+        } else {
+            cosmosDBRowConverter
+        }
+    } 
+
     def getNotificationHandler(configMap: Map[String, String]) : CosmosDBWriteStreamPoisonMessageNotificationHandler =
     {
         new DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap)
@@ -90,7 +99,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
 
         val itemConversionFunc = (item: D) => item match
         {
-            case internalRow: InternalRow =>  new Document(cosmosDBRowConverter.internalRowToJSONObject(internalRow, schema).toString())
+            case internalRow: InternalRow =>  new Document(getRowConverter().internalRowToJSONObject(internalRow, schema).toString())
             case any => throw new IllegalStateException(s"InternalRow expected from structured stream")
         }
 

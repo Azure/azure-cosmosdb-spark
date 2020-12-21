@@ -1,3 +1,6 @@
+### 3.6.4
+- Fixes a regression introduced in 3.4.0 casuing NullPointerException during writeStream 
+
 ### 3.6.3
 - Adds a boolean config to enable converting nested docs that are derived as string into the native json format  
 
