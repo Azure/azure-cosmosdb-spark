@@ -26,6 +26,7 @@ import java.io.{FileNotFoundException, PrintWriter, StringWriter}
 
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
+import com.microsoft.azure.cosmosdb.DocumentClientException
 
 class DefaultCosmosDBWriteStreamRetryPolicyConfig(configMap: Map[String, String])
     extends CosmosDBWriteStreamRetryPolicyConfig
@@ -58,11 +59,19 @@ class DefaultCosmosDBWriteStreamRetryPolicyConfig(configMap: Map[String, String]
             String.valueOf(CosmosDBConfig.DefaultTreatUnknownExceptionsAsTransient))
         .toBoolean
 
+    def isAlwaysNonTransient(t: Throwable) : Boolean = {
+        t match {
+            case dce: DocumentClientException => dce.getStatusCode() == 409 || dce.getStatusCode() == 400
+            case _ => false
+        }
+    }
+
     def isTransient(t: Throwable) : Boolean = {
         val sw = new StringWriter
         t.printStackTrace(new PrintWriter(sw))
 
-        if (treatUnknownExceptionsAsTransient)
+        if (!isAlwaysNonTransient(t) &&
+            treatUnknownExceptionsAsTransient)
         {
             logWarning(s"TRANSIENT error: ${t.getMessage}, CallStack: ${sw.toString}")
             true

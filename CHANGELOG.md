@@ -1,3 +1,6 @@
+### 3.6.5
+- Fixes WriteStream retry policy to always treat unique key constraint violation as non-transient error
+
 ### 3.6.4
 - Fixes a regression introduced in 3.4.0 causing NullPointerException during writeStream 
 - Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example)

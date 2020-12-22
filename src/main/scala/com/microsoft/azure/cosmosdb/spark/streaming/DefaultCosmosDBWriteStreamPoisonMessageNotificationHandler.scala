@@ -66,7 +66,7 @@ class DefaultCosmosDBWriteStreamPoisonMessageNotificationHandler(configMap: Map[
 
         if (this.poisonMessageLocation != "")
         {
-            val prefix = s"${DateTimeFormatter.ISO_INSTANT.format(Instant.now())}_${sequenceNumber.incrementAndGet().toString}"
+            val prefix = s"${DateTimeFormatter.ISO_INSTANT.format(Instant.now()).replace(":", "")}_${sequenceNumber.incrementAndGet().toString}"
             val errorFile = s"${prefix}_${id}_Error.txt"
             val payloadFile = s"${prefix}_${id}_Payload.json"   
 
