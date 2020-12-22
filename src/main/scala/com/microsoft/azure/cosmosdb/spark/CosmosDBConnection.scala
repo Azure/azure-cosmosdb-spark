@@ -31,16 +31,15 @@ import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.Breaks._
+import com.microsoft.azure.cosmosdb.rx.internal.NotFoundException
 
 private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
-  private lazy val collectionLink: String =
-    CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink
   private val maxPagesPerBatch =
     config.getOrElse[String](CosmosDBConfig.ChangeFeedMaxPagesPerBatch, CosmosDBConfig.DefaultChangeFeedMaxPagesPerBatch.toString).toInt
   private val clientConfig = ClientConfiguration(config)
 
   def getCollectionLink: String = {
-    collectionLink
+    CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink
   }
 
   def reinitializeClient(): Unit = {
@@ -49,7 +48,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def getAllPartitions: List[PartitionKeyRange] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val ranges = documentClient.readPartitionKeyRanges(collectionLink, null.asInstanceOf[FeedOptions])
+    val ranges = documentClient.readPartitionKeyRanges(getCollectionLink, null.asInstanceOf[FeedOptions])
     getListFromFeedResponse(ranges)
   }
 
@@ -65,7 +64,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                      feedOpts: FeedOptions): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
+    val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(getCollectionLink, new SqlQuerySpec(queryString), feedOpts)
     getIteratorFromFeedResponse(feedResponse)
   }
 
@@ -78,7 +77,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val resp: FeedResponse[Document] = documentClient.readDocuments(collectionLink, feedOptions)
+    val resp: FeedResponse[Document] = documentClient.readDocuments(getCollectionLink, feedOptions)
     getIteratorFromFeedResponse(resp)
   }
 
@@ -190,7 +189,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     var blockStartContinuation = currentContinuation
 
     // This method can result in reading the next page of the changefeed and changing the continuation token header
-    val feedResponse = documentClient.queryDocumentChangeFeed(collectionLink, changeFeedOptions)
+    val feedResponse = documentClient.queryDocumentChangeFeed(getCollectionLink, changeFeedOptions)
     logDebug(s"    readChangeFeed.InitialResponseContinuation: ${feedResponse.getResponseContinuation}")
 
     // If processing from the beginning (no continuation token passed into this method)
@@ -351,12 +350,34 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def isDocumentCollectionEmpty: Boolean = {
-    logDebug(s"Reading collection $collectionLink")
+    logDebug(s"Reading collection $getCollectionLink")
     val requestOptions = new RequestOptions
     requestOptions.setPopulateQuotaInfo(true)
-    val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    val response = documentClient.readCollection(collectionLink, requestOptions)
-    response.getDocumentCountUsage == 0
+    var counter = 0
+
+    var returnValue : Option[Boolean] = None;
+    while (returnValue.isEmpty) {
+      val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
+      try {
+        val response = documentClient.readCollection(getCollectionLink, requestOptions)
+        returnValue = Some(response.getDocumentCountUsage == 0)
+      } catch {
+        case error: DocumentClientException => {
+          if (error.getStatusCode() != 404) {
+            throw error
+          }
+          
+          counter = counter + 1
+
+          if (counter > 5) {
+            throw error
+          }
+          CosmosDBConnectionCache.purgeCache(clientConfig)
+        }
+      }
+    }
+
+    returnValue.get
   }
 }
 
