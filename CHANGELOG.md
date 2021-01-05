@@ -1,9 +1,12 @@
+### 3.6.6
+- Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) during read operations
+
 ### 3.6.5
 - Fixes WriteStream retry policy to always treat unique key constraint violation as non-transient error
 
 ### 3.6.4
 - Fixes a regression introduced in 3.4.0 causing NullPointerException during writeStream 
-- Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example)
+- Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) durng write operations
 
 ### 3.6.3
 - Adds a boolean config to enable converting nested docs that are derived as string into the native json format  

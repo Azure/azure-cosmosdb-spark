@@ -39,28 +39,95 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   private val clientConfig = ClientConfiguration(config)
 
   def getCollectionLink: String = {
-    CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink)
   }
 
   def reinitializeClient(): Unit = {
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
   }
 
-  def getAllPartitions: List[PartitionKeyRange] = {
+  private def getAllPartitionsInternal: List[PartitionKeyRange] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val ranges = documentClient.readPartitionKeyRanges(getCollectionLink, null.asInstanceOf[FeedOptions])
     getListFromFeedResponse(ranges)
   }
 
+  def getAllPartitions: List[PartitionKeyRange] = {
+    executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal)
+  }
+
   def getDocumentBulkImporter: DocumentBulkExecutor = {
-    CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig)
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig))
   }
 
   def getPartitionKeyDefinition: PartitionKeyDefinition = {
-    CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig)
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig))
+  }
+
+  private def executeWithRetryOnCollectionRecreate[T](func: () => T): T = {
+    logDebug(s"Executing with retries on Collection Recreate...")
+    var counter = 0
+    var returnValue : Option[T] = None;
+    while (returnValue.isEmpty) {
+      try {
+        returnValue = Some(func())
+      } catch {
+        
+        case error: DocumentClientException => {
+              if (error.getStatusCode() != 404) {
+                throw error
+              }
+              
+              counter = counter + 1
+
+              if (counter > 5) {
+
+                throw error
+              }
+              logDebug(s"Retrying execution - retry count: '$counter' ...")
+              CosmosDBConnectionCache.purgeCache(clientConfig)
+        }
+
+        case outerError: IllegalStateException => {
+          
+          val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
+
+          if (error == null) {
+
+            // Bulk Executor initialization will throw IllegalStateException
+            // without cause in some cases when Collection cannot be found
+            // Retrying in that case as well
+            if (outerError.getCause() != null) {
+              throw outerError;
+            }
+          } else {
+                if (error.getStatusCode() != 404) {
+                  throw error
+                }
+                
+                counter = counter + 1
+
+                if (counter > 5) {
+
+                  throw error
+                }
+                logDebug(s"Retrying execution - retry count: '$counter' ...")
+                CosmosDBConnectionCache.purgeCache(clientConfig)
+          }
+        }
+      }
+    }
+
+    returnValue.get
   }
 
   def queryDocuments(queryString: String,
+                     feedOpts: FeedOptions): Iterator[Document] = {
+  
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts))
+  }
+
+  private def queryDocumentsInternal(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
@@ -70,12 +137,23 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
+
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts))
+  }
+
+  private def queryDocumentsInternal(collectionLink: String, queryString: String,
+                     feedOpts: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
     getIteratorFromFeedResponse(feedResponse)
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
+
+    executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions))
+  }
+
+  private def readDocumentsInternal(feedOptions: FeedOptions): Iterator[Document] = {
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val resp: FeedResponse[Document] = documentClient.readDocuments(getCollectionLink, feedOptions)
     getIteratorFromFeedResponse(resp)
@@ -125,6 +203,16 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def readChangeFeed(changeFeedOptions: ChangeFeedOptions,
+                    isStreaming: Boolean,
+                    shouldInferStreamSchema: Boolean,
+                    updateTokenFunc: (String, String, String) => Unit
+                  ): Iterator[Document] = {
+  
+    executeWithRetryOnCollectionRecreate(
+      () => readChangeFeedInternal(changeFeedOptions, isStreaming, shouldInferStreamSchema, updateTokenFunc))
+  }
+
+  private def readChangeFeedInternal(changeFeedOptions: ChangeFeedOptions,
                      isStreaming: Boolean,
                      shouldInferStreamSchema: Boolean,
                      updateTokenFunc: (String, String, String) => Unit
@@ -350,34 +438,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def isDocumentCollectionEmpty: Boolean = {
+
+    executeWithRetryOnCollectionRecreate(() => isDocumentCollectionEmptyInternal)
+  }
+
+  private def isDocumentCollectionEmptyInternal: Boolean = {
     logDebug(s"Reading collection $getCollectionLink")
     val requestOptions = new RequestOptions
     requestOptions.setPopulateQuotaInfo(true)
-    var counter = 0
-
-    var returnValue : Option[Boolean] = None;
-    while (returnValue.isEmpty) {
-      val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-      try {
-        val response = documentClient.readCollection(getCollectionLink, requestOptions)
-        returnValue = Some(response.getDocumentCountUsage == 0)
-      } catch {
-        case error: DocumentClientException => {
-          if (error.getStatusCode() != 404) {
-            throw error
-          }
-          
-          counter = counter + 1
-
-          if (counter > 5) {
-            throw error
-          }
-          CosmosDBConnectionCache.purgeCache(clientConfig)
-        }
-      }
-    }
-
-    returnValue.get
+    
+    val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
+    val response = documentClient.readCollection(getCollectionLink, requestOptions)
+    response.getDocumentCountUsage == 0
   }
 }
 
