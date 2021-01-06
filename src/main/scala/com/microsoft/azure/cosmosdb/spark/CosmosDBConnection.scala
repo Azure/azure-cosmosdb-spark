@@ -90,30 +90,30 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
         case outerError: IllegalStateException => {
           
-          val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
-
-          if (error == null) {
-
-            // Bulk Executor initialization will throw IllegalStateException
-            // without cause in some cases when Collection cannot be found
-            // Retrying in that case as well
-            if (outerError.getCause() != null) {
-              throw outerError;
+          if (outerError.getCause() != null &&
+              outerError.getCause().isInstanceOf[DocumentClientException]) {
+  
+            val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
+            if (error.getStatusCode() != 404) {
+              throw outerError
             }
-          } else {
-                if (error.getStatusCode() != 404) {
-                  throw error
-                }
-                
-                counter = counter + 1
-
-                if (counter > 5) {
-
-                  throw error
-                }
-                logDebug(s"Retrying execution - retry count: '$counter' ...")
-                CosmosDBConnectionCache.purgeCache(clientConfig)
           }
+
+          // Bulk Executor initialization will throw IllegalStateException
+          // without cause or some other inner exception
+          // in some cases when Collection cannot be found
+          // Retrying in that case as well
+          counter = counter + 1
+
+          if (counter > 5) {
+            throw outerError
+          }
+          logDebug(s"Retrying execution - retry count: '$counter' ...")
+          CosmosDBConnectionCache.purgeCache(clientConfig)
+        }
+
+        case otherException: Exception => {
+          throw otherException
         }
       }
     }

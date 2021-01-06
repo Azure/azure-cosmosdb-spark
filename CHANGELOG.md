@@ -1,3 +1,6 @@
+### 3.6.7
+- Fixes a bug introduced in 3.6.6 in the retry policy on collection recreation
+
 ### 3.6.6
 - Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) during read operations
 
@@ -6,13 +9,13 @@
 
 ### 3.6.4
 - Fixes a regression introduced in 3.4.0 causing NullPointerException during writeStream 
-- Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) durng write operations
+- Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) during write operations
 
 ### 3.6.3
 - Adds a boolean config to enable converting nested docs that are derived as string into the native json format  
 
 ### 3.6.2
-- Fixes an issue sometimes resulting in unnecessary duplucates when using readStream in combination with maxPagesPerBacth setting and updating documents  
+- Fixes an issue sometimes resulting in unnecessary duplicates when using readStream in combination with maxPagesPerBacth setting and updating documents  
 
 ### 3.6.1
 - Fixes an issue preventing docs with MapType and of type NonInternalRow to be ingested in Batch mode to Cosmos DB 
