@@ -1,25 +1,25 @@
 /**
-  * The MIT License (MIT)
-  * Copyright (c) 2016 Microsoft Corporation
-  *
-  * Permission is hereby granted, free of charge, to any person obtaining a copy
-  * of this software and associated documentation files (the "Software"), to deal
-  * in the Software without restriction, including without limitation the rights
-  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  * copies of the Software, and to permit persons to whom the Software is
-  * furnished to do so, subject to the following conditions:
-  *
-  * The above copyright notice and this permission notice shall be included in all
-  * copies or substantial portions of the Software.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  * SOFTWARE.
-  */
+ * The MIT License (MIT)
+ * Copyright (c) 2016 Microsoft Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 package com.microsoft.azure.cosmosdb.spark.rdd
 
 import java.util
@@ -65,19 +65,19 @@ object CosmosDBRDDIterator {
   }
 
   /**
-    * Get the path to the next continuation token
-    * @param queryName name of the query
-    * @return
-    */
+   * Get the path to the next continuation token
+   * @param queryName name of the query
+   * @return
+   */
   def getNextTokenPath(queryName: String): String = {
     queryName + queryName.hashCode + queryName.hashCode.hashCode()
   }
 
   /**
-    * Get the next global continuation token for the collection in the provided config
-    * @param config a structured stream configuration with connection details, a query name and a collection name
-    * @return       the corresponding global continuation token
-    */
+   * Get the next global continuation token for the collection in the provided config
+   * @param config a structured stream configuration with connection details, a query name and a collection name
+   * @return       the corresponding global continuation token
+   */
   def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
     val connection = CosmosDBConnection(config)
     val collectionLink = connection.getCollectionLink
@@ -94,6 +94,7 @@ object CosmosDBRDDIterator {
       nextTokenMap = CosmosDBRDDIterator.hdfsUtils.readChangeFeedToken(
         changeFeedCheckpointLocation,
         if (shouldGetCurrentToken) queryName else getNextTokenPath(queryName),
+        if (shouldGetCurrentToken) getNextTokenPath(queryName) else queryName,
         collectionLink)
     }
 
@@ -120,8 +121,8 @@ object CosmosDBRDDIterator {
   }
 
   /**
-    * Used for verification purpose only. Clear the next continuation tokens cache to simulate a fresh start.
-    */
+   * Used for verification purpose only. Clear the next continuation tokens cache to simulate a fresh start.
+   */
   def resetCollectionContinuationTokens(): Any = {
     // no op
   }
@@ -169,8 +170,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       .toInt
 
     /**
-      * Query documents from CosmosDB
-      */
+     * Query documents from CosmosDB
+     */
     def queryDocuments: Iterator[Document] = {
       val feedOpts = new FeedOptions()
       feedOpts.setPageSize(pageSize)
@@ -225,8 +226,8 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     }
 
     /**
-      * Read documents change feed
-      */
+     * Read documents change feed
+     */
     def readChangeFeed: Iterator[Document] = {
 
       val objectMapper: ObjectMapper = new ObjectMapper()
@@ -253,12 +254,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           queryName,
+          CosmosDBRDDIterator.getNextTokenPath(queryName),
           collectionLink,
           partitionId)
 
         cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           CosmosDBRDDIterator.getNextTokenPath(queryName),
+          queryName,
           collectionLink,
           partitionId)
 
@@ -266,6 +269,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             queryName,
+            CosmosDBRDDIterator.getNextTokenPath(queryName),
             collectionLink,
             parentPartitionId)
         }
@@ -274,10 +278,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             CosmosDBRDDIterator.getNextTokenPath(queryName),
+            queryName,
             collectionLink,
             parentPartitionId)
         }
-     }
+      }
 
       // Get continuation token for the partition with provided partitionId
       def getContinuationToken(partitionId: String): String = {
@@ -340,13 +345,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         )
       }
 
-      initializeToken()
+      //      initializeToken()
 
       val startFromTheBeginning: Boolean = config
         .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .getOrElse(CosmosDBConfig.DefaultChangeFeedStartFromTheBeginning.toString)
         .toBoolean
-      
+
       val startFromDateTime: String = config
         .getOrElse[String](CosmosDBConfig.ChangeFeedStartFromDateTime, "")
 
@@ -359,7 +364,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         val startFromDateTimeParsed = CosmosDBRDDIterator.formatterGMT.parseDateTime(startFromDateTime);
         changeFeedOptions.setStartDateTime(startFromDateTimeParsed)
       }
-      
+
       if (currentToken != null && !currentToken.isEmpty) {
         changeFeedOptions.setRequestContinuation(currentToken)
       }
@@ -454,11 +459,11 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       || exception.getSubStatusCode == SubStatusCodes.COMPLETING_SPLIT)
     {
       val retryDelayInMs = rnd.nextInt(1000)
-                
+
       logWarning(
         s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, " +
-        s"status code ${exception.getStatusCode}, subStatus ${exception.getSubStatusCode} " +
-        s"Retry delay (ms): $retryDelayInMs")
+          s"status code ${exception.getStatusCode}, subStatus ${exception.getSubStatusCode} " +
+          s"Retry delay (ms): $retryDelayInMs")
       Thread.sleep(retryDelayInMs)
       connection.reinitializeClient()
     } else {

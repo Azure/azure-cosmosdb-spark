@@ -1,5 +1,6 @@
 ### 3.6.7
 - Fixes a bug introduced in 3.6.6 in the retry policy on collection recreation
+- Adds the logic to handle EOF exception in Streaming checkpoint reads caused by the transient flush exception during checkpoint writes
 
 ### 3.6.6
 - Adds a check to purge the Connection Cache when a Container is not available anymore (due to being dropped and recreated for example) during read operations
