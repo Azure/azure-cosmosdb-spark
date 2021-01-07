@@ -40,7 +40,7 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
     config
   }
 
-  private val maxRetryCount = 10
+  private val maxRetryCount = 50
   private val fs = FileSystem.get(new URI(changeFeedCheckpointLocation), fsConfig)
 
   def write(base: String, filePath: String, content: String): Unit = {
@@ -54,17 +54,33 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
     }
   }
 
-  def read(base: String, filePath: String): String = {
+  def read(base: String, filePath: String, alternateQueryName: String, collectionRid: String): String = {
     val path = new Path(base + "/" + filePath)
-    read(path)
+    read(path, base, alternateQueryName, collectionRid)
   }
 
-  def read(path: Path): String = {
-    retry(maxRetryCount) {
-      val os = fs.open(path)
-      val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
-      os.close()
-      content
+  def read(path: Path, location: String, alternateQueryName: String, collectionRid: String): String = {
+    try {
+      retry(maxRetryCount) {
+        val os = fs.open(path)
+        val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
+        os.close()
+        content
+      }
+    } catch {
+      case _: Throwable =>
+        // To handle transient flush exception after the write to checkpoint file
+        val alternateQueryNameAlphaNum = HdfsUtils.filterFilename(alternateQueryName)
+        val alternateSubPath = s"$alternateQueryNameAlphaNum/$collectionRid/${path.getName}"
+        val alternatePath = s"$location/$alternateSubPath"
+        if (fileExist(location, alternateSubPath)) {
+          val os = fs.open(new Path(alternatePath))
+          val content = os.readUTF().replaceAll("\"", StringUtils.EMPTY)
+          logInfo(s"Fallback Read of checkpoint File - $alternatePath with size = ${content.trim.size}")
+          content
+        } else {
+          StringUtils.EMPTY
+        }
     }
   }
 
@@ -99,12 +115,13 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
 
   def readChangeFeedTokenPartition(location: String,
                                    queryName: String,
+                                   alternateQueryName: String,
                                    collectionRid: String,
                                    partitionId: String): String = {
     val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid/$partitionId"
     if (fileExist(location, path)) {
-      read(location, path)
+      read(location, path, alternateQueryName, collectionRid)
     } else {
       StringUtils.EMPTY
     }
@@ -112,6 +129,7 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
 
   def readChangeFeedToken(location: String,
                           queryName: String,
+                          alternateQueryName: String,
                           collectionRid: String): java.util.HashMap[String, String] = {
     val queryNameAlphaNum = HdfsUtils.filterFilename(queryName)
     val path = s"$queryNameAlphaNum/$collectionRid"
@@ -120,7 +138,7 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
     if (files != null) {
       while (files.hasNext) {
         val file = files.next()
-        val token = read(file.getPath)
+        val token = read(file.getPath, location, alternateQueryName, collectionRid)
         tokens.put(file.getPath.getName, token)
       }
     }
@@ -132,6 +150,7 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
       fn
     } catch {
       case e if n > 1 => {
+        Thread.sleep(100)
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         logError(s"Exception during executing HDFS operation with message: ${e.getMessage} and stacktrace: ${sw.toString}, retrying .. ")

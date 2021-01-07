@@ -95,6 +95,7 @@ object CosmosDBRDDIterator {
       nextTokenMap = CosmosDBRDDIterator.hdfsUtils.readChangeFeedToken(
         changeFeedCheckpointLocation,
         if (shouldGetCurrentToken) queryName else getNextTokenPath(queryName),
+        if (shouldGetCurrentToken) getNextTokenPath(queryName) else queryName,
         collectionLink)
     }
 
@@ -254,12 +255,14 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           queryName,
+          CosmosDBRDDIterator.getNextTokenPath(queryName),
           collectionLink,
           partitionId)
 
         cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
           changeFeedCheckpointLocation,
           CosmosDBRDDIterator.getNextTokenPath(queryName),
+          queryName,
           collectionLink,
           partitionId)
 
@@ -267,6 +270,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           cfCurrentToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             queryName,
+            CosmosDBRDDIterator.getNextTokenPath(queryName),
             collectionLink,
             parentPartitionId)
         }
@@ -275,6 +279,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
           cfNextToken = CosmosDBRDDIterator.hdfsUtils.readChangeFeedTokenPartition(
             changeFeedCheckpointLocation,
             CosmosDBRDDIterator.getNextTokenPath(queryName),
+            queryName,
             collectionLink,
             parentPartitionId)
         }
@@ -347,7 +352,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
         .getOrElse(CosmosDBConfig.DefaultChangeFeedStartFromTheBeginning.toString)
         .toBoolean
-      
+
       val startFromDateTime: String = config
         .getOrElse[String](CosmosDBConfig.ChangeFeedStartFromDateTime, "")
 
@@ -360,7 +365,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         val startFromDateTimeParsed = CosmosDBRDDIterator.formatterGMT.parseDateTime(startFromDateTime);
         changeFeedOptions.setStartDateTime(startFromDateTimeParsed)
       }
-      
+
       if (currentToken != null && !currentToken.isEmpty) {
         changeFeedOptions.setRequestContinuation(currentToken)
       }
@@ -458,7 +463,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
       || exception.getSubStatusCode == SubStatusCodes.COMPLETING_SPLIT)
     {
       val retryDelayInMs = rnd.nextInt(1000)
-                
+
       logWarning(
         s"STREAMING EXCEPTION: Partition ${partition.partitionKeyRangeId} is splitting, " +
         s"status code ${exception.getStatusCode}, subStatus ${exception.getSubStatusCode} " +
