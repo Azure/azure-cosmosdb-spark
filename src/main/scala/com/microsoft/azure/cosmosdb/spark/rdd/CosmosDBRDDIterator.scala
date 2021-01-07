@@ -345,7 +345,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
         )
       }
 
-//      initializeToken()
+      initializeToken()
 
       val startFromTheBeginning: Boolean = config
         .get[String](CosmosDBConfig.ChangeFeedStartFromTheBeginning)
