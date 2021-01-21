@@ -101,7 +101,6 @@ object CosmosDBConfig {
 
   // Write path related config
   val Upsert = "upsert"
-  val ClientInitDelay = "clientinitdelay"
   val RootPropertyToSave = "rootpropertytosave"
   val PreserveNullInWrite = "preservenullinwrite"
 
@@ -161,8 +160,6 @@ object CosmosDBConfig {
   val DefaultBulkImport = true
   val DefaultBulkUpdate = false
   val DefaultMaxMiniBatchUpdateCount = 500
-  val DefaultClientInitDelay = 10
-
   val DefaultAdlUseGuidForId = true
   val DefaultAdlUseGuidForPk = true
   val DefaultAdlMaxFileCount: Int = Int.MaxValue
