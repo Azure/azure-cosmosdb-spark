@@ -1,3 +1,6 @@
+### 3.6.8
+- Reduces the performance overhead when a Spark DataFrame as many partitions - especially when using  Cosmos DB as a sink in Spark Streaming scenarios
+
 ### 3.6.7
 - Fixes a bug introduced in 3.6.6 in the retry policy on collection recreation
 - Adds the logic to handle EOF exception in Streaming checkpoint reads caused by the transient flush exception during checkpoint writes

@@ -470,21 +470,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
       getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
       toBoolean
-    val clientInitDelay = config.get[String](CosmosDBConfig.ClientInitDelay).
-      getOrElse(CosmosDBConfig.DefaultClientInitDelay.toString).
-      toInt
 
     val maxConcurrencyPerPartitionRange = config
       .getOrElse[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange, String.valueOf(CosmosDBConfig.DefaultBulkImportMaxConcurrencyPerPartitionRange))
       .toInt
-
-    // Delay the start as the number of tasks grow to avoid throttling at initialization
-    val maxDelaySec: Int = (partitionCount / clientInitDelay) + (if (partitionCount % clientInitDelay > 0) 1 else 0)
-    if (maxDelaySec > 0) {
-      val seconds = random.nextInt(maxDelaySec)
-      logInfo(s"Delaying operation by ${seconds}s to stagger partitions.")
-      TimeUnit.SECONDS.sleep(seconds)
-    }
 
     CosmosDBSpark.lastUpsertSetting = Some(upsert)
     CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)

@@ -90,7 +90,7 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   startRefreshTimer()
 
   def purgeCache(config: ClientConfiguration) : Unit = {
-    /**
+    /*
     * Resets the Connection Cache - this will be triggered if the container
     * cannot be found - which might happen after deleting/re-creating the container
     * with the same name
