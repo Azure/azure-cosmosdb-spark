@@ -20,9 +20,34 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.cosmosdb.spark
+package com.microsoft.azure.cosmosdb.spark.streaming
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.7.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
+import org.apache.spark.sql.cosmosdb.util.StreamingWriteTask
+import org.apache.spark.sql.execution.QueryExecution
+import org.apache.spark.sql.execution.streaming.Sink
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
+import com.microsoft.azure.cosmosdb.spark.config.Config
+
+private[spark] class CosmosDBBulkSink(sqlContext: SQLContext,
+                                    configMap: Map[String, String])
+  extends Sink with CosmosDBLoggingTrait with Serializable {
+
+  private var lastBatchId: Long = -1L
+  private val config = Config(configMap)
+    
+  override def addBatch(batchId: Long, data: DataFrame): Unit = {
+    if (batchId <= lastBatchId) {
+      logDebug(s"Rerun batchId $batchId")
+    } else {
+      logDebug(s"Run batchId $batchId")
+      lastBatchId = batchId
+    }
+
+    val queryExecution: QueryExecution = data.queryExecution
+    val schemaOutput = queryExecution.analyzed.output
+    val rdd = queryExecution.toRdd
+    CosmosDBSpark.save(rdd, config)
+  }
 }

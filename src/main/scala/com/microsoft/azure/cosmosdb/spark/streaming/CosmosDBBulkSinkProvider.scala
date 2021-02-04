@@ -20,9 +20,23 @@
   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   * SOFTWARE.
   */
-package com.microsoft.azure.cosmosdb.spark
+package com.microsoft.azure.cosmosdb.spark.streaming
 
-object Constants {
-  val currentVersion = "2.4.0_2.11-3.7.0"
-  val userAgentSuffix = s" SparkConnector/$currentVersion"
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.execution.streaming.Sink
+import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
+import org.apache.spark.sql.streaming.OutputMode
+
+class CosmosDBBulkSinkProvider extends DataSourceRegister
+  with StreamSinkProvider with CosmosDBLoggingTrait {
+
+  override def shortName(): String = "CosmosDBBulkSinkProvider"
+
+  override def createSink(sqlContext: SQLContext,
+                          parameters: Map[String, String],
+                          partitionColumns: Seq[String],
+                          outputMode: OutputMode): Sink = {
+    new CosmosDBBulkSink(sqlContext, parameters)
+  }
 }

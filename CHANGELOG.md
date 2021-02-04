@@ -1,3 +1,6 @@
+### 3.7.0
+- Adds a new sink for streaming writes "com.microsoft.azure.cosmosdb.spark.streaming.CosmosDBBulkSinkProvider" that will use bulk ingestion internally
+
 ### 3.6.8
 - Reduces the performance overhead when a Spark DataFrame as many partitions - especially when using  Cosmos DB as a sink in Spark Streaming scenarios
 

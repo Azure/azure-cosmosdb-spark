@@ -48,6 +48,7 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.util.Random
 import scala.collection.JavaConversions._
+import java.time.Instant
 
 /**
   * The CosmosDBSpark allow fast creation of RDDs, DataFrames or Datasets from CosmosDBSpark.
@@ -143,12 +144,16 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
    * @tparam D the type of the data in the RDD
    */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
+    val start = Instant.now.toEpochMilli()
+    logDebug("--> CosmosDBSpark.save")
     var numPartitions = 0
     try {
       numPartitions = rdd.getNumPartitions
     } catch {
       case _: Throwable => // no op
     }
+
+    val orginalNumPartitions = numPartitions
 
     val maxMiniBatchImportSizeKB: Int = writeConfig
       .get[String](CosmosDBConfig.MaxMiniBatchImportSizeKB)
@@ -192,9 +197,33 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
     }
 
-    val mapRdd = rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
-      baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
+    val mapRdd = if (numPartitions == orginalNumPartitions) {
+      rdd
+        .mapPartitions(
+          savePartition(
+            _,
+            writeConfig,
+            numPartitions,
+            baseMaxMiniBatchImportSizeKB * 1024,
+            writeThroughputBudgetPerCosmosPartition),
+          preservesPartitioning = false)
+    } else { 
+      rdd
+        .coalesce(numPartitions)
+        .mapPartitions(
+          savePartition(
+            _,
+            writeConfig,
+            numPartitions,
+            baseMaxMiniBatchImportSizeKB * 1024,
+            writeThroughputBudgetPerCosmosPartition),
+          preservesPartitioning = true)
+    }
+      
     mapRdd.collect()
+
+    val duration = Instant.now.toEpochMilli() - start
+    logInfo(s"<-- CosmosDBSpark.save - Duration: ${duration} ms, original #Partitions: ${orginalNumPartitions}, effective #Partitions: ${numPartitions}")
   }
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
@@ -444,46 +473,47 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
                                          partitionCount: Int,
                                          baseMaxMiniBatchImportSize: Int,
                                          writeThroughputBudgetPerCosmosPartition: Option[Int]): Iterator[D] = {
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
-    val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
-
-    val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
-      getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
-      toBoolean
-
-    val upsert: Boolean = config
-      .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
-      .toBoolean
-    val writingBatchSize = if (isBulkImporting) {
-      config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert))
-        .toInt
-    } else {
-      config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
-        .toInt
-    }
-
-    val writingBatchDelayMs = config
-      .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
-      .toInt
-    val rootPropertyToSave = config
-      .get[String](CosmosDBConfig.RootPropertyToSave)
-    val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
-      getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
-      toBoolean
-
-    val maxConcurrencyPerPartitionRange = config
-      .getOrElse[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange, String.valueOf(CosmosDBConfig.DefaultBulkImportMaxConcurrencyPerPartitionRange))
-      .toInt
-
-    CosmosDBSpark.lastUpsertSetting = Some(upsert)
-    CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
-
     if (iter.nonEmpty) {
+      logError("--> savePartition (NON-EMPTY)")
+      val connection: CosmosDBConnection = CosmosDBConnection(config)
+      val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
+
+      val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
+        getOrElse(CosmosDBConfig.DefaultBulkImport.toString).
+        toBoolean
+
+      val upsert: Boolean = config
+        .getOrElse(CosmosDBConfig.Upsert, String.valueOf(CosmosDBConfig.DefaultUpsert))
+        .toBoolean
+      val writingBatchSize = if (isBulkImporting) {
+        config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_BulkInsert))
+          .toInt
+      } else {
+        config.getOrElse(CosmosDBConfig.WritingBatchSize, String.valueOf(CosmosDBConfig.DefaultWritingBatchSize_PointInsert))
+          .toInt
+      }
+
+      val writingBatchDelayMs = config
+        .getOrElse(CosmosDBConfig.WritingBatchDelayMs, String.valueOf(CosmosDBConfig.DefaultWritingBatchDelayMs))
+        .toInt
+      val rootPropertyToSave = config
+        .get[String](CosmosDBConfig.RootPropertyToSave)
+      val isBulkUpdating = config.get[String](CosmosDBConfig.BulkUpdate).
+        getOrElse(CosmosDBConfig.DefaultBulkUpdate.toString).
+        toBoolean
+
+      val maxConcurrencyPerPartitionRange = config
+        .getOrElse[String](CosmosDBConfig.BulkImportMaxConcurrencyPerPartitionRange, String.valueOf(CosmosDBConfig.DefaultBulkImportMaxConcurrencyPerPartitionRange))
+        .toInt
+
+      CosmosDBSpark.lastUpsertSetting = Some(upsert)
+      CosmosDBSpark.lastWritingBatchSize = Some(writingBatchSize)
+
       if (isBulkUpdating) {
-        logDebug(s"Writing partition with bulk update")
+        logError(s"Writing partition with bulk update")
         bulkUpdate(iter, connection, writingBatchSize)
       } else if (isBulkImporting) {
-        logDebug(s"Writing partition with bulk import")
+        logError(s"Writing partition with bulk import")
         bulkImport(
           iter,
           connection,
@@ -495,10 +525,14 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
           baseMaxMiniBatchImportSize,
           writeThroughputBudgetPerCosmosPartition)
       } else {
-        logDebug(s"Writing partition with rxjava")
+        logError(s"Writing partition with rxjava")
         asyncConnection.importWithRxJava(iter, asyncConnection, writingBatchSize, writingBatchDelayMs, rootPropertyToSave, upsert)
       }
-    }
+
+      logError("<-- savePartition (NON-EMPTY)")
+    } else {
+      logError("<--> savePartition (EMPTY)")
+    } 
     new ListBuffer[D]().iterator
   }
 
