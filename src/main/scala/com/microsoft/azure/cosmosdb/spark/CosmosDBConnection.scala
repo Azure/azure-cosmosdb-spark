@@ -47,20 +47,24 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   private def getAllPartitionsInternal: List[PartitionKeyRange] = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val ranges = documentClient.readPartitionKeyRanges(getCollectionLink, null.asInstanceOf[FeedOptions])
     getListFromFeedResponse(ranges)
   }
 
   def getAllPartitions: List[PartitionKeyRange] = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal)
   }
 
   def getDocumentBulkImporter: DocumentBulkExecutor = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig))
   }
 
   def getPartitionKeyDefinition: PartitionKeyDefinition = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig))
   }
 
@@ -123,13 +127,13 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def queryDocuments(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
-  
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts))
   }
 
   private def queryDocumentsInternal(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
-
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(getCollectionLink, new SqlQuerySpec(queryString), feedOpts)
     getIteratorFromFeedResponse(feedResponse)
@@ -137,23 +141,25 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
-
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts))
   }
 
   private def queryDocumentsInternal(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val feedResponse: FeedResponse[Document] = documentClient.queryDocuments(collectionLink, new SqlQuerySpec(queryString), feedOpts)
     getIteratorFromFeedResponse(feedResponse)
   }
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
-
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions))
   }
 
   private def readDocumentsInternal(feedOptions: FeedOptions): Iterator[Document] = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val resp: FeedResponse[Document] = documentClient.readDocuments(getCollectionLink, feedOptions)
     getIteratorFromFeedResponse(resp)
@@ -207,7 +213,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                     shouldInferStreamSchema: Boolean,
                     updateTokenFunc: (String, String, String) => Unit
                   ): Iterator[Document] = {
-  
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
+
     executeWithRetryOnCollectionRecreate(
       () => readChangeFeedInternal(changeFeedOptions, isStreaming, shouldInferStreamSchema, updateTokenFunc))
   }
@@ -217,6 +224,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                      shouldInferStreamSchema: Boolean,
                      updateTokenFunc: (String, String, String) => Unit
                     ): Iterator[Document] = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
 
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     val partitionId = changeFeedOptions.getPartitionKeyRangeId
@@ -432,6 +440,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def upsertDocument(collectionLink: String,
                      document: Document,
                      requestOptions: RequestOptions): Unit = {
+    DocumentClient.sparkAppName = config.get[String](CosmosDBConfig.ApplicationName).getOrElse("noAppName")
     logTrace(s"Upserting document $document")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
     documentClient.upsertDocument(collectionLink, document, requestOptions, false)

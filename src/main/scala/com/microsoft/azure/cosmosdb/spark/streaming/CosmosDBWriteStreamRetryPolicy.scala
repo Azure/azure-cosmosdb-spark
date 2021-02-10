@@ -111,7 +111,7 @@ class CosmosDBWriteStreamRetryPolicy(configMap: Map[String, String])
             requestOptions,
             task,
             this.config.isTransient,
-            loggingAction = (msg: String) => logDebug(msg),
+            (msg: String) => logDebug(msg),
             (throwable: Throwable, document: Document) => this.notificationHandler.onPoisonMessage(throwable, document),
             this.rnd,
             maxRetries,
