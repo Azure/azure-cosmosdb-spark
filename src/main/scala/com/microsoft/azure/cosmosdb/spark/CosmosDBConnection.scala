@@ -22,6 +22,8 @@
   */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.net.SocketTimeoutException
+
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
@@ -33,13 +35,23 @@ import scala.reflect.ClassTag
 import scala.util.control.Breaks._
 import com.microsoft.azure.cosmosdb.rx.internal.NotFoundException
 
+private object CosmosDBConnection {
+  private val rnd = scala.util.Random
+
+  def getRandomRetryInterval(retryAttempt: Int): Int = {
+    rnd.nextInt(math.min(retryAttempt * 100, 5000))
+  }
+}
+
 private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
   private val maxPagesPerBatch =
     config.getOrElse[String](CosmosDBConfig.ChangeFeedMaxPagesPerBatch, CosmosDBConfig.DefaultChangeFeedMaxPagesPerBatch.toString).toInt
   private val clientConfig = ClientConfiguration(config)
 
   def getCollectionLink: String = {
-    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink)
+    executeWithRetryOnCollectionRecreate(
+      () => CosmosDBConnectionCache.getOrReadContainerMetadata(clientConfig).selfLink,
+      true)
   }
 
   def reinitializeClient(): Unit = {
@@ -53,18 +65,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def getAllPartitions: List[PartitionKeyRange] = {
-    executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal)
+    executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal, true)
   }
 
   def getDocumentBulkImporter: DocumentBulkExecutor = {
-    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig))
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig), false)
   }
 
   def getPartitionKeyDefinition: PartitionKeyDefinition = {
-    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig))
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig), true)
   }
 
-  private def executeWithRetryOnCollectionRecreate[T](func: () => T): T = {
+  private def executeWithRetryOnCollectionRecreate[T](func: () => T, retryTimeouts: Boolean): T = {
     logDebug(s"Executing with retries on Collection Recreate...")
     var counter = 0
     var returnValue : Option[T] = None;
@@ -74,7 +86,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       } catch {
         
         case error: DocumentClientException => {
-              if (error.getStatusCode() != 404) {
+              if (retryTimeouts &&
+                  error.getCause() != null &&
+                  error.getCause().isInstanceOf[SocketTimeoutException]) {
+
+                if (counter > 0) {
+                  val delay = CosmosDBConnection.getRandomRetryInterval(counter)
+                  logInfo(s"Retrying timeout error with delay of $delay ms")
+                  Thread.sleep(delay)
+                } else {
+                  logInfo(s"Retrying timeout error without delay")
+                }
+              } else if (error.getStatusCode() != 404) {
                 throw error
               }
               
@@ -94,7 +117,18 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
               outerError.getCause().isInstanceOf[DocumentClientException]) {
   
             val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
-            if (error.getStatusCode() != 404) {
+            if (retryTimeouts &&
+              error.getCause() != null &&
+              error.getCause().isInstanceOf[SocketTimeoutException]) {
+
+              if (counter > 0) {
+                val delay = CosmosDBConnection.getRandomRetryInterval(counter)
+                logInfo(s"Retrying timeout error with delay of $delay ms")
+                Thread.sleep(delay)
+              } else {
+                logInfo(s"Retrying timeout error without delay")
+              }
+            } else if (error.getStatusCode() != 404) {
               throw outerError
             }
           }
@@ -124,7 +158,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def queryDocuments(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
   
-    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts))
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts), true)
   }
 
   private def queryDocumentsInternal(queryString: String,
@@ -138,7 +172,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
 
-    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts))
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts), true)
   }
 
   private def queryDocumentsInternal(collectionLink: String, queryString: String,
@@ -150,7 +184,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
 
-    executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions))
+    executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions), true)
   }
 
   private def readDocumentsInternal(feedOptions: FeedOptions): Iterator[Document] = {
@@ -209,7 +243,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                   ): Iterator[Document] = {
   
     executeWithRetryOnCollectionRecreate(
-      () => readChangeFeedInternal(changeFeedOptions, isStreaming, shouldInferStreamSchema, updateTokenFunc))
+      () => readChangeFeedInternal(changeFeedOptions, isStreaming, shouldInferStreamSchema, updateTokenFunc),
+      true)
   }
 
   private def readChangeFeedInternal(changeFeedOptions: ChangeFeedOptions,
@@ -439,7 +474,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def isDocumentCollectionEmpty: Boolean = {
 
-    executeWithRetryOnCollectionRecreate(() => isDocumentCollectionEmptyInternal)
+    executeWithRetryOnCollectionRecreate(() => isDocumentCollectionEmptyInternal, true)
   }
 
   private def isDocumentCollectionEmptyInternal: Boolean = {
