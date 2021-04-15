@@ -1,3 +1,6 @@
+### 3.6.9
+- Adds retries on ReadTimeouts
+
 ### 3.6.8
 - Reduces the performance overhead when a Spark DataFrame as many partitions - especially when using  Cosmos DB as a sink in Spark Streaming scenarios
 
