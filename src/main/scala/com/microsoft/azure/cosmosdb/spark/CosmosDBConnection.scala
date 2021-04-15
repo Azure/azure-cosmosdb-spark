@@ -65,15 +65,15 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   }
 
   def getAllPartitions: List[PartitionKeyRange] = {
-    executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal, true)
+    executeWithRetryOnCollectionRecreate(() => getAllPartitionsInternal, retryTimeouts=true)
   }
 
   def getDocumentBulkImporter: DocumentBulkExecutor = {
-    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig), false)
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getOrCreateBulkExecutor(clientConfig), retryTimeouts=false)
   }
 
   def getPartitionKeyDefinition: PartitionKeyDefinition = {
-    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig), true)
+    executeWithRetryOnCollectionRecreate(() => CosmosDBConnectionCache.getPartitionKeyDefinition(clientConfig), retryTimeouts=true)
   }
 
   private def executeWithRetryOnCollectionRecreate[T](func: () => T, retryTimeouts: Boolean): T = {
@@ -158,7 +158,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def queryDocuments(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
   
-    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts), true)
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts), retryTimeouts=true)
   }
 
   private def queryDocumentsInternal(queryString: String,
@@ -172,7 +172,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
   def queryDocuments(collectionLink: String, queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
 
-    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts), true)
+    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(collectionLink, queryString, feedOpts), retryTimeouts=true)
   }
 
   private def queryDocumentsInternal(collectionLink: String, queryString: String,
@@ -184,7 +184,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def readDocuments(feedOptions: FeedOptions): Iterator[Document] = {
 
-    executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions), true)
+    executeWithRetryOnCollectionRecreate(() => readDocumentsInternal(feedOptions), retryTimeouts=true)
   }
 
   private def readDocumentsInternal(feedOptions: FeedOptions): Iterator[Document] = {
@@ -469,12 +469,12 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                      requestOptions: RequestOptions): Unit = {
     logTrace(s"Upserting document $document")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
+    documentClient.upsertDocument(collectionLink, document, requestOptions, disableAutomaticIdGeneration=false)
   }
 
   def isDocumentCollectionEmpty: Boolean = {
 
-    executeWithRetryOnCollectionRecreate(() => isDocumentCollectionEmptyInternal, true)
+    executeWithRetryOnCollectionRecreate(() => isDocumentCollectionEmptyInternal, retryTimeouts=true)
   }
 
   private def isDocumentCollectionEmptyInternal: Boolean = {
