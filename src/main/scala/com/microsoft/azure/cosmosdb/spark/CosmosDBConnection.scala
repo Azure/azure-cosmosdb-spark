@@ -469,7 +469,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
                      requestOptions: RequestOptions): Unit = {
     logTrace(s"Upserting document $document")
     val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
-    documentClient.upsertDocument(collectionLink, document, requestOptions, disableAutomaticIdGeneration=false)
+    documentClient.upsertDocument(collectionLink, document, requestOptions, false)
   }
 
   def isDocumentCollectionEmpty: Boolean = {
