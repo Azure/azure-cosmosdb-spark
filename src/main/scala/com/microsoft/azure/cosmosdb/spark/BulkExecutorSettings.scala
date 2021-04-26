@@ -32,4 +32,6 @@ package com.microsoft.azure.cosmosdb.spark
   */
 private[spark] case class BulkExecutorSettings(
                                  maxMiniBatchUpdateCount: Int,
-                                 partitionKeyOption: Option[String])
+                                 partitionKeyOption: Option[String],
+                                 bulkLoggingPath: Option[String],
+                                 bulkLoggingCorrelationId: Option[String])

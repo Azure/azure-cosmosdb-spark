@@ -23,14 +23,19 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{Timer, TimerTask}
+import java.util.{Timer, TimerTask, UUID}
 
 import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
+import org.apache.hadoop.conf.Configuration
+import org.apache.spark.sql.SparkSession
+import org.apache.tinkerpop.gremlin.hadoop.structure.HadoopConfiguration
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
@@ -68,7 +73,9 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
   private val rnd = scala.util.Random
 
   private val refreshDelay : Long = (10 * 60 * 1000) + rnd.nextInt(5 * 60 * 1000) // in 10 - 15 minutes
+  //private val refreshDelay : Long = (1 * 60 * 1000) + rnd.nextInt(1 * 60 * 1000) // in 10 - 15 minutes
   private val refreshPeriod : Long = 15 * 60 * 1000 // every 15 minutes
+  //private val refreshPeriod : Long = 2 * 60 * 1000 // every 15 minutes
   // main purpose of the time is to allow bulk operations to consume
   // additional throughput when more RUs are getting provisioned
   private val timerName = "throughput-refresh-timer"
@@ -110,7 +117,7 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
 
       val effectivelyAvailableThroughputForBulkOperations = getOrReadMaxAvailableThroughput(config)
 
-      val builder = DocumentBulkExecutor.builder
+      var builder = DocumentBulkExecutor.builder
         .from(
           client,
           config.database,
@@ -120,6 +127,15 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         )
         .withInitializationRetryOptions(bulkExecutorInitializationRetryOptions)
         .withMaxUpdateMiniBatchCount(config.bulkConfig.maxMiniBatchUpdateCount)
+
+      if (config.bulkConfig.bulkLoggingPath.isDefined) {
+        val logWriter = new HdfsLogWriter(
+          config.bulkConfig.bulkLoggingCorrelationId.getOrElse(UUID.randomUUID().toString),
+          config.hadoopConfig.toMap,
+          config.bulkConfig.bulkLoggingPath.get)
+
+        builder = builder.withLogWriter(logWriter)
+      }
 
       // Instantiate DocumentBulkExecutor
       val bulkExecutor = builder.build()
@@ -245,6 +261,11 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
               bulkExecutor = None,
               maxAvailableThroughput = None
             )
+
+            oldClientCacheEntry.bulkExecutor match {
+              case Some(bulkExecutor) => bulkExecutor.flushLogs()
+              case None =>
+            }
 
             logInfo(s"$timerName: ClientConfiguration#${config.hashCode} has been reset - new " +
                 s"${newClientCacheEntry.getLogMessage}, previously ${oldClientCacheEntry.getLogMessage}")
@@ -418,12 +439,25 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     val consistencyLevel = ConsistencyLevel.valueOf(config.consistencyLevel)
     lastConsistencyLevel = Some(consistencyLevel)
 
-    new DocumentClient(
+    val client = new DocumentClient(
       config.host,
       config.authConfig.authKey,
       lastConnectionPolicy,
       consistencyLevel
     )
+
+    config.getQueryLoggingPath() match {
+      case Some(path) => {
+        val logger = new HdfsLogWriter(
+          config.queryLoggingCorrelationId.getOrElse(""),
+          config.hadoopConfig.toMap,
+          path)
+
+        client.setLogWriter(logger);
+      }
+      case None => client
+    }
+
   }
 
   private def createConnectionPolicy(settings: ConnectionPolicySettings): ConnectionPolicy = {

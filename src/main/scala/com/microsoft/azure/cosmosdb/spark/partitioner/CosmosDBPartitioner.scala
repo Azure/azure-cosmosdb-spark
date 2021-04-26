@@ -26,19 +26,20 @@ import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.schema.FilterConverter
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnection, CosmosDBLoggingTrait}
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.Partition
 import org.apache.spark.sql.sources.Filter
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingTrait {
+class CosmosDBPartitioner(hadoopConfig: mutable.Map[String, String]) extends Partitioner[Partition] with CosmosDBLoggingTrait {
 
   /**
     * @param config Partition configuration
     */
   override def computePartitions(config: Config): Array[Partition] = {
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, hadoopConfig)
     val partitionKeyRanges = connection.getAllPartitions
     logDebug(s"CosmosDBPartitioner: This CosmosDB has ${partitionKeyRanges.length} partitions")
     Array.tabulate(partitionKeyRanges.length){
@@ -47,7 +48,7 @@ class CosmosDBPartitioner() extends Partitioner[Partition] with CosmosDBLoggingT
   }
 
   def computePartitions(config: Config, requiredColumns: Array[String] = Array()): Array[Partition] = {
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, hadoopConfig)
     connection.reinitializeClient()
 
     // CosmosDB source

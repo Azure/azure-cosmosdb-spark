@@ -23,6 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.net.SocketTimeoutException
+import java.util.concurrent.Callable
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
@@ -34,6 +35,9 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.Breaks._
 import com.microsoft.azure.cosmosdb.rx.internal.NotFoundException
+import org.apache.hadoop.conf.Configuration
+
+import scala.collection.mutable
 
 private object CosmosDBConnection {
   private val rnd = scala.util.Random
@@ -43,10 +47,10 @@ private object CosmosDBConnection {
   }
 }
 
-private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
+private[spark] case class CosmosDBConnection(config: Config, hadoopConfig: mutable.Map[String, String]) extends CosmosDBLoggingTrait with Serializable {
   private val maxPagesPerBatch =
     config.getOrElse[String](CosmosDBConfig.ChangeFeedMaxPagesPerBatch, CosmosDBConfig.DefaultChangeFeedMaxPagesPerBatch.toString).toInt
-  private val clientConfig = ClientConfiguration(config)
+  val clientConfig = ClientConfiguration(config, hadoopConfig)
 
   def getCollectionLink: String = {
     executeWithRetryOnCollectionRecreate(
@@ -56,6 +60,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def reinitializeClient(): Unit = {
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
+  }
+
+  def flushLogWriter = {
+    val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
+    documentClient.flushLogWriter()
   }
 
   private def getAllPartitionsInternal: List[PartitionKeyRange] = {
@@ -232,7 +241,8 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       logDebug(s"CosmosDBConnection.getIteratorFromFeedResponse -- With continuation - returning query iterator")
       val responseIterator:Iterator[T]  = response
         .getQueryIterator
-      responseIterator      
+
+      responseIterator
     }
   }
 

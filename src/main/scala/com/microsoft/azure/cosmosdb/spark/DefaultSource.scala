@@ -24,6 +24,7 @@ package com.microsoft.azure.cosmosdb.spark
 
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRelation
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import org.apache.spark.sql.SaveMode._
 import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, RelationProvider, SchemaRelationProvider}
 import org.apache.spark.sql.types.StructType
@@ -62,7 +63,7 @@ class DefaultSource extends RelationProvider
                                data: DataFrame): BaseRelation = {
 
     val config: Config = Config(sqlContext.sparkContext.getConf, parameters)
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, HdfsUtils.getConfigurationMap(sqlContext.sparkSession.sparkContext.hadoopConfiguration))
     val isEmptyCollection: Boolean = connection.isDocumentCollectionEmpty
     mode match{
       case Append =>

@@ -24,18 +24,17 @@ package com.microsoft.azure.cosmosdb.spark
 
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.lang.management.ManagementFactory
 import java.nio.charset.Charset
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
 import com.microsoft.azure.cosmosdb.spark.schema._
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import rx.Observable
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.{BulkImportResponse, BulkUpdateResponse, DocumentBulkExecutor, UpdateItem}
-import org.apache.spark.{Partition, SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
@@ -144,6 +143,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
    */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
     var numPartitions = 0
+    val hadoopConfig = HdfsUtils.getConfigurationMap(rdd.sparkContext.hadoopConfiguration)
     try {
       numPartitions = rdd.getNumPartitions
     } catch {
@@ -178,7 +178,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       // In this case, users can set maxIngestionTaskParallelism to 32 and will help with the RU consumption based on writeThroughputBudget.
       if (maxIngestionTaskParallelism.exists(_ > 0)) numPartitions = maxIngestionTaskParallelism.get
 
-      val cosmosPartitionsCount = CosmosDBConnection(writeConfig).getAllPartitions.length
+      val cosmosPartitionsCount = CosmosDBConnection(writeConfig, hadoopConfig).getAllPartitions.length
       // writeThroughputBudget per cosmos db physical partition
       writeThroughputBudgetPerCosmosPartition = Some((writeThroughputBudget.get / cosmosPartitionsCount).ceil.toInt)
       val baseMiniBatchSizeAdjustmentFactor: Double = (baseMiniBatchRUConsumption.toDouble * numPartitions) / writeThroughputBudgetPerCosmosPartition.get
@@ -192,9 +192,66 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
     }
 
-    val mapRdd = rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
-      baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
+    val connection: CosmosDBConnection = CosmosDBConnection(writeConfig, hadoopConfig)
+    val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
+    val iteratorLoggingPath = writeConfig.get[String](CosmosDBConfig.IteratorLoggingPath)
+    val iteratorLoggingCorrelationId = writeConfig.get[String](CosmosDBConfig.IteratorLoggingCorrelationId)
+    val rootPropertyToSave = writeConfig.get[String](CosmosDBConfig.RootPropertyToSave)
+    val applicationName: String = writeConfig.getOrElse[String](CosmosDBConfig.ApplicationName, "")
+    val pkDefinition = connection.getPartitionKeyDefinition
+    val userAgentString: String = if (applicationName.isEmpty) {
+      s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName}"
+    } else {
+      s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName} $applicationName"
+    }
+    var writer: Option[HdfsLogWriter] = None
+    var rddLogger: Option[IteratorLogger] = None
+    if (iteratorLoggingPath.isDefined) {
+      writer = Some(new HdfsLogWriter(
+        iteratorLoggingCorrelationId.getOrElse(""),
+        hadoopConfig.toMap,
+        iteratorLoggingPath.get))
+
+      rddLogger = Some(new IteratorLogger(writer.get, userAgentString, "n/a", "OriginalRDD"))
+    }
+
+    val effectiveRdd = new LoggingRDD[D](rdd, rddLogger, pkDefinition, rootPropertyToSave, cosmosDBRowConverter)
+
+    val mapRdd = effectiveRdd.coalesce(numPartitions).mapPartitions(partitionedIterator => {
+      val partitionedCosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
+      val partitionedWriter = Some(new HdfsLogWriter(
+        iteratorLoggingCorrelationId.getOrElse(""),
+        hadoopConfig.toMap,
+        iteratorLoggingPath.get))
+      var iterationLogger : Option[IteratorLogger] = None
+      if (partitionedWriter.isDefined) {
+        iterationLogger = Some(new IteratorLogger(partitionedWriter.get, userAgentString, "n/a", "partitionedIterator"))
+      }
+
+      val effectiveIterator = LoggingIterator.createLoggingAndConvertingIterator(
+        partitionedIterator,
+        iterationLogger,
+        pkDefinition,
+        rootPropertyToSave,
+        partitionedCosmosDBRowConverter
+      )
+
+      val returnValue = savePartition(effectiveIterator, writeConfig, hadoopConfig, numPartitions,
+        baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition)
+
+      if (partitionedWriter.isDefined) {
+        iterationLogger.get.flush()
+        partitionedWriter.get.flush()
+      }
+
+      returnValue
+    }, true)
     mapRdd.collect()
+
+    if (writer.isDefined) {
+      rddLogger.get.flush()
+      writer.get.flush()
+    }
   }
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],
@@ -381,6 +438,8 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
         throw toFailedImportException(bulkImportResponse, connection)
       }
     }
+
+    importer.flushLogs()
   }
 
   private def toFailedImportException(response: BulkImportResponse, connection: CosmosDBConnection) : Exception = {
@@ -441,10 +500,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
+                                         hadoopConfig: mutable.Map[String, String],
                                          partitionCount: Int,
                                          baseMaxMiniBatchImportSize: Int,
                                          writeThroughputBudgetPerCosmosPartition: Option[Int]): Iterator[D] = {
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, hadoopConfig)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
     val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).
@@ -745,7 +805,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 /**
   * The CosmosDBSpark class
   *
-  * '''Note:''' Creation of the class should be via [[CosmosDBSpark$.Builder]].
+  * '''Note:''' Creation of the class should be via [[CosmosDBSpark Builder]].
   *
   * @since 1.0
   */
@@ -757,7 +817,6 @@ case class CosmosDBSpark(sparkSession: SparkSession, readConfig: Config) {
   /**
     * Creates a `RDD` for the collection
     *
-    * @tparam D the datatype for the collection
     * @return a CosmosDBRDD[D]
     */
   def toRDD: CosmosDBRDD = rdd

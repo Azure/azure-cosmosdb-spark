@@ -25,10 +25,10 @@ package com.microsoft.azure.cosmosdb.spark
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.internal._
-
 import java.lang.management.ManagementFactory
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
@@ -50,7 +50,10 @@ private[spark] case class ClientConfiguration(
     consistencyLevel: String,
     database: String,
     container: String,
-    bulkConfig: BulkExecutorSettings) {
+    bulkConfig: BulkExecutorSettings,
+    queryLoggingPath: Option[String],
+    queryLoggingCorrelationId: Option[String],
+    hadoopConfig: mutable.Map[String, String]) {
   
   def getCollectionLink(): String = {
     ClientConfiguration.getCollectionLink(database, container)
@@ -59,14 +62,26 @@ private[spark] case class ClientConfiguration(
   def getDatabaseLink() : String = {
     ClientConfiguration.getDatabaseLink(database)
   }
+
+  def getQueryLoggingPath(): Option[String] = {
+    queryLoggingPath match {
+      case Some(basePath) => queryLoggingCorrelationId match {
+        case Some(correlationId) => Some(basePath + queryLoggingCorrelationId.get + "/")
+        case None => Some(basePath)
+      }
+      case None  => None
+    }
+  }
 }
 
 object ClientConfiguration extends CosmosDBLoggingTrait {
-  def apply(config: Config): ClientConfiguration = {
+  def apply(config: Config, hadoopConfig: mutable.Map[String, String]): ClientConfiguration = {
     val database : String = config.get(CosmosDBConfig.Database).get
     val collection : String = config.get(CosmosDBConfig.Collection).get      
     val authConfig : AuthConfig = validateAndCreateAuthConfig(config, database, collection)
     val connectionPolicySettings : ConnectionPolicySettings = createConnectionPolicySettings(config)
+    val queryLoggingPath = config.get(CosmosDBConfig.QueryLoggingPath)
+    val queryLoggingCorrelationId = config.get(CosmosDBConfig.QueryLoggingCorrelationId)
     val bulkExecutorSettings : BulkExecutorSettings = createBulkExecutorSettings(config)
 
     // Get consistency level
@@ -81,7 +96,11 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
       consistencyLevel,
       database,
       collection,
-      bulkExecutorSettings)
+      bulkExecutorSettings,
+      queryLoggingPath,
+      queryLoggingCorrelationId,
+      hadoopConfig
+    )
   }
 
   private def validateAndCreateAuthConfig(config: Config, database: String, collection: String) : AuthConfig = {
@@ -110,9 +129,14 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
     val maxMiniBatchUpdateCount: Int = config
       .getOrElse(CosmosDBConfig.MaxMiniBatchUpdateCount, CosmosDBConfig.DefaultMaxMiniBatchUpdateCount)
 
+    val bulkLoggingPath = config.get(CosmosDBConfig.BulkLoggingPath)
+    val bulkLoggingCorrelationId = config.get(CosmosDBConfig.BulkLoggingCorrelationId)
+
     BulkExecutorSettings(
       maxMiniBatchUpdateCount,
-      pkDef)
+      pkDef,
+      bulkLoggingPath,
+      bulkLoggingCorrelationId)
   }
 
   private def createConnectionPolicySettings(config: Config) : ConnectionPolicySettings = {

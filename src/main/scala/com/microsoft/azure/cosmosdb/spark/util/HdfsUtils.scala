@@ -22,13 +22,13 @@
   */
 package com.microsoft.azure.cosmosdb.spark.util
 
-import java.io.{FileNotFoundException, PrintWriter, StringWriter}
+import java.io.{BufferedOutputStream, FileNotFoundException, OutputStream, PrintWriter, StringWriter}
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path, RemoteIterator}
+import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, LocatedFileStatus, Path, RemoteIterator}
 
 import scala.collection.mutable
 import java.net.URI
@@ -51,6 +51,16 @@ case class HdfsUtils(configMap: Map[String, String], changeFeedCheckpointLocatio
         os.writeUTF(content)
         os.close()
       }
+    }
+  }
+
+  def writeLogFile(base: String, filePath: String, content: String): Unit = {
+    val path = new Path(base + "/" + filePath)
+    retry(maxRetryCount) {
+      val os = fs.create(path)
+      val bos = new BufferedOutputStream(os)
+      bos.write(content.getBytes("UTF-8"))
+      bos.close()
     }
   }
 
