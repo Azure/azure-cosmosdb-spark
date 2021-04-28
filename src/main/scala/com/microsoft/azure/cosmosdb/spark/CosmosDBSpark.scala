@@ -144,8 +144,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
    */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
     var numPartitions = 0
+    var rddNumPartitions = 0
     try {
       numPartitions = rdd.getNumPartitions
+      rddNumPartitions = numPartitions
     } catch {
       case _: Throwable => // no op
     }
@@ -192,8 +194,14 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       }
     }
 
-    val mapRdd = rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
-      baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
+    val mapRdd = if (numPartitions < rddNumPartitions && numPartitions > 0) {
+      rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
+        baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
+    } else {
+      rdd.mapPartitions(savePartition(_, writeConfig, numPartitions,
+        baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
+    }
+
     mapRdd.collect()
   }
 
