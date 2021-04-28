@@ -1,3 +1,7 @@
+### 3.6.10
+- Moving to version 2.6.2 of the Cosmos SDK to also add retries on read timeouts there
+- Fixes an issue when trying to save rdd with 0 partitions
+
 ### 3.6.9
 - Adds retries on ReadTimeouts
 
