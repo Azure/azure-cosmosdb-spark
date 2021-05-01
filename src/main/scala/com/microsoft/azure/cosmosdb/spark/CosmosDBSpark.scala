@@ -27,6 +27,7 @@ import java.io.StringWriter
 import java.lang.management.ManagementFactory
 import java.nio.charset.Charset
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.cosmosdb.spark.rdd.{CosmosDBRDD, _}
@@ -195,6 +196,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     val connection: CosmosDBConnection = CosmosDBConnection(writeConfig, hadoopConfig)
     val cosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
     val iteratorLoggingPath = writeConfig.get[String](CosmosDBConfig.IteratorLoggingPath)
+    val countLoggingPath = writeConfig.get[String](CosmosDBConfig.CountLoggingPath)
     val iteratorLoggingCorrelationId = writeConfig.get[String](CosmosDBConfig.IteratorLoggingCorrelationId)
     val rootPropertyToSave = writeConfig.get[String](CosmosDBConfig.RootPropertyToSave)
     val applicationName: String = writeConfig.getOrElse[String](CosmosDBConfig.ApplicationName, "")
@@ -204,32 +206,33 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     } else {
       s"${Constants.userAgentSuffix} ${ManagementFactory.getRuntimeMXBean.getName} $applicationName"
     }
-    var writer: Option[HdfsLogWriter] = None
-    var rddLogger: Option[IteratorLogger] = None
-    if (iteratorLoggingPath.isDefined) {
-      writer = Some(new HdfsLogWriter(
-        iteratorLoggingCorrelationId.getOrElse(""),
-        hadoopConfig.toMap,
-        iteratorLoggingPath.get))
-
-      rddLogger = Some(new IteratorLogger(writer.get, userAgentString, "n/a", "OriginalRDD"))
-    }
-
-    val effectiveRdd = new LoggingRDD[D](rdd, rddLogger, pkDefinition, rootPropertyToSave, cosmosDBRowConverter)
-
-    val mapRdd = effectiveRdd.coalesce(numPartitions).mapPartitions(partitionedIterator => {
+    val mapRdd = rdd.coalesce(numPartitions).mapPartitions(partitionedIterator => {
       val partitionedCosmosDBRowConverter = new CosmosDBRowConverter(SerializationConfig.fromConfig(connection.config))
-      val partitionedWriter = Some(new HdfsLogWriter(
-        iteratorLoggingCorrelationId.getOrElse(""),
-        hadoopConfig.toMap,
-        iteratorLoggingPath.get))
+      val partitionedWriter = iteratorLoggingPath match {
+        case Some(path) => Some(new HdfsLogWriter(
+          iteratorLoggingCorrelationId.getOrElse(""),
+          hadoopConfig.toMap,
+          path))
+        case None => None
+      }
+
+      val partitionedCountWriter = countLoggingPath match {
+        case Some(path) => Some(new HdfsLogWriter(
+          iteratorLoggingCorrelationId.getOrElse(""),
+          hadoopConfig.toMap,
+          path))
+        case None => None
+      }
+
       var iterationLogger : Option[IteratorLogger] = None
       if (partitionedWriter.isDefined) {
         iterationLogger = Some(new IteratorLogger(partitionedWriter.get, userAgentString, "n/a", "partitionedIterator"))
       }
 
+      val counter = new AtomicLong(0)
       val effectiveIterator = LoggingIterator.createLoggingAndConvertingIterator(
         partitionedIterator,
+        counter,
         iterationLogger,
         pkDefinition,
         rootPropertyToSave,
@@ -239,6 +242,12 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       val returnValue = savePartition(effectiveIterator, writeConfig, hadoopConfig, numPartitions,
         baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition)
 
+      if (partitionedCountWriter.isDefined) {
+        val countLogger = new CosmosCountLogger(partitionedCountWriter.get)
+        countLogger.logCount("WithinMapPartitions", "I", counter.get(), "", "")
+        partitionedCountWriter.get.flush()
+      }
+
       if (partitionedWriter.isDefined) {
         iterationLogger.get.flush()
         partitionedWriter.get.flush()
@@ -247,11 +256,6 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       returnValue
     }, true)
     mapRdd.collect()
-
-    if (writer.isDefined) {
-      rddLogger.get.flush()
-      writer.get.flush()
-    }
   }
 
   private def bulkUpdate[D: ClassTag](iter: Iterator[D],

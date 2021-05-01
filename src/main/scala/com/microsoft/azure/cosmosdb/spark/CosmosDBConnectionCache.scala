@@ -137,6 +137,15 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
         builder = builder.withLogWriter(logWriter)
       }
 
+      if (config.bulkConfig.countLoggingPath.isDefined) {
+        val logWriter = new HdfsLogWriter(
+          config.bulkConfig.bulkLoggingCorrelationId.getOrElse(UUID.randomUUID().toString),
+          config.hadoopConfig.toMap,
+          config.bulkConfig.countLoggingPath.get)
+
+        builder = builder.withCountLogWriter(logWriter)
+      }
+
       // Instantiate DocumentBulkExecutor
       val bulkExecutor = builder.build()
 
@@ -439,14 +448,14 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     val consistencyLevel = ConsistencyLevel.valueOf(config.consistencyLevel)
     lastConsistencyLevel = Some(consistencyLevel)
 
-    val client = new DocumentClient(
+    var client = new DocumentClient(
       config.host,
       config.authConfig.authKey,
       lastConnectionPolicy,
       consistencyLevel
     )
 
-    config.getQueryLoggingPath() match {
+    client = config.getQueryLoggingPath() match {
       case Some(path) => {
         val logger = new HdfsLogWriter(
           config.queryLoggingCorrelationId.getOrElse(""),
@@ -457,6 +466,20 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
       }
       case None => client
     }
+
+    client = config.getCountLoggingPath() match {
+      case Some(path) => {
+        val logger = new HdfsLogWriter(
+          config.queryLoggingCorrelationId.getOrElse(""),
+          config.hadoopConfig.toMap,
+          path)
+
+        client.setCountLogWriter(logger);
+      }
+      case None => client
+    }
+
+    client
 
   }
 

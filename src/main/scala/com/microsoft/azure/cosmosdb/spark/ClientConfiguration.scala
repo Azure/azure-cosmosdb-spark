@@ -51,6 +51,7 @@ private[spark] case class ClientConfiguration(
     database: String,
     container: String,
     bulkConfig: BulkExecutorSettings,
+    countLoggingPath: Option[String],
     queryLoggingPath: Option[String],
     queryLoggingCorrelationId: Option[String],
     hadoopConfig: mutable.Map[String, String]) {
@@ -64,13 +65,11 @@ private[spark] case class ClientConfiguration(
   }
 
   def getQueryLoggingPath(): Option[String] = {
-    queryLoggingPath match {
-      case Some(basePath) => queryLoggingCorrelationId match {
-        case Some(correlationId) => Some(basePath + queryLoggingCorrelationId.get + "/")
-        case None => Some(basePath)
-      }
-      case None  => None
-    }
+    queryLoggingPath
+  }
+
+  def getCountLoggingPath(): Option[String] = {
+    countLoggingPath
   }
 }
 
@@ -80,6 +79,7 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
     val collection : String = config.get(CosmosDBConfig.Collection).get      
     val authConfig : AuthConfig = validateAndCreateAuthConfig(config, database, collection)
     val connectionPolicySettings : ConnectionPolicySettings = createConnectionPolicySettings(config)
+    val countLoggingPath = config.get(CosmosDBConfig.CountLoggingPath)
     val queryLoggingPath = config.get(CosmosDBConfig.QueryLoggingPath)
     val queryLoggingCorrelationId = config.get(CosmosDBConfig.QueryLoggingCorrelationId)
     val bulkExecutorSettings : BulkExecutorSettings = createBulkExecutorSettings(config)
@@ -97,6 +97,7 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
       database,
       collection,
       bulkExecutorSettings,
+      countLoggingPath,
       queryLoggingPath,
       queryLoggingCorrelationId,
       hadoopConfig
@@ -130,11 +131,13 @@ object ClientConfiguration extends CosmosDBLoggingTrait {
       .getOrElse(CosmosDBConfig.MaxMiniBatchUpdateCount, CosmosDBConfig.DefaultMaxMiniBatchUpdateCount)
 
     val bulkLoggingPath = config.get(CosmosDBConfig.BulkLoggingPath)
+    val countLoggingPath = config.get(CosmosDBConfig.CountLoggingPath)
     val bulkLoggingCorrelationId = config.get(CosmosDBConfig.BulkLoggingCorrelationId)
 
     BulkExecutorSettings(
       maxMiniBatchUpdateCount,
       pkDef,
+      countLoggingPath,
       bulkLoggingPath,
       bulkLoggingCorrelationId)
   }

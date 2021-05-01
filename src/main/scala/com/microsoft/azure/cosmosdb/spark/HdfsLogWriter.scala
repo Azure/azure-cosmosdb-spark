@@ -22,19 +22,61 @@
  */
 package com.microsoft.azure.cosmosdb.spark
 
-import java.io.{BufferedOutputStream, Closeable}
+import java.io.Closeable
+import java.util.{Timer, TimerTask, UUID}
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.documentdb.CosmosLogWriter
 import org.apache.spark.SparkEnv
+import org.joda.time.Instant
 
+import scala.collection.concurrent.TrieMap
 import scala.util.Properties
 
-private object HdfsLogWriter {
+private object HdfsLogWriter extends CosmosDBLoggingTrait {
+  private val timerName = "hdfsLogWriter-cleanup-Timer"
+  private val timer: Timer = new Timer(timerName, true)
+  private val cleanupIntervalInMs = 60000
+  private val writerCount = new AtomicInteger(0)
   val targetedMemoryBufferSizeInBytes = 50000000
 
   val lineSeparator = Properties.lineSeparator
+  val logWriters = new TrieMap[String, HdfsLogWriter]
+
+  def registerWriter(writer: HdfsLogWriter): Unit = {
+     logWriters.put(writer.id, writer) match {
+       case Some(existingWriter) =>
+         throw new IllegalStateException(s"Already a writer '${writer.id}' registered.'")
+       case None => if (writerCount.incrementAndGet() == 1) {
+         startCleanupTimer()
+       }
+     }
+  }
+
+  def deregisterWriter(writer: HdfsLogWriter): Unit = {
+    logWriters.remove(writer.loggingLocation)
+  }
+
+  private def startCleanupTimer() : Unit = {
+    logInfo(s"$timerName: scheduling timer - delay: $cleanupIntervalInMs ms, period: $cleanupIntervalInMs ms")
+    timer.schedule(
+      new TimerTask { def run(): Unit = onCleanup() },
+      cleanupIntervalInMs,
+      cleanupIntervalInMs)
+  }
+
+  private def onCleanup() : Unit = {
+    logInfo(s"$timerName: onCleanup")
+    val snapshot = logWriters.readOnlySnapshot()
+    val threshold = Instant.now().getMillis - cleanupIntervalInMs
+    snapshot.foreach(writerHolder => {
+      val lastFlushed = writerHolder._2.lastFlushed.get()
+      if (lastFlushed > 0 && lastFlushed < threshold && writerHolder._2.hasData) {
+        writerHolder._2.flush()
+      }
+    })
+  }
 }
 
 private case class HdfsLogWriter
@@ -45,11 +87,14 @@ private case class HdfsLogWriter
 ) extends CosmosLogWriter with Closeable with CosmosDBLoggingTrait {
 
   private[this] val inMemoryLock = ""
-  private[this] val executorId: String = SparkEnv.get.executorId
+  val executorId: String = SparkEnv.get.executorId
   private[this] val fileId = new AtomicInteger(0)
   private[this] val sb: StringBuilder = new StringBuilder()
   private[this] lazy val hdfsUtils = new HdfsUtils(configMap, loggingLocation)
+  val lastFlushed = new AtomicLong(-1)
 
+  val id = s"${correlationId}_${executorId}_${loggingLocation}_${UUID.randomUUID()}"
+  HdfsLogWriter.registerWriter(this)
   logInfo("HdfsBulkLogWriter instantiated.")
 
   override def writeLine(line: String): Unit = {
@@ -78,16 +123,22 @@ private case class HdfsLogWriter
 
     contentToFlush match {
       case Some(content) => {
-          val fileName = s"${correlationId}_${executorId}_${this.fileId.incrementAndGet()}.log"
+          val fileName = s"${correlationId}_${executorId}_${this.fileId.incrementAndGet()}_${UUID.randomUUID().toString()}.log"
           logInfo(s"WriteLogFile: ${fileName} - ${content.length} bytes")
           hdfsUtils.writeLogFile(this.loggingLocation, fileName, content)
+          lastFlushed.set(Instant.now().getMillis)
       }
       case None =>
     }
   }
 
+  def hasData = {
+    this.sb.length > 0
+  }
+
   override def close(): Unit = {
     logInfo("Close")
     this.flush
+    HdfsLogWriter.deregisterWriter(this)
   }
 }

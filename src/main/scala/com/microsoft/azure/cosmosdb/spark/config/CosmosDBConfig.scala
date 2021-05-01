@@ -101,6 +101,7 @@ object CosmosDBConfig {
   val QueryLoggingPath = "queryLoggingPath"
   val QueryLoggingCorrelationId = "queryLoggingCorrelationId"
   val IteratorLoggingPath = "iteratorLoggingPath"
+  val CountLoggingPath = "countLoggingPath"
   val IteratorLoggingCorrelationId = "iteratorLoggingCorrelationId"
 
   // Not a config, constant

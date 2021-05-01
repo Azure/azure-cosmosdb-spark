@@ -22,6 +22,8 @@
  */
 package com.microsoft.azure.cosmosdb.spark
 
+import java.util.concurrent.atomic.AtomicLong
+
 import com.microsoft.azure.cosmosdb.spark.schema.CosmosDBRowConverter
 import com.microsoft.azure.documentdb.{Document, PartitionKeyDefinition}
 import org.apache.spark.sql.Row
@@ -65,6 +67,7 @@ private[spark] object LoggingIterator {
   def createLoggingAndConvertingIterator[D: ClassTag]
   (
     inner: Iterator[D],
+    counter: AtomicLong,
     logger: Option[IteratorLogger],
     partitionKeyDefinition: PartitionKeyDefinition,
     rootPropertyToSave: Option[String],
@@ -87,6 +90,7 @@ private[spark] object LoggingIterator {
         if (logger.isDefined) {
           logger.get.onIteratorNext(document, partitionKeyDefinition)
         }
+        counter.incrementAndGet()
         document
       } catch {
         case t: Throwable => {
