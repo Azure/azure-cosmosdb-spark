@@ -1,3 +1,9 @@
+### 3.6.11
+- Moves to version 2.12.2 of the Cosmos Bulk Executor SDK to...
+    - fix an issue where on some transient errors documents sometimes were not ingested but skipped without throwing an error
+    - move to the latest version of the Guava dependency (30.1.1-jre) to address a security issue in previous Guava versions
+- Moves to version 2.9.10.8 of com.fasterxml.jackson.core/jackson-databind to address a known security issue in previous versions
+
 ### 3.6.10
 - Moving to version 2.6.2 of the Cosmos SDK to also add retries on read timeouts there
 - Fixes an issue when trying to save rdd with 0 partitions
