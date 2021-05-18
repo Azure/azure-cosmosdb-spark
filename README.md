@@ -1,3 +1,17 @@
+# NOTE: There is a new Cosmos DB Spark Connector for Spark 3 available
+# --------------------------------------------------------------------
+The new Cosmos DB Spark connector has been released. The Maven coordinates (which can be used to install the connector in Databricks) are "**com.azure.cosmos.spark:azure-cosmos-spark_3-1_2-12:4.0.0**"
+
+The **source code** for the new connector is located here: https://github.com/Azure/azure-sdk-for-java/tree/master/sdk/cosmos/azure-cosmos-spark_3-1_2-12 
+
+A **migration guide** to change applications which used the Spark 2.4 connector is located here: https://github.com/Azure/azure-sdk-for-java/blob/master/sdk/cosmos/azure-cosmos-spark_3-1_2-12/docs/migration.md
+
+**The quick start introduction:** https://github.com/Azure/azure-sdk-for-java/blob/master/sdk/cosmos/azure-cosmos-spark_3-1_2-12/docs/quick-start.md
+**Config Reference:** https://github.com/Azure/azure-sdk-for-java/blob/master/sdk/cosmos/azure-cosmos-spark_3-1_2-12/docs/configuration-reference.md
+**End-to-end samples:** https://github.com/Azure/azure-sdk-for-java/blob/master/sdk/cosmos/azure-cosmos-spark_3-1_2-12/Samples/Python/NYC-Taxi-Data/01_Batch.ipynb
+# ---------------------------------------------------------------------
+
+
 <img src="https://raw.githubusercontent.com/dennyglee/azure-cosmosdb-spark/master/docs/images/azure-cosmos-db-icon.png" width="75">  &nbsp; Azure Cosmos DB Connector for Apache Spark
 ==========================================
 
