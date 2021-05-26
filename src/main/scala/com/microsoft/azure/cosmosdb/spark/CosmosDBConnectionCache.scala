@@ -246,7 +246,7 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
               maxAvailableThroughput = None
             )
 
-            logInfo(s"$timerName: ClientConfiguration#${config.hashCode} has been reset - new " +
+            logDebug(s"$timerName: ClientConfiguration#${config.hashCode} has been reset - new " +
                 s"${newClientCacheEntry.getLogMessage}, previously ${oldClientCacheEntry.getLogMessage}")
 
             newClientCacheEntry
