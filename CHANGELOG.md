@@ -1,3 +1,6 @@
+### 3.6.12
+- Fixes an issue sometimes causing "Invalid partition key range" errors when processing queries while partition splits happened.
+
 ### 3.6.11
 - Moves to version 2.12.2 of the Cosmos Bulk Executor SDK to...
     - fix an issue where on some transient errors documents sometimes were not ingested but skipped without throwing an error

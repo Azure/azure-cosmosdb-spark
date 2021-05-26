@@ -33,7 +33,6 @@ import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.Breaks._
-import com.microsoft.azure.cosmosdb.rx.internal.NotFoundException
 
 private object CosmosDBConnection {
   private val rnd = scala.util.Random
@@ -155,10 +154,74 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     returnValue.get
   }
 
+  private def executeWithRetryOnInvalidPartitionKey[T](func: () => T): T = {
+    logDebug(s"Executing with retries on Invalid Partition Key...")
+    var counter = 0
+    var returnValue : Option[T] = None;
+    while (returnValue.isEmpty) {
+      try {
+        returnValue = Some(func())
+      } catch {
+
+        case error: DocumentClientException => {
+          if (counter > 1000 ||
+            error.getStatusCode() != 410) {
+
+            throw error
+          }
+
+          if (counter > 0) {
+            val delay = CosmosDBConnection.getRandomRetryInterval(counter)
+            logInfo(s"Retrying query ($counter attempt) after Invalid Partition Key error with delay of $delay ms")
+            Thread.sleep(delay)
+          } else {
+            logInfo(s"Retrying query ($counter attempt) after Invalid Partition Key error without delay")
+          }
+          counter = counter + 1
+          CosmosDBConnectionCache.purgeCache(clientConfig)
+        }
+
+        case outerError: IllegalStateException => {
+
+          if (outerError.getCause() == null ||
+            !outerError.getCause().isInstanceOf[DocumentClientException]) {
+
+            throw outerError
+          }
+
+          val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
+          if (counter > 1000 ||
+            error.getStatusCode() != 410) {
+
+            throw outerError
+          }
+
+          if (counter > 0) {
+            val delay = CosmosDBConnection.getRandomRetryInterval(counter)
+            logInfo(s"Retrying query after Invalid Partition Key error with delay of $delay ms")
+            Thread.sleep(delay)
+          } else {
+            logInfo(s"Retrying query after Invalid Partition Key error without delay")
+          }
+
+          counter = counter + 1
+          CosmosDBConnectionCache.purgeCache(clientConfig)
+        }
+
+        case otherException: Exception => {
+          throw otherException
+        }
+      }
+    }
+
+    returnValue.get
+  }
+
   def queryDocuments(queryString: String,
                      feedOpts: FeedOptions): Iterator[Document] = {
   
-    executeWithRetryOnCollectionRecreate(() => queryDocumentsInternal(queryString, feedOpts), retryTimeouts=true)
+    executeWithRetryOnCollectionRecreate(() =>
+      executeWithRetryOnInvalidPartitionKey(() => queryDocumentsInternal(queryString, feedOpts)), retryTimeouts=true)
   }
 
   private def queryDocumentsInternal(queryString: String,
