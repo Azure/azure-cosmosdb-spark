@@ -155,6 +155,60 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
     returnValue.get
   }
 
+  private def tryHandlePartitionSplitError
+  (
+    outerError: Throwable,
+    error: DocumentClientException,
+    originalFeedOptions: FeedOptions,
+    counterSnapshot: Int
+  ) : (Int, Array[String]) = {
+    if (counterSnapshot > 1000 ||
+      error.getStatusCode() != 410) {
+
+      throw outerError
+    }
+
+    if (counterSnapshot > 0) {
+      val delay = CosmosDBConnection.getRandomRetryInterval(counterSnapshot)
+      logInfo(s"Retrying query after Invalid Partition Key error with delay of $delay ms")
+      Thread.sleep(delay)
+    } else {
+      logInfo(s"Retrying query after Invalid Partition Key error without delay")
+    }
+
+    val counter = counterSnapshot + 1
+    var childPKRanges = Array.empty[String]
+
+    CosmosDBConnectionCache.purgeCache(clientConfig)
+    val pkRanges = this.getAllPartitions
+    if (pkRanges
+      .find((pkRange) => pkRange.getId.equalsIgnoreCase(originalFeedOptions.getPartitionKeyRangeIdInternal))
+      .isEmpty) {
+
+      // NOTE - the partition that was passed into the original FeedOptions does not exist anymore
+      // Which means a partition split completed since Spark did the partitioning for the query
+      // below code tries to identify the child partitions and the next retry will create a chained iterator
+      // for the queries on these child partitions instead of trying to query the original partition again
+      // WARNING!!! - this will only work for partition splits - not merges. That is fine because V2 Java SDK
+      // is neither partition split proof and definitely not merge proof - it has always clearly been communicated
+      // that the Spark 2.4 connector will not allow for partition merge - only the new Spark 3 connector will be
+      // able to handle merges.
+      val newChildRanges : mutable.Buffer[String] = new mutable.ArrayBuffer[String]()
+      pkRanges.foreach((pkRange) => {
+        if (pkRange.getParents != null &&
+          pkRange.getParents.contains(originalFeedOptions.getPartitionKeyRangeIdInternal)) {
+
+          newChildRanges += pkRange.getId()
+          logInfo(s"Found child partition '${pkRange.getId}' for original " +
+            s"partition '${originalFeedOptions.getPartitionKeyRangeIdInternal}'.")
+        }
+      })
+      childPKRanges = newChildRanges.toArray
+    }
+
+    (counter, childPKRanges)
+  }
+
   private def executeWithRetryOnInvalidPartitionKey
   (
     func: (FeedOptions) => Iterator[Document],
@@ -191,22 +245,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       } catch {
 
         case error: DocumentClientException => {
-          if (counter > 1000 ||
-            error.getStatusCode() != 410) {
-
-            throw error
-          }
-
-          if (counter > 0) {
-            val delay = CosmosDBConnection.getRandomRetryInterval(counter)
-            logInfo(
-              s"Retrying query ($counter attempt) after Invalid Partition Key error with delay of $delay ms")
-            Thread.sleep(delay)
-          } else {
-            logInfo(s"Retrying query ($counter attempt) after Invalid Partition Key error without delay")
-          }
-          counter = counter + 1
-          CosmosDBConnectionCache.purgeCache(clientConfig)
+          tryHandlePartitionSplitError(error, error, originalFeedOptions, counter)
         }
 
         case outerError: IllegalStateException => {
@@ -218,50 +257,7 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           }
 
           val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
-          if (counter > 1000 ||
-            error.getStatusCode() != 410) {
-
-            throw outerError
-          }
-
-          if (counter > 0) {
-            val delay = CosmosDBConnection.getRandomRetryInterval(counter)
-            logInfo(s"Retrying query after Invalid Partition Key error with delay of $delay ms")
-            Thread.sleep(delay)
-          } else {
-            logInfo(s"Retrying query after Invalid Partition Key error without delay")
-          }
-
-          counter = counter + 1
-
-          CosmosDBConnectionCache.purgeCache(clientConfig)
-          val pkRanges = this.getAllPartitions
-          if (pkRanges
-            .find((pkRange) => pkRange.getId.equalsIgnoreCase(originalFeedOptions.getPartitionKeyRangeIdInternal))
-            .isDefined) {
-
-            childPKRanges = Array.empty[String]
-          } else {
-            // NOTE - the partition that was passed into the original FeedOptions does not exist anymore
-            // Which means a partition split completed since Spark did the partitioning for the query
-            // below code tries to identify the child partitions and the next retry will create a chained iterator
-            // for the queries on these child partitions instead of trying to query the original partition again
-            // WARNING!!! - this will only work for partition splits - not merges. That is fine because V2 Java SDK
-            // is neither partition split proof and definitely not merge proof - it has always clearly been communicated
-            // that the Spark 2.4 connector will not allow for partition merge - only the new Spark 3 connector will be
-            // able to handle merges.
-            val newChildRanges : mutable.Buffer[String] = new mutable.ArrayBuffer[String]()
-            pkRanges.foreach((pkRange) => {
-              if (pkRange.getParents != null &&
-                pkRange.getParents.contains(originalFeedOptions.getPartitionKeyRangeIdInternal)) {
-
-                newChildRanges += pkRange.getId()
-                logInfo(s"Found child partition '${pkRange.getId}' for original " +
-                  s"partition '${originalFeedOptions.getPartitionKeyRangeIdInternal}'.")
-              }
-            })
-            childPKRanges = newChildRanges.toArray
-          }
+          tryHandlePartitionSplitError(outerError, error, originalFeedOptions, counter)
         }
 
         case otherException: Exception => {
