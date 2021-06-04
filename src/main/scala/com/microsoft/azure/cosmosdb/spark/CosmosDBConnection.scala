@@ -245,7 +245,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
       } catch {
 
         case error: DocumentClientException => {
-          tryHandlePartitionSplitError(error, error, originalFeedOptions, counter)
+          val updatedCounterAndChildPKRanges = tryHandlePartitionSplitError(error, error, originalFeedOptions, counter)
+          counter = updatedCounterAndChildPKRanges._1
+          childPKRanges = updatedCounterAndChildPKRanges._2
         }
 
         case outerError: IllegalStateException => {
@@ -257,7 +259,9 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
           }
 
           val error:DocumentClientException = outerError.getCause().asInstanceOf[DocumentClientException]
-          tryHandlePartitionSplitError(outerError, error, originalFeedOptions, counter)
+          val updatedCounterAndChildPKRanges = tryHandlePartitionSplitError(outerError, error, originalFeedOptions, counter)
+          counter = updatedCounterAndChildPKRanges._1
+          childPKRanges = updatedCounterAndChildPKRanges._2
         }
 
         case otherException: Exception => {
