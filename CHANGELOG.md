@@ -1,3 +1,6 @@
+### 3.6.13
+- Fixes another issue sometimes causing "Invalid partition key range" errors when processing queries while partition splits happened.
+
 ### 3.6.12
 - Fixes an issue sometimes causing "Invalid partition key range" errors when processing queries while partition splits happened.
 
