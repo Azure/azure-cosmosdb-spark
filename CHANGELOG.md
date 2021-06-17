@@ -1,3 +1,7 @@
+### 3.6.14
+- Moves to version 2.12.4 of the Cosmos Bulk Executor SDK and version 2.6.4 of the Cosmos Java SDK to...
+    - add retries on `SocketTimeoutException` errors for read-only requests in more scenarios
+    
 ### 3.6.13
 - Fixes another issue sometimes causing "Invalid partition key range" errors when processing queries while partition splits happened.
 
