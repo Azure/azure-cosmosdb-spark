@@ -31,6 +31,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
+import org.apache.spark.util.TaskCompletionListener
 import org.apache.spark.{Partition, TaskContext}
 
 import scala.collection.mutable
@@ -114,9 +115,11 @@ class CosmosDBRDD(
       case cosmosDBPartition: CosmosDBPartition =>
         logInfo(s"CosmosDBRDD:compute: Start CosmosDBRDD compute task for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
 
-        context.addTaskCompletionListener((ctx: TaskContext) => {
-          logInfo(s"CosmosDBRDD:compute: CosmosDBRDD compute task completed for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
-        })
+        val completionListener: TaskCompletionListener = new TaskCompletionListener() {
+          override def onTaskCompletion(context: TaskContext): Unit =
+            logInfo(s"CosmosDBRDD:compute: CosmosDBRDD compute task completed for partition key range id ${cosmosDBPartition.partitionKeyRangeId}")
+        }
+        context.addTaskCompletionListener(completionListener)
 
         new CosmosDBRDDIterator(
           hadoopConfig,
