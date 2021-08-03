@@ -24,8 +24,13 @@ package com.microsoft.azure.cosmosdb.spark.schema
 
 import java.sql.{Date, Timestamp}
 
+import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
+import com.microsoft.azure.documentdb.Document
 import org.apache.spark.sql.types._
 import org.json.JSONObject
+
+import scala.collection.immutable.HashMap
+import scala.collection.JavaConverters._
 
 /**
   * Json - Scala object transformation support.
@@ -33,7 +38,7 @@ import org.json.JSONObject
   * Disclaimer: As explained in NOTICE.md, some of this product includes
   * software developed by The Apache Software Foundation (http://www.apache.org/).
   */
-trait JsonSupport {
+trait JsonSupport extends CosmosDBLoggingTrait {
 
   /**
     * Tries to convert some scala value to another compatible given type
@@ -44,11 +49,11 @@ trait JsonSupport {
     */
 
 
-  protected def enforceCorrectType(value: Any, desiredType: DataType): Any =
+  protected def enforceCorrectType(value: Any, desiredType: DataType, isOpaqueJsonField: Boolean): Any =
     Option(value).map { _ =>
       desiredType match {
         case _ if value == JSONObject.NULL => null // guard when null value was inserted in document
-        case StringType => toString(value)
+        case StringType => toString(value, isOpaqueJsonField)
         case _ if value == "" => null // guard the non string type
         case ByteType => toByte(value)
         case BinaryType => toBinary(value)
@@ -156,7 +161,7 @@ trait JsonSupport {
     }
   }
 
-  private def toJsonArrayString(seq: Seq[Any]): String = {
+  private def toJsonArrayString(seq: Seq[Any], isOpaqueJsonField: Boolean): String = {
     val builder = new StringBuilder
     builder.append("[")
     var count = 0
@@ -164,14 +169,14 @@ trait JsonSupport {
       element =>
         if (count > 0) builder.append(",")
         count += 1
-        builder.append(toString(element))
+        builder.append(toString(element, isOpaqueJsonField))
     }
     builder.append("]")
 
     builder.toString()
   }
 
-  private def toJsonObjectString(map: Map[String, Any]): String = {
+  private def toJsonObjectString(map: Map[String, Any], isOpaqueJsonField: Boolean): String = {
     val builder = new StringBuilder
     builder.append("{")
     var count = 0
@@ -179,7 +184,7 @@ trait JsonSupport {
       case (key, value) =>
         if (count > 0) builder.append(",")
         count += 1
-        val stringValue = if (value.isInstanceOf[String]) s"""\"$value\"""" else toString(value)
+        val stringValue = if (value.isInstanceOf[String]) s"""\"$value\"""" else toString(value, isOpaqueJsonField)
         builder.append(s"""\"$key\":$stringValue""")
     }
     builder.append("}")
@@ -187,12 +192,37 @@ trait JsonSupport {
     builder.toString()
   }
 
-  private def toString(value: Any): String = {
+  private def toString(value: Any, isOpaqueJsonField: Boolean): String = {
     value match {
-      case value: Map[_, _] => toJsonObjectString(value.asInstanceOf[Map[String, Any]])
-      case value: Seq[_] => toJsonArrayString(value)
-      case v => Option(v).map(_.toString).orNull
+      case value: Map[_, _] => toJsonObjectString(value.asInstanceOf[Map[String, Any]], isOpaqueJsonField)
+      case value: Seq[_] => toJsonArrayString(value, isOpaqueJsonField)
+      case value: String => value
+      case v => {
+        if (Option(v).isDefined) {
+          logTrace(s"toString ${value.getClass().getName} (isOpaqueJson ${isOpaqueJsonField}")
+        }
+
+        if (Option(v).isDefined &&
+          isOpaqueJsonField &&
+          (value.isInstanceOf[Document] || value.isInstanceOf[java.util.HashMap[String, AnyRef]])) {
+
+          val map = (value match {
+            case document: Document => documentToMap(document)
+            case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
+          })
+          toJsonObjectString(map, true)
+        } else {
+          Option(v).map(_.toString).orNull
+        }
+      }
     }
+  }
+
+  private def documentToMap(document: Document): Map[String, AnyRef] = {
+    if (document == null)
+      new HashMap[String, AnyRef]
+    else
+      document.getHashMap.asScala.toMap
   }
 
 }

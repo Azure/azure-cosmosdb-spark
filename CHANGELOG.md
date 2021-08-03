@@ -1,3 +1,6 @@
+### 3.7.0
+- Adds a mechanism to preserve opaque json when reading from Cosmos and also writing to Cosmos - for example in migration scenarios. Just mark the StructField of type StringType with the `.withComment("rawJson")` comment to trigger the handling as opaque json.
+
 ### 3.6.14
 - Moves to version 2.12.4 of the Cosmos Bulk Executor SDK and version 2.6.4 of the Cosmos Java SDK to...
     - add retries on `SocketTimeoutException` errors for read-only requests in more scenarios
