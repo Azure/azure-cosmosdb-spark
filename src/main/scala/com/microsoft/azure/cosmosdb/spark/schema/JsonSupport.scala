@@ -204,7 +204,8 @@ trait JsonSupport extends CosmosDBLoggingTrait {
 
         if (Option(v).isDefined &&
           isOpaqueJsonField &&
-          (value.isInstanceOf[Document] || value.isInstanceOf[java.util.HashMap[String, AnyRef]])) {
+          (value.isInstanceOf[Document] ||
+            value.isInstanceOf[java.util.HashMap[_, _]])) {
 
           val map = (value match {
             case document: Document => documentToMap(document)
