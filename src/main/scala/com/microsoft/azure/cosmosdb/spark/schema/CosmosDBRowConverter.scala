@@ -26,7 +26,6 @@ import java.sql.{Date, Timestamp}
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
-import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig.DefaultPreserveNullInWrite
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
@@ -34,7 +33,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.catalyst.expressions.UnsafeMapData
 import org.apache.spark.sql.types.{DataType, DecimalType, _}
-import org.json.{JSONArray, JSONObject, JSONTokener}
+import org.json.{JSONArray, JSONException, JSONObject, JSONTokener}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.unsafe.types.UTF8String
@@ -270,6 +269,21 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     jsonObject
   }
 
+  private def parseRawJson(rawText: String) : JSONObject = {
+    var returnValue: JSONObject = null
+    try {
+      val parser = new JSONTokener(rawText)
+      returnValue = new JSONObject(parser)
+    } catch {
+      case e: JSONException =>
+        throw new IllegalStateException(
+          s"Parsing json of column marked as rawJson failed. JSON: ${rawText}, Cause: ${e.getMessage}",
+          e)
+    }
+
+    returnValue
+  }
+
   private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean, isOpaqueJson: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
@@ -295,9 +309,7 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
         }
 
         if (isOpaqueJson) {
-          logError(s"Trying to parse json: ${rawText}")
-          val parser = new JSONTokener(rawText)
-          new JSONObject(parser)
+          parseRawJson(rawText)
         } else {
           rawText
         }

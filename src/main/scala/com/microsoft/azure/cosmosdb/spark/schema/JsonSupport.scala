@@ -28,6 +28,8 @@ import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
 import com.microsoft.azure.documentdb.Document
 import org.apache.spark.sql.types._
 import org.json.JSONObject
+import com.fasterxml.jackson.core.io.JsonStringEncoder
+import com.fasterxml.jackson.core.util.BufferRecyclers
 
 import scala.collection.immutable.HashMap
 import scala.collection.JavaConverters._
@@ -169,7 +171,14 @@ trait JsonSupport extends CosmosDBLoggingTrait {
       element =>
         if (count > 0) builder.append(",")
         count += 1
-        builder.append(toString(element, isOpaqueJsonField))
+        if (isOpaqueJsonField && element.isInstanceOf[String]) {
+          val encodedValue = new String(
+            BufferRecyclers.getJsonStringEncoder().quoteAsString(element.asInstanceOf[String]))
+          builder.append(s"""\"${encodedValue}\"""")
+
+        } else {
+          builder.append(toString(element, isOpaqueJsonField))
+        }
     }
     builder.append("]")
 
@@ -184,8 +193,15 @@ trait JsonSupport extends CosmosDBLoggingTrait {
       case (key, value) =>
         if (count > 0) builder.append(",")
         count += 1
-        val stringValue = if (value.isInstanceOf[String]) s"""\"$value\"""" else toString(value, isOpaqueJsonField)
-        builder.append(s"""\"$key\":$stringValue""")
+        val stringValue = if (value.isInstanceOf[String]) {
+          val encodedValue = new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(value.asInstanceOf[String]))
+          s"""\"${encodedValue}\""""
+        } else {
+          toString(value, isOpaqueJsonField)
+        }
+
+        val encodedKey = new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(key))
+        builder.append(s"""\"$encodedKey\":$stringValue""")
     }
     builder.append("}")
 
@@ -199,20 +215,32 @@ trait JsonSupport extends CosmosDBLoggingTrait {
       case value: String => value
       case v => {
         if (Option(v).isDefined) {
-          logTrace(s"toString ${value.getClass().getName} (isOpaqueJson ${isOpaqueJsonField}")
+          logTrace(s"toString ${value.getClass().getName} (isOpaqueJson ${isOpaqueJsonField})")
         }
 
-        if (Option(v).isDefined &&
-          isOpaqueJsonField &&
-          (value.isInstanceOf[Document] ||
-            value.isInstanceOf[java.util.HashMap[_, _]])) {
+        if (Option(v).isDefined && isOpaqueJsonField) {
+          if (value.isInstanceOf[Document] ||
+            value.isInstanceOf[java.util.HashMap[_, _]] ||
+            value.isInstanceOf[java.util.List[_]]) {
 
-          val map = (value match {
-            case document: Document => documentToMap(document)
-            case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
-          })
-          toJsonObjectString(map, true)
+            if (value.isInstanceOf[java.util.List[_]]) {
+              val seq = value.asInstanceOf[java.util.List[AnyRef]].asScala.toSeq
+              toJsonArrayString(seq, true)
+            } else {
+              val map = (value match {
+                case document: Document => documentToMap(document)
+                case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
+              })
+              toJsonObjectString(map, true)
+            }
+          }
+          else {
+            val typeName = value.getClass().getTypeName
+            logWarning(s"Value is of unexpected type --> ${value.getClass().getTypeName}")
+            Option(v).map(_.toString).orNull
+          }
         } else {
+          logTrace(s"Value is of type --> ${value.getClass().getTypeName}")
           Option(v).map(_.toString).orNull
         }
       }
