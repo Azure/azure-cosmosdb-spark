@@ -114,7 +114,6 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
                    schema: StructType): Row = {
 
     val opaqueJsonFields = getOpaqueJsonFiledNames(schema)
-    logTrace(s"recordAsRow ${opaqueJsonFields.mkString(", ")}")
 
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
@@ -162,8 +161,6 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
                 schema: StructType): Row = {
 
     val opaqueJsonFields = getOpaqueJsonFiledNames(schema)
-    logTrace(s"mapAsRow ${opaqueJsonFields.mkString(", ")}")
-
 
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
