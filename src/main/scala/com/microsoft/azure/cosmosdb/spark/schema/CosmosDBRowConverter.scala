@@ -26,7 +26,6 @@ import java.sql.{Date, Timestamp}
 import java.util
 
 import com.microsoft.azure.cosmosdb.spark.CosmosDBLoggingTrait
-import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig.DefaultPreserveNullInWrite
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
@@ -34,13 +33,14 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.catalyst.expressions.UnsafeMapData
 import org.apache.spark.sql.types.{DataType, DecimalType, _}
-import org.json.{JSONArray, JSONObject}
+import org.json.{JSONArray, JSONException, JSONObject, JSONTokener}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.HashMap
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -113,17 +113,25 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
                    json: Document,
                    schema: StructType): Row = {
 
+    val opaqueJsonFields = getOpaqueJsonFiledNames(schema)
+
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
         if mdata.contains("idx") && mdata.contains("colname") =>
           val colName = mdata.getString("colname")
           val idx = mdata.getLong("idx").toInt
-          documentToMap(json).get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, containsNull = true))).collect {
+          documentToMap(json).get(colName).flatMap(v => Option(v)).map(toSQL(
+            _,
+            ArrayType(et, containsNull = true),
+            false)).collect {
             case elemsList: Seq[_] if elemsList.indices contains idx => elemsList(idx)
           } orNull
       case StructField(name, dataType, _, _) =>
         if (!serializationConfig.convertNestedDocsToNativeJsonFormat || dataType != StringType) {
-          documentToMap(json).get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+          documentToMap(json).get(name).flatMap(v => Option(v)).map(toSQL(
+            _,
+            dataType,
+            opaqueJsonFields.contains(name))).orNull
         } else {
           if (json.get(name) == null) {
             null
@@ -135,24 +143,43 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     new GenericRowWithSchema(values.toArray, schema)
   }
 
+  private[this] def getOpaqueJsonFiledNames(schema: StructType) : mutable.HashSet[String] = {
+    val rawJsonFieldNames = new mutable.HashSet[String]()
+
+    schema.fields.foreach(field => {
+      if (field.dataType == StringType &&
+        "rawJson".equalsIgnoreCase(field.getComment().getOrElse(""))) {
+        rawJsonFieldNames.add(field.name)
+      }
+    })
+
+    rawJsonFieldNames
+  }
+
   def mapAsRow(
                 json: Map[String, AnyRef],
                 schema: StructType): Row = {
+
+    val opaqueJsonFields = getOpaqueJsonFiledNames(schema)
+
     val values: Seq[Any] = schema.fields.map {
       case StructField(name, et, _, mdata)
         if (mdata.contains("idx") && mdata.contains("colname")) =>
         val colName = mdata.getString("colname")
         val idx = mdata.getLong("idx").toInt
-        json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true))).collect {
+        json.get(colName).flatMap(v => Option(v)).map(toSQL(_, ArrayType(et, true), false)).collect {
           case elemsList: Seq[_] if ((0 until elemsList.size) contains idx) => elemsList(idx)
         } orNull
       case StructField(name, dataType, _, _) =>
-        json.get(name).flatMap(v => Option(v)).map(toSQL(_, dataType)).orNull
+        json.get(name).flatMap(v => Option(v)).map(toSQL(
+          _,
+          dataType,
+          opaqueJsonFields.contains(name))).orNull
     }
     new GenericRowWithSchema(values.toArray, schema)
   }
 
-  def toSQL(value: Any, dataType: DataType): Any = {
+  def toSQL(value: Any, dataType: DataType, isOpaqueJsonField: Boolean): Any = {
     Option(value).map { value =>
       (value, dataType) match {
         case (list: List[AnyRef@unchecked], ArrayType(elementType, _)) =>
@@ -169,17 +196,19 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
           (value match {
             case document: Document => documentToMap(document)
             case _ => value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.toMap
-          }).map(element => (toSQL(element._1, map.keyType), toSQL(element._2, map.valueType)))
+          }).map(element => (toSQL(element._1, map.keyType, isOpaqueJsonField), toSQL(
+            element._2, map.valueType, isOpaqueJsonField)))
         case (_, array: ArrayType) =>
           if(!JSONObject.NULL.equals(value))
-            value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(element, array.elementType)).toArray
+            value.asInstanceOf[java.util.ArrayList[AnyRef]].asScala.map(element => toSQL(
+              element, array.elementType, isOpaqueJsonField)).toArray
           else
             null
         case (_, binaryType: BinaryType) =>
           value.asInstanceOf[java.util.ArrayList[Int]].asScala.map(x => x.toByte).toArray
         case _ =>
           //Assure value is mapped to schema constrained type.
-          enforceCorrectType(value, dataType)
+          enforceCorrectType(value, dataType, isOpaqueJsonField)
       }
     }.orNull
   }
@@ -194,12 +223,20 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     val jsonObject: JSONObject = new JSONObject()
     if (serializationConfig.preserveNullInWrite) {
       row.schema.fields.zipWithIndex.foreach({
-        case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
+        case (field, i) => jsonObject.put(field.name, convertToJson(
+          row.get(i),
+          field.dataType,
+          isInternalRow = false,
+          "rawJson".equalsIgnoreCase(field.getComment().getOrElse(""))))
       })
     } else {
       row.schema.fields.zipWithIndex.foreach({
         case (field, i) if row.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-        case (field, i) => jsonObject.put(field.name, convertToJson(row.get(i), field.dataType, isInternalRow = false))
+        case (field, i) => jsonObject.put(field.name, convertToJson(
+          row.get(i),
+          field.dataType,
+          isInternalRow = false,
+          "rawJson".equalsIgnoreCase(field.getComment().getOrElse(""))))
       })
     }
 
@@ -210,18 +247,41 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     val jsonObject: JSONObject = new JSONObject()
     if (serializationConfig.preserveNullInWrite) {
       schema.fields.zipWithIndex.foreach({
-        case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
+        case (field, i) => jsonObject.put(field.name, convertToJson(
+          internalRow.get(i, field.dataType),
+          field.dataType,
+          isInternalRow = true,
+          "rawJson".equalsIgnoreCase(field.getComment().getOrElse(""))))
       })
     } else {
       schema.fields.zipWithIndex.foreach({
         case (field, i) if internalRow.isNullAt(i) => if (field.dataType == NullType) jsonObject.remove(field.name)
-        case (field, i) => jsonObject.put(field.name, convertToJson(internalRow.get(i, field.dataType), field.dataType, isInternalRow = true))
+        case (field, i) => jsonObject.put(field.name, convertToJson(
+          internalRow.get(i, field.dataType),
+          field.dataType,
+          isInternalRow = true,
+          "rawJson".equalsIgnoreCase(field.getComment().getOrElse(""))))
       })
     }
     jsonObject
   }
 
-  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean): Any = {
+  private def parseRawJson(rawText: String) : JSONObject = {
+    var returnValue: JSONObject = null
+    try {
+      val parser = new JSONTokener(rawText)
+      returnValue = new JSONObject(parser)
+    } catch {
+      case e: JSONException =>
+        throw new IllegalStateException(
+          s"Parsing json of column marked as rawJson failed. JSON: ${rawText}, Cause: ${e.getMessage}",
+          e)
+    }
+
+    returnValue
+  }
+
+  private def convertToJson(element: Any, elementType: DataType, isInternalRow: Boolean, isOpaqueJson: Boolean): Any = {
     elementType match {
       case BinaryType           => element.asInstanceOf[Array[Byte]]
       case BooleanType          => element.asInstanceOf[Boolean]
@@ -239,10 +299,16 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
         element.asInstanceOf[java.math.BigDecimal]
       }
       case StringType           =>
-        if (isInternalRow) {
+        val rawText = if (isInternalRow) {
           new String(element.asInstanceOf[UTF8String].getBytes, "UTF-8")
         } else {
           element.asInstanceOf[String]
+        }
+
+        if (isOpaqueJson) {
+          parseRawJson(rawText)
+        } else {
+          rawText
         }
       case TimestampType        => if (element.isInstanceOf[java.lang.Long]) {
         element.asInstanceOf[java.lang.Long]
@@ -280,7 +346,11 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     val internalData = valueType match {
       case subDocuments: StructType => data.map(kv => jsonObject.put(kv._1, rowTyperouterToJsonArray(kv._2, subDocuments)))
       case subArray: ArrayType      => data.map(kv => jsonObject.put(kv._1, arrayTypeRouterToJsonArray(subArray.elementType, kv._2, isInternalRow)))
-      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(kv._2, valueType, isInternalRow)))
+      case _                        => data.map(kv => jsonObject.put(kv._1, convertToJson(
+        kv._2,
+        valueType,
+        isInternalRow,
+        false)))
     }
     jsonObject
   }
@@ -297,7 +367,11 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     val internalData = elementType match {
       case subDocuments: StructType => data.map(x => rowTyperouterToJsonArray(x, subDocuments)).asJava
       case subArray: ArrayType      => data.map(x => arrayTypeRouterToJsonArray(subArray.elementType, x, isInternalRow)).asJava
-      case _                        => data.map(x => convertToJson(x, elementType, isInternalRow)).asJava
+      case _                        => data.map(x => convertToJson(
+        x,
+        elementType,
+        isInternalRow,
+        false)).asJava
     }
     // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
     // Otherwise, the data will be converted into String.
@@ -309,7 +383,11 @@ class CosmosDBRowConverter(serializationConfig: SerializationConfig = Serializat
     elementType match {
       case subDocuments: StructType => data.foreach(elementType, (_, x) => listBuffer.append(rowTyperouterToJsonArray(x, subDocuments)))
       case subArray: ArrayType      => data.foreach(elementType,(_,x) => listBuffer.append(arrayTypeRouterToJsonArray(subArray.elementType, x, isInternalRow)))
-      case _                        => data.foreach(elementType,(_,x) => listBuffer.append(convertToJson(x, elementType, isInternalRow)))
+      case _                        => data.foreach(elementType,(_,x) => listBuffer.append(convertToJson(
+        x,
+        elementType,
+        isInternalRow,
+        false)))
     }
     // When constructing the JSONArray, the internalData should contain JSON-compatible objects in order for the schema to be mantained.
     // Otherwise, the data will be converted into String.
