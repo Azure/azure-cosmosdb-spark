@@ -144,6 +144,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
    */
   def save[D: ClassTag](rdd: RDD[D], writeConfig: Config): Unit = {
     var numPartitions = 0
+    val hadoopConfig = HdfsUtils.getConfigurationMap(rdd.sparkContext.hadoopConfiguration)
     var rddNumPartitions = 0
     try {
       numPartitions = rdd.getNumPartitions
@@ -180,7 +181,7 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
       // In this case, users can set maxIngestionTaskParallelism to 32 and will help with the RU consumption based on writeThroughputBudget.
       if (maxIngestionTaskParallelism.exists(_ > 0)) numPartitions = maxIngestionTaskParallelism.get
 
-      val cosmosPartitionsCount = CosmosDBConnection(writeConfig).getAllPartitions.length
+      val cosmosPartitionsCount = CosmosDBConnection(writeConfig, hadoopConfig).getAllPartitions.length
       // writeThroughputBudget per cosmos db physical partition
       writeThroughputBudgetPerCosmosPartition = Some((writeThroughputBudget.get / cosmosPartitionsCount).ceil.toInt)
       val baseMiniBatchSizeAdjustmentFactor: Double = (baseMiniBatchRUConsumption.toDouble * numPartitions) / writeThroughputBudgetPerCosmosPartition.get
@@ -195,10 +196,10 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
     }
 
     val mapRdd = if (numPartitions < rddNumPartitions && numPartitions > 0) {
-      rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, numPartitions,
+      rdd.coalesce(numPartitions).mapPartitions(savePartition(_, writeConfig, hadoopConfig, numPartitions,
         baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
     } else {
-      rdd.mapPartitions(savePartition(_, writeConfig, numPartitions,
+      rdd.mapPartitions(savePartition(_, writeConfig, hadoopConfig, numPartitions,
         baseMaxMiniBatchImportSizeKB * 1024, writeThroughputBudgetPerCosmosPartition), preservesPartitioning = true)
     }
 
@@ -449,10 +450,11 @@ object CosmosDBSpark extends CosmosDBLoggingTrait {
 
   private def savePartition[D: ClassTag](iter: Iterator[D],
                                          config: Config,
+                                         hadoopConfig: mutable.Map[String, String],
                                          partitionCount: Int,
                                          baseMaxMiniBatchImportSize: Int,
                                          writeThroughputBudgetPerCosmosPartition: Option[Int]): Iterator[D] = {
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, hadoopConfig)
     val asyncConnection: AsyncCosmosDBConnection = new AsyncCosmosDBConnection(config)
 
     val isBulkImporting = config.get[String](CosmosDBConfig.BulkImport).

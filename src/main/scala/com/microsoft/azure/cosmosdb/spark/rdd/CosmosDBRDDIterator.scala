@@ -53,12 +53,14 @@ object CosmosDBRDDIterator {
   // For verification purpose
   var lastFeedOptions: FeedOptions = _
   var hdfsUtils: HdfsUtils = _
+  var hadoopConfig: mutable.Map[String, String] = _
 
   def initializeHdfsUtils(hadoopConfig: Map[String, String], changeFeedCheckpointLocation: String): Any = {
     if (hdfsUtils == null) {
       this.synchronized {
         if (hdfsUtils == null) {
           hdfsUtils = HdfsUtils(hadoopConfig, changeFeedCheckpointLocation)
+          this.hadoopConfig = collection.mutable.Map(hadoopConfig.toSeq: _*)
         }
       }
     }
@@ -79,7 +81,7 @@ object CosmosDBRDDIterator {
     * @return       the corresponding global continuation token
     */
   def getCollectionTokens(config: Config, shouldGetCurrentToken: Boolean = false): String = {
-    val connection = CosmosDBConnection(config)
+    val connection = CosmosDBConnection(config, this.hadoopConfig)
     val collectionLink = connection.getCollectionLink
     val queryName = config
       .get[String](CosmosDBConfig.ChangeFeedQueryName).get
@@ -155,9 +157,15 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
   private val maxRetryCountOnServiceUnavailable: Int = 100
   private val rnd = scala.util.Random
 
+  logInfo(s"CosmosDBRDDIterator initialized for PK range id ${partition.partitionKeyRangeId}")
+
   lazy val reader: Iterator[Document] = {
     initialized = true
-    val connection: CosmosDBConnection = CosmosDBConnection(config)
+    val connection: CosmosDBConnection = CosmosDBConnection(config, this.hadoopConfig)
+    taskContext.addTaskCompletionListener((ctx: TaskContext) => {
+      logInfo(s"CosmosDBRDDIterator: Flushing LogWriter after completing task for partition key range id ${partition.partitionKeyRangeId}")
+      connection.flushLogWriter
+    })
 
     val readingChangeFeed: Boolean = config
       .get[String](CosmosDBConfig.ReadChangeFeed)
@@ -447,6 +455,7 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     })
 
     if (!readingChangeFeed) {
+      logInfo(s"--> query document for pk range id ${partition.partitionKeyRangeId}")
       queryDocuments
     } else {
       readChangeFeed

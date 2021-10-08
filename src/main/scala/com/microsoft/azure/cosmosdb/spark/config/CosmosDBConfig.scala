@@ -95,7 +95,11 @@ object CosmosDBConfig {
   val DefaultMaxTransientRetryDelayInMs = 100 // 0.1 second
   val DefaultPoisonMessageLocation = ""
   val DefaultTreatUnknownExceptionsAsTransient = true
-  
+
+  val QueryLoggingPath = "queryLoggingPath"
+  val QueryLoggingCorrelationId = "queryLoggingCorrelationId"
+  val CountLoggingPath = "countLoggingPath"
+
   // Not a config, constant
   val StreamingTimestampToken = "tsToken"
 

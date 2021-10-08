@@ -25,7 +25,7 @@ package com.microsoft.azure.cosmosdb.spark.rdd
 import com.microsoft.azure.cosmosdb.spark.config.{Config, CosmosDBConfig}
 import com.microsoft.azure.cosmosdb.spark.partitioner.{CosmosDBPartition, CosmosDBPartitioner}
 import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
-import com.microsoft.azure.cosmosdb.spark.CosmosDBSpark
+import com.microsoft.azure.cosmosdb.spark.{CosmosDBConnectionCache, CosmosDBSpark}
 import com.microsoft.azure.documentdb._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.Filter
@@ -40,7 +40,7 @@ class CosmosDBRDD(
                      spark: SparkSession,
                      config: Config,
                      maxItems: Option[Long] = None,
-                     partitioner: CosmosDBPartitioner = new CosmosDBPartitioner(),
+                     partitionerRaw: CosmosDBPartitioner = null,
                      requiredColumns: Array[String] = Array(),
                      filters: Array[Filter] = Array())
   extends RDD[Document](spark.sparkContext, deps = Nil) {
@@ -48,6 +48,7 @@ class CosmosDBRDD(
   // Keep a copy of hadoop config for hdfs file handling
   // It's a Map because Configuration is not serializable
   private val hadoopConfig: mutable.Map[String, String] = HdfsUtils.getConfigurationMap(sparkContext.hadoopConfiguration)
+  private val effectivePartitioner: CosmosDBPartitioner = Option.apply(partitionerRaw).getOrElse(new CosmosDBPartitioner(hadoopConfig))
 
 
   private def cosmosDBSpark = {
@@ -57,7 +58,7 @@ class CosmosDBRDD(
   override def toJavaRDD(): JavaCosmosDBRDD = JavaCosmosDBRDD(this)
 
   override def getPartitions: Array[Partition] = {
-    partitioner.computePartitions(config)
+    effectivePartitioner.computePartitions(config)
   }
 
   /**
