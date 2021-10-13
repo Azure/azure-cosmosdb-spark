@@ -77,7 +77,7 @@ import com.microsoft.azure.cosmosdb.spark.config.Config
 // Configure connection to your collection
 val readConfig = Config(Map(
   "Endpoint" -> "https://doctorwho.documents.azure.com:443/",
-  "Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+  "Masterkey" -> "<YourMasterKey>",
   "Database" -> "DepartureDelays",
   "PreferredRegions" -> "Central US;East US2;",
   "Collection" -> "flights_pcoll",
