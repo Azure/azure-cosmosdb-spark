@@ -48,7 +48,7 @@ Below are excerpts in `Python` and `Scala` on how to create a Spark DataFrame to
 # Read Configuration
 readConfig = {
   "Endpoint" : "https://doctorwho.documents.azure.com:443/",
-  "Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+  "Masterkey" : "<YourMasterKey>",
   "Database" : "DepartureDelays",
   "preferredRegions" : "Central US;East US2",
   "Collection" : "flights_pcoll",
