@@ -100,7 +100,7 @@ Below are excerpts in `Python` and `Scala` on how to write a Spark DataFrame to 
 # Write configuration
 writeConfig = {
  "Endpoint" : "https://doctorwho.documents.azure.com:443/",
- "Masterkey" : "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+ "Masterkey" : "<YourMasterKey>",
  "Database" : "DepartureDelays",
  "Collection" : "flights_fromsea",
  "Upsert" : "true"
@@ -118,7 +118,7 @@ flights.write.format("com.microsoft.azure.cosmosdb.spark").options(**writeConfig
 // Configure connection to the sink collection
 val writeConfig = Config(Map(
   "Endpoint" -> "https://doctorwho.documents.azure.com:443/",
-  "Masterkey" -> "SPSVkSfA7f6vMgMvnYdzc1MaWb65v4VQNcI2Tp1WfSP2vtgmAwGXEPcxoYra5QBHHyjDGYuHKSkguHIz1vvmWQ==",
+  "Masterkey" -> "<YourMasterKey>",
   "Database" -> "DepartureDelays",
   "PreferredRegions" -> "Central US;East US2;",
   "Collection" -> "flights_fromsea",
