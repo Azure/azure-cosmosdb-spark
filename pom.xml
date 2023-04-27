@@ -19,7 +19,7 @@ limitations under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.microsoft.azure</groupId>
-    <artifactId>azure-cosmosdb-spark_2.4.0_2.11</artifactId>
+    <artifactId>azure-cosmosdb-spark_2.4.0_2.12</artifactId>
     <packaging>jar</packaging>
     <version>3.7.0</version>
     <name>${project.groupId}:${project.artifactId}</name>
@@ -32,8 +32,8 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <scala.version>2.11.12</scala.version>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.version>2.12.11</scala.version>
+        <scala.binary.version>2.12</scala.binary.version>
         <sonar.projectBaseDir>azure-cosmosdb-spark</sonar.projectBaseDir>
         <scala.test.version>3.1.1</scala.test.version>
         <spark.version>2.4.4</spark.version>

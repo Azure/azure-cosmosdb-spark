@@ -41,6 +41,7 @@ import com.microsoft.azure.documentdb.internal.HttpConstants.SubStatusCodes
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.sql.sources.Filter
+import org.apache.spark.util.TaskCompletionListener
 
 import scala.collection.mutable
 import org.joda.time.DateTimeZone
@@ -442,9 +443,13 @@ class CosmosDBRDDIterator(hadoopConfig: mutable.Map[String, String],
     })
 
     // Register an on-task-completion callback to close the input stream.
-    taskContext.addTaskCompletionListener((_: TaskContext) => {
-      closeIfNeeded()
-    })
+    val taskCompletionListerner = new TaskCompletionListener() {
+      override def onTaskCompletion(context: TaskContext): Unit = {
+        closeIfNeeded()
+      }
+    }
+
+    taskContext.addTaskCompletionListener(taskCompletionListerner)
 
     if (!readingChangeFeed) {
       queryDocuments
