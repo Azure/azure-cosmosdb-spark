@@ -21,7 +21,7 @@ limitations under the License.
     <groupId>com.microsoft.azure</groupId>
     <artifactId>azure-cosmosdb-spark_2.4.0_2.11</artifactId>
     <packaging>jar</packaging>
-    <version>3.7.0</version>
+    <version>3.7.1-SNAPSHOT</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Spark Connector for Microsoft Azure CosmosDB</description>
     <url>http://azure.microsoft.com/en-us/services/documentdb/</url>
@@ -51,7 +51,7 @@ limitations under the License.
         <dependency>
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-documentdb</artifactId>
-            <version>2.6.4</version>
+            <version>2.6.5-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
@@ -77,7 +77,7 @@ limitations under the License.
         <dependency>
             <groupId>com.microsoft.azure</groupId>
             <artifactId>documentdb-bulkexecutor</artifactId>
-            <version>2.12.4</version>
+            <version>2.12.5-SNAPSHOT</version>
             <exclusions>
               <exclusion>
                 <groupId>com.microsoft.azure</groupId>

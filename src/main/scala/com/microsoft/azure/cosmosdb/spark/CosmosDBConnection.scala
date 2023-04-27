@@ -23,6 +23,7 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.net.SocketTimeoutException
+import java.util.concurrent.Callable
 
 import com.microsoft.azure.cosmosdb.spark.config._
 import com.microsoft.azure.documentdb._
@@ -34,6 +35,7 @@ import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.control.Breaks._
+import org.apache.hadoop.conf.Configuration
 
 private object CosmosDBConnection {
   private val rnd = scala.util.Random
@@ -43,10 +45,10 @@ private object CosmosDBConnection {
   }
 }
 
-private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLoggingTrait with Serializable {
+private[spark] case class CosmosDBConnection(config: Config, hadoopConfig: mutable.Map[String, String]) extends CosmosDBLoggingTrait with Serializable {
   private val maxPagesPerBatch =
     config.getOrElse[String](CosmosDBConfig.ChangeFeedMaxPagesPerBatch, CosmosDBConfig.DefaultChangeFeedMaxPagesPerBatch.toString).toInt
-  private val clientConfig = ClientConfiguration(config)
+  val clientConfig = ClientConfiguration(config, hadoopConfig)
 
   def getCollectionLink: String = {
     executeWithRetryOnCollectionRecreate(
@@ -56,6 +58,11 @@ private[spark] case class CosmosDBConnection(config: Config) extends CosmosDBLog
 
   def reinitializeClient(): Unit = {
     CosmosDBConnectionCache.reinitializeClient(clientConfig)
+  }
+
+  def flushLogWriter = {
+    val documentClient = CosmosDBConnectionCache.getOrCreateClient(clientConfig)
+    documentClient.flushLogWriter()
   }
 
   private def getAllPartitionsInternal: List[PartitionKeyRange] = {

@@ -23,14 +23,19 @@
 package com.microsoft.azure.cosmosdb.spark
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.{Timer, TimerTask}
+import java.util.{Timer, TimerTask, UUID}
 
 import com.microsoft.azure.cosmosdb.spark.config.CosmosDBConfig
+import com.microsoft.azure.cosmosdb.spark.util.HdfsUtils
 import com.microsoft.azure.documentdb._
 import com.microsoft.azure.documentdb.bulkexecutor.DocumentBulkExecutor
 import com.microsoft.azure.documentdb.internal.routing.PartitionKeyRangeCache
+import org.apache.hadoop.conf.Configuration
+import org.apache.spark.sql.SparkSession
+import org.apache.tinkerpop.gremlin.hadoop.structure.HadoopConfiguration
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
@@ -418,12 +423,38 @@ object CosmosDBConnectionCache extends CosmosDBLoggingTrait {
     val consistencyLevel = ConsistencyLevel.valueOf(config.consistencyLevel)
     lastConsistencyLevel = Some(consistencyLevel)
 
-    new DocumentClient(
+    var client = new DocumentClient(
       config.host,
       config.authConfig.authKey,
       lastConnectionPolicy,
       consistencyLevel
     )
+
+    client = config.getQueryLoggingPath() match {
+      case Some(path) => {
+        val logger = new HdfsLogWriter(
+          config.queryLoggingCorrelationId.getOrElse(""),
+          config.hadoopConfig.toMap,
+          path)
+
+        client.setLogWriter(logger);
+      }
+      case None => client
+    }
+
+    client = config.getCountLoggingPath() match {
+      case Some(path) => {
+        val logger = new HdfsLogWriter(
+          config.queryLoggingCorrelationId.getOrElse(""),
+          config.hadoopConfig.toMap,
+          path)
+
+        client.setCountLogWriter(logger);
+      }
+      case None => client
+    }
+
+    client
   }
 
   private def createConnectionPolicy(settings: ConnectionPolicySettings): ConnectionPolicy = {
